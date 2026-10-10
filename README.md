@@ -4,7 +4,7 @@ A Windows app and WoW addon that reduce repeated ability input. Currently suppor
 
 ## Download and run
 
-1. Download **Feuxton-VERSION.zip** from [Releases](https://github.com/brandonjank/feuxton-public/releases/latest).
+1. Download **Feuxton-VERSION.zip** from [Releases](https://github.com/brandonjank/feuxton-public/releases).
 2. Extract the entire archive into a writable folder and open **Start-Feuxton.cmd**. Keep the included assets, profiles and bundled-addon folders beside the executable.
 3. In Settings, select your WoW client folder containing Wow.exe or WowB.exe. The app installs HandHelperProbe there. For the first installation, restart WoW.
 4. Keep the addon HUD visible and start live capture. Backtick (`) toggles casting; it starts OFF. Input only goes to the selected WoW window while it is in the foreground.
