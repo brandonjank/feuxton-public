@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.69.4",
+    "addonVersion":  "0.70.0",
     "interfaceVersion":  16001,
-    "contract":  "hhd2-dense-v4",
-    "sourceRevision":  "7c54d355ea267665cb28c8484f23a2b110f3b702",
+    "contract":  "feuxton-dense-v4",
+    "sourceRevision":  "a41261a2236089480170b3a2ff643fd543db6381",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "624AC5E1F9DD24BE2C26506EA4BA85E5DD9343FEB3958A8832D657C9DA248BB6",
-                      "size":  20691
+                      "sha256":  "954907D40877B09A2933D984031C30744C4DD137933B592A653139F9AFD80372",
+                      "size":  20617
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -32,8 +32,8 @@
                   },
                   {
                       "path":  "Classes/Paladin.lua",
-                      "sha256":  "A2B233267CFF9A9D40EE7BAD8157B982DB6E74BBAFBC141D6217741332C9D6AC",
-                      "size":  30313
+                      "sha256":  "730ADBEE2C7B38329AF5E6ED57F160DBA4C1471C7D875F27F68D20E2A633443D",
+                      "size":  30256
                   },
                   {
                       "path":  "Classes/Priest.lua",
@@ -67,8 +67,8 @@
                   },
                   {
                       "path":  "Diagnostics.lua",
-                      "sha256":  "80DF2D84B841DD6E0D0077A8AD9BC3348AF8A8267BC1941260FD46D7EB99DCA2",
-                      "size":  22757
+                      "sha256":  "D9184BB1DB16E2A5A56BABC6BBC0707AF7F72BF8C00212F7A545CFC3F9805FFC",
+                      "size":  22709
                   },
                   {
                       "path":  "Features/CastTracking.lua",
@@ -82,8 +82,8 @@
                   },
                   {
                       "path":  "Features/Healing.lua",
-                      "sha256":  "8E703372BFD42710DE3BD00B269C1FE24685B64CAFDBB3AE15986AD605C6BA2C",
-                      "size":  27744
+                      "sha256":  "5BD8B5BDA2BFDDC4E6C8AD968AB6BDC17CE21C3A87D2756C472AD1B2CB64E53A",
+                      "size":  27714
                   },
                   {
                       "path":  "Features/Interrupts.lua",
@@ -106,34 +106,34 @@
                       "size":  230
                   },
                   {
+                      "path":  "Feuxton.lua",
+                      "sha256":  "1623DB733798C70CDE6D0B00DF247D47486EF915C294FF8365B7A14BF8092448",
+                      "size":  2253
+                  },
+                  {
+                      "path":  "Feuxton.toc",
+                      "sha256":  "3155799CB5FC6065229CA5036BFD1B4F941D1A6FC560BB73F4C425BF6C8F4910",
+                      "size":  805
+                  },
+                  {
                       "path":  "GuideTransport.lua",
-                      "sha256":  "489CC7C26350E4367A584C80141C3A5EEF1A6CEDB82AF9C3EB234195E6E814FD",
-                      "size":  20101
-                  },
-                  {
-                      "path":  "HandHelperProbe.lua",
-                      "sha256":  "DA7616237FDD59EA0EC4E01C561E3E27059ABEC945523592581D3B38E0ED2DEB",
-                      "size":  2277
-                  },
-                  {
-                      "path":  "HandHelperProbe.toc",
-                      "sha256":  "7CEE43034B53FC9002554A4A725748E74590B869085BBA2C639EB2D061777072",
-                      "size":  839
+                      "sha256":  "2AEBEC37B033C73D4338BB37D4A0DCA7C124172D416181E2320EA1497D5CB807",
+                      "size":  20022
                   },
                   {
                       "path":  "Hud.lua",
-                      "sha256":  "C20FCE1962A1D47FAD609EDAEFF158C1E18DF8FE9DA718005384FD556CF7C77E",
-                      "size":  8000
+                      "sha256":  "2DCF3F09B626551DB3816B087977A9B3C7239C4DD0BFFB2266A94926ABB3FD7E",
+                      "size":  7993
                   },
                   {
                       "path":  "HudUpdates.lua",
-                      "sha256":  "277EC52364036CEFE86B9A08DD813565E35348A68918D7590DDA097DAE9F70BA",
-                      "size":  8918
+                      "sha256":  "B3ECA4479D7A78C9A769A5E3C165B84E965803FEC2E38A838394D61FA85B9553",
+                      "size":  8876
                   },
                   {
                       "path":  "HunterSpells.lua",
-                      "sha256":  "9572455F6308914A4BDA110D17BD623FBAFCC4B3DA59B2BC0974C09F4C23E45F",
-                      "size":  6441
+                      "sha256":  "C15F640B0AD7810D8CC5789AC9A67311657C5ACF9B11E744D9AE4A46ED69974E",
+                      "size":  6361
                   },
                   {
                       "path":  "LICENSE",
@@ -147,18 +147,18 @@
                   },
                   {
                       "path":  "ProbeWindow.lua",
-                      "sha256":  "D6FBE3BB782E06CAF2F7E81FA4E833800F7DF81B6D1786C3D35BD922106CEE4F",
-                      "size":  17183
+                      "sha256":  "0327FD18C72F58F9F48F15C5C194C63539DCBA0EFBD841A0459AF7D5D0DA90A5",
+                      "size":  17147
                   },
                   {
                       "path":  "ResourceGauges.lua",
-                      "sha256":  "583A758868FB41A43199B20CF069EEC0DD82C9332C15DA4BBC0A423A0AA643FA",
-                      "size":  15222
+                      "sha256":  "9EE6FEEA4E3F08D065985BC4B99F9A86C4B12508C31237FA0785DEAE9D6BF95D",
+                      "size":  15208
                   },
                   {
                       "path":  "Settings.lua",
-                      "sha256":  "05C156D6E7FD542D0CC101991741AF1B9F3CEBF8A3ED6A3D779832E21E32846A",
-                      "size":  4824
+                      "sha256":  "5BDCFFF64399B7BF30FC97C20280018BE6DF34DA0C9C01D8711027F71FD38CA7",
+                      "size":  4820
                   },
                   {
                       "path":  "SetupTransport.lua",
