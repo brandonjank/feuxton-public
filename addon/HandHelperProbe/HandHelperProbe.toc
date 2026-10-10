@@ -1,0 +1,40 @@
+﻿## Interface: 16001
+## Title: Hand Helper Probe
+## Notes: Modular HUD and pixel data bridge for Hand Helper.
+## Author: Hand Helper
+## Version: 0.69.4
+## SavedVariables: HandHelperProbeDB
+
+HandHelperProbe.lua
+Classes\Hunter.lua
+Classes\Shaman.lua
+Classes\Warrior.lua
+Classes\Warlock.lua
+Classes\Druid.lua
+Classes\Mage.lua
+Classes\Paladin.lua
+Classes\Priest.lua
+Classes\Rogue.lua
+Features\Healing.lua
+Features\GroupContext.lua
+Features\Interrupts.lua
+Features\PetSupport.lua
+Features\Threat.lua
+Features\RangeTracking.lua
+Features\CastTracking.lua
+Diagnostics.lua
+ProbeWindow.lua
+HunterSpells.lua
+Hud.lua
+SpellWidgets.lua
+Bindings.lua
+HudUpdates.lua
+Settings.lua
+TargetHud.lua
+TargetAuras.lua
+SetupTransport.lua
+CoreTransport.lua
+PlayerAuras.lua
+Activity.lua
+ResourceGauges.lua
+GuideTransport.lua

@@ -1,0 +1,3 @@
+-- Reserved pet-specific support.
+local _,ns=...
+ns.features.PetSupport={}
