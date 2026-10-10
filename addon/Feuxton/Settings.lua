@@ -13,7 +13,7 @@ do
     local background=settings:CreateTexture(nil,"BACKGROUND")
     background:SetAllPoints(); background:SetColorTexture(0.03,0.03,0.03,0.97)
     local title=settings:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-    title:SetPoint("TOPLEFT",16,-16); title:SetText("Hand Helper settings")
+    title:SetPoint("TOPLEFT",16,-16); title:SetText("Feuxton settings")
     local label=settings:CreateFontString(nil,"OVERLAY","GameFontHighlight")
     label:SetPoint("TOPLEFT",16,-52); label:SetText("Live update rate (50–1000 ms)")
     local input=CreateFrame("EditBox",nil,settings)

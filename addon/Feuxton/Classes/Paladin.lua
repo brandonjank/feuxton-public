@@ -69,7 +69,7 @@ local function signal(value)
 end
 function paladin.report()
     local snapshot=paladin.capture()
-    local lines={"Hand Helper Paladin/party capability probe", "Class: "..signal(snapshot.class).." | Level: "..signal(snapshot.level).." | Combat: "..signal(snapshot.combat),"Main-hand attack speed (may include haste): "..signal(snapshot.mainHandAttackSpeed),"Main-hand item: "..signal(snapshot.mainHandItem).." | Offhand item: "..signal(snapshot.shieldItem)}
+    local lines={"Feuxton Paladin/party capability probe", "Class: "..signal(snapshot.class).." | Level: "..signal(snapshot.level).." | Combat: "..signal(snapshot.combat),"Main-hand attack speed (may include haste): "..signal(snapshot.mainHandAttackSpeed),"Main-hand item: "..signal(snapshot.mainHandItem).." | Offhand item: "..signal(snapshot.shieldItem)}
     lines[#lines+1]="Preview error: "..(paladin.lastPreviewError or "none").." | Cached base delay ms: "..(paladin.weaponDelayMs or 0).." | Native absence: awaiting live rank-family validation"
     for _,spell in ipairs(snapshot.spells) do
         lines[#lines+1]=spell.name..": ID="..signal(spell.id).." | Learned="..signal(spell.learned).." | Cast ms="..signal(spell.castTimeMs).." | Range="..signal(spell.minimumRange).."-"..signal(spell.maximumRange).." | Usable="..signal(spell.usable).." | Mana shortage="..signal(spell.insufficientPower).." | Enemy range="..signal(spell.targetRange)
@@ -89,16 +89,16 @@ function paladin.report()
     return table.concat(lines,"\n")
 end
 if type(SlashCmdList)=="table" then
-SLASH_HANDHELPERPALADIN1="/hhpaladinprobe"
-SlashCmdList.HANDHELPERPALADIN=function()
+SLASH_FEUXTONPALADIN1="/feuxtonpaladinprobe"
+SlashCmdList.FEUXTONPALADIN=function()
     local ok,text=pcall(paladin.report)
-    if not ok then print("Hand Helper: Paladin/party probe failed.");return end
-    if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-    HandHelperProbeDB.paladinPartyReport=text
-    HandHelperProbeDB.paladinPartyReportAt=type(GetServerTime)=="function" and ns.features.GroupContext.read(GetServerTime,1) or nil
-    HandHelperProbeDB.paladinPartyReportVersion=2
+    if not ok then print("Feuxton: Paladin/party probe failed.");return end
+    if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+    FeuxtonDB.paladinPartyReport=text
+    FeuxtonDB.paladinPartyReportAt=type(GetServerTime)=="function" and ns.features.GroupContext.read(GetServerTime,1) or nil
+    FeuxtonDB.paladinPartyReportVersion=2
     local S=ns.state
-    if not S.panel or not S.edit then print("Hand Helper: diagnostic window not ready.");return end
+    if not S.panel or not S.edit then print("Feuxton: diagnostic window not ready.");return end
     S.edit:SetText(text);S.panel:Show();S.edit:SetFocus();S.edit:HighlightText()
 end
 end
@@ -388,7 +388,7 @@ function paladin.initializePreview()
         local attacking=group.read(api.IsCurrentSpell or IsCurrentSpell,1,6603)
         if attacking.status~="observed" and type(S.meleeActive)=="boolean" then attacking={status="observed",value=S.meleeActive} end
         packet=packet..S.bytes(group.code(attacking),1)..S.bytes(attackKey,2)..S.bytes(S.spellUseCode("paladin.autoAttack"),1)
-        local stopEntry=S.managedSpells and S.managedSpells.entries["PALADIN:Hand Helper Stop Casting"]
+        local stopEntry=S.managedSpells and S.managedSpells.entries["PALADIN:Feuxton Stop Casting"]
         local stopKey=S.bindingsValid and S.managedSpells.current(stopEntry) and paladin.bindingCode(stopEntry.key) or 0
         packet=packet..S.bytes(stopKey,2)
         local checksum=S.adler32(packet)

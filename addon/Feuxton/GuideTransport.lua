@@ -157,7 +157,7 @@ do
         dot:SetPoint("TOPLEFT",16-(i-1)*6,-1); dot:SetColorTexture(color[1],color[2],color[3],1)
     end
     local title=S.hud:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    title:SetPoint("TOPLEFT",70,0); title:SetText("HAND HELPER v"..ns.version)
+    title:SetPoint("TOPLEFT",70,0); title:SetText("FEUXTON v"..ns.version)
     local settingsButton=CreateFrame("Button",nil,S.hud)
     settingsButton:SetSize(60,14); settingsButton:SetPoint("TOPLEFT",576,0)
     local text=settingsButton:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
@@ -166,11 +166,11 @@ do
     ns.setCompactBridge=function(compact)
         if type(compact)~="boolean" or S.readableCall(InCombatLockdown)~=false then return false end
         S.compactBridge=compact
-        if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-        HandHelperProbeDB.compactBridge=compact
+        if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+        FeuxtonDB.compactBridge=compact
         local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
         local profile=compact and ns.bridgeLayouts[class] or nil
-        local dense=compact and ns.denseBridgeLayouts[class] and HandHelperProbeDB.denseBridge~=false
+        local dense=compact and ns.denseBridgeLayouts[class] and FeuxtonDB.denseBridge~=false
         if dense then profile=ns.denseBridgeLayouts[class] end
         if S.denseBridge then S.denseBridge.setEnabled(false) end
         S.compactBridgeLayout=profile and profile.key or (compact and "hunter-v1" or "diagnostic")
@@ -241,8 +241,8 @@ do
         end
         for _,probe in ipairs(S.meleeProbes) do if class=="HUNTER" then probe.dot:Show() else probe.dot:Hide() end end
         for _,dot in ipairs(S.meleeMarkers) do if class=="HUNTER" then dot:Show() else dot:Hide() end end
-        title:SetText("HAND HELPER v"..ns.version.." | "..class)
-        S.hudTitle:SetText("HAND HELPER v"..ns.version.." | "..class.." | DRAG HEADER / CLICK FOR OPTIONS")
+        title:SetText("FEUXTON v"..ns.version.." | "..class)
+        S.hudTitle:SetText("FEUXTON v"..ns.version.." | "..class.." | DRAG HEADER / CLICK FOR OPTIONS")
         if profile then
             if paladin then
                 for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,18) end
@@ -279,18 +279,18 @@ do
         if type(enabled)~="boolean" or S.readableCall(InCombatLockdown)~=false then return false end
         local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
         if enabled and not ns.denseBridgeLayouts[class] then return false end
-        if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-        HandHelperProbeDB.denseBridge=enabled
+        if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+        FeuxtonDB.denseBridge=enabled
         return ns.setCompactBridge(true)
     end
     local previous=S.handlers.PLAYER_LOGIN
     S.handlers.PLAYER_LOGIN=function(...)
         previous(...)
-        ns.setCompactBridge(type(HandHelperProbeDB)~="table" or HandHelperProbeDB.compactBridge~=false)
+        ns.setCompactBridge(type(FeuxtonDB)~="table" or FeuxtonDB.compactBridge~=false)
     end
 end
 
--- Registered once after all bridge modules exist; /hhperf toggles sampling.
+-- Registered once after all bridge modules exist; /feuxtonperf toggles sampling.
 for _,entry in ipairs({
     {S.hud,"hud"},{S.signalUpdater,"signals"},{S.metadataFrame,"setup"},
     {S.fastFrame,"core"},{S.guidePanel,"guide"},{S.auraMirror,"target auras"},{S.unitHud,"shared units"},

@@ -1,4 +1,4 @@
--- HUD updates, event dispatch, invalidation and /hhpanel.
+-- HUD updates, event dispatch, invalidation and /feuxton.
 local _, ns = ...
 local S = ns.state
 
@@ -53,7 +53,7 @@ function S.alignHud()
 end
 S.handlers = {}
 S.handlers.PLAYER_LOGIN = function()
-    local saved=type(HandHelperProbeDB)=="table" and HandHelperProbeDB.updateRateMs or 100
+    local saved=type(FeuxtonDB)=="table" and FeuxtonDB.updateRateMs or 100
     if not ns.setUpdateRate(saved) then ns.setUpdateRate(100) end
     S.alignHud(); S.resolveSpells(); S.discoverBindings(); S.refreshCooldowns(); S.refreshFlags()
 end
@@ -131,17 +131,17 @@ ns.hudReport = function(add)
     for event, err in pairs(S.eventErrors) do add("Panel event " .. event, err) end
     for index, value in ipairs(S.bindingDiagnostics) do add("Bar discovery " .. index, value) end
 end
-SLASH_HANDHELPERPANEL1 = "/hhpanel"
-SlashCmdList.HANDHELPERPANEL = function(message)
+SLASH_FEUXTONPANEL1 = "/feuxton"
+SlashCmdList.FEUXTONPANEL = function(message)
     local rate=message:match("^rate%s+(.+)$")
     if message=="dense" or message=="standard" then
-        if not ns.setDenseBridge(message=="dense") then print("Hand Helper: dense layout requires Paladin and being outside combat.") end
+        if not ns.setDenseBridge(message=="dense") then print("Feuxton: dense layout requires Paladin and being outside combat.") end
     elseif message=="compact" or message=="legacy" then
-        if not ns.setCompactBridge(message=="compact") then print("Hand Helper: change layout outside combat.") end
+        if not ns.setCompactBridge(message=="compact") then print("Feuxton: change layout outside combat.") end
     elseif rate then
-        if ns.setUpdateRate(rate) then print("Hand Helper: live update rate "..S.updateRateMs.." ms.")
-        else print("Hand Helper: use /hhpanel rate 50 to 1000 (milliseconds).") end
-    elseif message=="rate" then print("Hand Helper: live update rate "..S.updateRateMs.." ms. Use /hhpanel settings to change it.")
+        if ns.setUpdateRate(rate) then print("Feuxton: live update rate "..S.updateRateMs.." ms.")
+        else print("Feuxton: use /feuxton rate 50 to 1000 (milliseconds).") end
+    elseif message=="rate" then print("Feuxton: live update rate "..S.updateRateMs.." ms. Use /feuxton settings to change it.")
     elseif message=="settings" then if ns.rateSettings then ns.rateSettings:Show() end
     elseif message == "hide" then S.hud:Hide()
     elseif message == "lock" then S.hud:StopMovingOrSizing(); S.hudDragHandle:EnableMouse(false)

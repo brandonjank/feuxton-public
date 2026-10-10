@@ -28,8 +28,8 @@ local function publicTrace(value)
     return {status=kind=="nil" and "absent" or "unavailable"}
 end
 local function trace(event,unit,a,b,c)
-    if type(HandHelperProbeDB)~="table" then return end
-    local list=HandHelperProbeDB.managedHealTrace or {};HandHelperProbeDB.managedHealTrace=list
+    if type(FeuxtonDB)~="table" then return end
+    local list=FeuxtonDB.managedHealTrace or {};FeuxtonDB.managedHealTrace=list
     list[#list+1]={event=event,unit=publicTrace(unit),a=publicTrace(a),b=publicTrace(b),c=publicTrace(c),at=timeNow()}
     if #list>12 then table.remove(list,1) end
 end
@@ -90,7 +90,7 @@ function F.initialize()
         for member=1,6 do F.buttons[bank][member]={}
             for action,spec in ipairs(member==1 and {F.actions[1],F.actions[2],F.heal,F.layHands,F.cancelFury} or {F.actions[1],F.actions[2],F.heal}) do
                 local unit=ns.features.GroupContext.tokens[member]
-                local name="HandHelperPartyAction"..bank.."_"..member.."_"..action
+                local name="FeuxtonPartyAction"..bank.."_"..member.."_"..action
                 local b=CreateFrame("Button",name,UIParent,"SecureActionButtonTemplate,SecureHandlerBaseTemplate")
                 b:SetSize(1,1);b:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000);b:SetAlpha(0)
                 b:RegisterForClicks("AnyDown","AnyUp");b:SetAttribute("useOnKeyDown",true)
@@ -281,7 +281,7 @@ do
         for bank=1,C.banks do C.buttons[bank]={}
             for member,unit in ipairs(C.units) do C.buttons[bank][member]={}
                 for action,spec in ipairs(F.actions) do
-                    local name="HandHelperCourtesyAction"..bank.."_"..member.."_"..action
+                    local name="FeuxtonCourtesyAction"..bank.."_"..member.."_"..action
                     local b=CreateFrame("Button",name,UIParent,"SecureActionButtonTemplate,SecureHandlerBaseTemplate")
                     b:SetSize(1,1);b:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000);b:SetAlpha(0)
                     b:RegisterForClicks("AnyDown","AnyUp");b:SetAttribute("useOnKeyDown",true)

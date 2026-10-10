@@ -52,8 +52,8 @@ ns.setUpdateRate=function(value)
     local rate=tonumber(value)
     if not rate or rate~=rate or rate<50 or rate>1000 then return false end
     S.updateRateMs=math.floor(rate+0.5)
-    if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-    HandHelperProbeDB.updateRateMs=S.updateRateMs
+    if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+    FeuxtonDB.updateRateMs=S.updateRateMs
     if ns.refreshRateSettings then ns.refreshRateSettings() end
     return true
 end
@@ -63,16 +63,16 @@ function S.updateInterval() return S.updateRateMs/1000 end
 local usageKeys={"hunter.autoShot","hunter.arcaneShot","hunter.concussiveShot","hunter.aimedShot","hunter.multiShot","hunter.huntersMark","hunter.serpentSting","hunter.rapidFire","hunter.bestialWrath","hunter.volley","hunter.summonHawk","hunter.raptorStrike","hunter.mongooseBite","hunter.wingClip","hunter.intimidation","hunter.feignDeath","hunter.immolationTrap","hunter.freezingTrap","hunter.frostTrap","hunter.mendPet","hunter.disengage"}
 for i,key in ipairs(usageKeys) do S.hunterSpecs[i].key=key end
 function S.spellUseCode(key)
-    local preferences=type(HandHelperProbeDB)=="table" and HandHelperProbeDB.spellUsage
+    local preferences=type(FeuxtonDB)=="table" and FeuxtonDB.spellUsage
     local value
     if type(preferences)=="table" then value=preferences[key] end
     if value==false then return 1 elseif value==true then return 2 end
     return 0
 end
 function S.setSpellUse(key,value)
-    if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-    if type(HandHelperProbeDB.spellUsage)~="table" then HandHelperProbeDB.spellUsage={} end
-    HandHelperProbeDB.spellUsage[key]=value
+    if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+    if type(FeuxtonDB.spellUsage)~="table" then FeuxtonDB.spellUsage={} end
+    FeuxtonDB.spellUsage[key]=value
     if S.refreshSpellUse then S.refreshSpellUse() end
 end
 S.useButtons={}

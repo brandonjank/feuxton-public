@@ -85,7 +85,7 @@ function M.catalog()
             end
         end
     end
-    if class=="PALADIN" then candidates[#candidates+1]={id=0,name="Hand Helper Stop Casting",unit="player",stopCasting=true} end
+    if class=="PALADIN" then candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true} end
     return candidates,class
 end
 function M.refresh()
@@ -106,7 +106,7 @@ function M.refresh()
             local family=class..":"..candidate.name
             local entry=M.entries[family]
             if not entry and M.nextSlot<400 then
-                local name="HandHelperClassSpell"..M.nextSlot
+                local name="FeuxtonClassSpell"..M.nextSlot
                 local button=CreateFrame("Button",name,UIParent,"SecureActionButtonTemplate")
                 button:SetSize(1,1);button:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000);button:SetAlpha(0)
                 button:RegisterForClicks("AnyDown","AnyUp");button:SetAttribute("useOnKeyDown",true)
@@ -309,26 +309,26 @@ function S.boundSpellID(tile)
 end
 
 -- Persist only user exclusions; built-in shortcut families cannot be unblocked.
-SLASH_HANDHELPERKEYS1="/hhkeys"
-SlashCmdList.HANDHELPERKEYS=function(text)
+SLASH_FEUXTONKEYS1="/feuxtonkeys"
+SlashCmdList.FEUXTONKEYS=function(text)
     local action,key=(text or ""):match("^%s*(%S+)%s*(.-)%s*$")
     action=action and action:lower() or "list"
     if action=="block" or action=="unblock" then
-        if S.readableCall(InCombatLockdown)~=false then print("Hand Helper: change shortcut exclusions outside combat.");return end
+        if S.readableCall(InCombatLockdown)~=false then print("Feuxton: change shortcut exclusions outside combat.");return end
         key=ns.keyPolicy.canonical(key)
-        if not key then print("Hand Helper: use /hhkeys block CTRL+ALT+SHIFT+G");return end
-        if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-        if type(HandHelperProbeDB.keyBlacklist)~="table" then HandHelperProbeDB.keyBlacklist={} end
-        HandHelperProbeDB.keyBlacklist[key]=action=="block" and true or nil
+        if not key then print("Feuxton: use /feuxtonkeys block CTRL+ALT+SHIFT+G");return end
+        if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+        if type(FeuxtonDB.keyBlacklist)~="table" then FeuxtonDB.keyBlacklist={} end
+        FeuxtonDB.keyBlacklist[key]=action=="block" and true or nil
         M.retry=true
         S.discoverBindings()
-        print("Hand Helper: "..key.." / "..(ns.keyPolicy.reason(key) or "not excluded"));return
+        print("Feuxton: "..key.." / "..(ns.keyPolicy.reason(key) or "not excluded"));return
     end
-    if action~="list" then print("Hand Helper: /hhkeys list | block KEY | unblock KEY. Turn casting OFF before changing exclusions.");return end
-    print("Hand Helper: blocks two-modifier letter shortcuts, Windows keys and common system/app shortcuts. Turn casting OFF before edits.")
+    if action~="list" then print("Feuxton: /feuxtonkeys list | block KEY | unblock KEY. Turn casting OFF before changing exclusions.");return end
+    print("Feuxton: blocks two-modifier letter shortcuts, Windows keys and common system/app shortcuts. Turn casting OFF before edits.")
     local keys={}
     for key in pairs(ns.keyPolicy.defaults) do keys[#keys+1]=key end
-    local custom=type(HandHelperProbeDB)=="table" and HandHelperProbeDB.keyBlacklist or {}
+    local custom=type(FeuxtonDB)=="table" and FeuxtonDB.keyBlacklist or {}
     for key in pairs(type(custom)=="table" and custom or {}) do if not ns.keyPolicy.defaults[key] then keys[#keys+1]=key end end
     table.sort(keys);for _,key in ipairs(keys) do print(key.." / "..ns.keyPolicy.reason(key)) end
 end

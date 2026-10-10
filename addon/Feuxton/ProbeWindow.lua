@@ -1,4 +1,4 @@
--- Diagnostic report window and /hhprobe command.
+-- Diagnostic report window and /feuxtonprobe command.
 local _, ns = ...
 local S = ns.state
 
@@ -12,7 +12,7 @@ S.background:SetAllPoints()
 S.background:SetColorTexture(0.04, 0.04, 0.04, 0.98)
 S.title = S.panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 S.title:SetPoint("TOPLEFT", 16, -16)
-S.title:SetText("Hand Helper — select text and press Ctrl+C")
+S.title:SetText("Feuxton — select text and press Ctrl+C")
 S.close = CreateFrame("Button", nil, S.panel, "UIPanelCloseButton")
 S.close:SetPoint("TOPRIGHT", -4, -4)
 S.scroll = CreateFrame("ScrollFrame", nil, S.panel, "UIPanelScrollFrameTemplate")
@@ -29,20 +29,20 @@ S.edit:SetScript("OnTextChanged", function() S.scroll:UpdateScrollChildRect() en
 S.scroll:SetScrollChild(S.edit)
 
 ns.report = S.report
-SLASH_HANDHELPERPROBE1 = "/hhprobe"
-SlashCmdList.HANDHELPERPROBE = function(message)
+SLASH_FEUXTONPROBE1 = "/feuxtonprobe"
+SlashCmdList.FEUXTONPROBE = function(message)
     message=(message or ""):lower():match("^%s*(.-)%s*$")
     if message=="capture" then
         local ok,snapshot=pcall(S.captureCapabilities)
-        if ok then print("Hand Helper: saved "..snapshot.mode.." API snapshot ("..S.capabilitySummary(snapshot)..").")
-        else print("Hand Helper: API snapshot failed: "..S.describe(snapshot)) end
+        if ok then print("Feuxton: saved "..snapshot.mode.." API snapshot ("..S.capabilitySummary(snapshot)..").")
+        else print("Feuxton: API snapshot failed: "..S.describe(snapshot)) end
         return
     elseif message~="" and message~="compare" then
-        print("Hand Helper: /hhprobe, /hhprobe capture (no popup), /hhprobe compare")
+        print("Feuxton: /feuxtonprobe, /feuxtonprobe capture (no popup), /feuxtonprobe compare")
         return
     end
     local ok,text=pcall(message=="compare" and S.compareCapabilities or S.report)
-    if not ok then print("Hand Helper: capability report failed: "..S.describe(text)); return end
+    if not ok then print("Feuxton: capability report failed: "..S.describe(text)); return end
     S.edit:SetText(text)
     S.panel:Show()
     S.edit:SetFocus()
@@ -56,19 +56,19 @@ function ns.initializePixelExperiment(requested)
     if not requested then
         -- No laboratory textures, status bars or update callbacks in production.
         ns.pixelExperiment={enabled=false,tick=0,errors={}}
-        SLASH_HANDHELPERPIXELTEST1="/hhpixeltest"
-        SlashCmdList.HANDHELPERPIXELTEST=function(message)
+        SLASH_FEUXTONPIXELTEST1="/feuxtonpixeltest"
+        SlashCmdList.FEUXTONPIXELTEST=function(message)
             message=(message or ""):lower():match("^%s*(.-)%s*$")
-            if message=="off" or message=="report" then print("Hand Helper pixel lab: OFF (not allocated)");return end
+            if message=="off" or message=="report" then print("Feuxton pixel lab: OFF (not allocated)");return end
             ns.initializePixelExperiment(true)
-            SlashCmdList.HANDHELPERPIXELTEST(message)
+            SlashCmdList.FEUXTONPIXELTEST(message)
         end
         return
     end
     local lab={enabled=false,tick=0,mask=0,errors={},metrics={},grids={}}
     ns.pixelExperiment=lab
     -- Inherit the bridge's root-to-physical scaling, including changes at login.
-    local frame=CreateFrame("Frame","HandHelperPixelExperiment",S.hud)
+    local frame=CreateFrame("Frame","FeuxtonPixelExperiment",S.hud)
     lab.frame=frame;frame:SetSize(208,152);frame:SetFrameStrata("HIGH")
     frame:SetPoint("BOTTOMLEFT",S.hud,"TOPLEFT",0,8)
     frame:SetMovable(true);frame:SetClampedToScreen(true)
@@ -202,8 +202,8 @@ function ns.initializePixelExperiment(requested)
         end
         local now=S.setupNumber(S.readableCall(GetTime))
         lab.publishState(now)
-        if type(HandHelperProbeDB)=="table" then
-            HandHelperProbeDB.pixelExperimentReport={version=1,tick=lab.tick,mask=mask,errors=lab.errors}
+        if type(FeuxtonDB)=="table" then
+            FeuxtonDB.pixelExperimentReport={version=1,tick=lab.tick,mask=mask,errors=lab.errors}
         end
     end
     local total=0
@@ -213,16 +213,16 @@ function ns.initializePixelExperiment(requested)
         local ok,err=pcall(lab.render);if not ok then lab.errors.render=S.describe(err);frame:Hide();lab.enabled=false end
     end)
     frame:Hide()
-    SLASH_HANDHELPERPIXELTEST1="/hhpixeltest"
-    SlashCmdList.HANDHELPERPIXELTEST=function(message)
+    SLASH_FEUXTONPIXELTEST1="/feuxtonpixeltest"
+    SlashCmdList.FEUXTONPIXELTEST=function(message)
         message=(message or ""):lower():match("^%s*(.-)%s*$")
         if message=="off" then lab.enabled=false;frame:Hide()
-        elseif message=="report" then print("Hand Helper pixel lab: tick="..lab.tick.." mask="..lab.mask);for key,err in pairs(lab.errors) do print(key..": "..err) end
+        elseif message=="report" then print("Feuxton pixel lab: tick="..lab.tick.." mask="..lab.mask);for key,err in pairs(lab.errors) do print(key..": "..err) end
         else
             lab.enabled=true;frame:Show()
             local ok,err=pcall(lab.render)
-            if not ok then lab.errors.render=S.describe(err);lab.enabled=false;frame:Hide();print("Hand Helper: pixel lab failed: "..lab.errors.render)
-            else print("Hand Helper: pixel lab ON; /hhpixeltest off to hide. Read only.") end
+            if not ok then lab.errors.render=S.describe(err);lab.enabled=false;frame:Hide();print("Feuxton: pixel lab failed: "..lab.errors.render)
+            else print("Feuxton: pixel lab ON; /feuxtonpixeltest off to hide. Read only.") end
         end
     end
 end

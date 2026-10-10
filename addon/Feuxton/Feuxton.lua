@@ -1,7 +1,7 @@
 ﻿-- Shared addon namespace. Keep this file first in the TOC.
 local addonName, ns = ...
 ns.addonName = addonName
-ns.version = "0.69.4"
+ns.version = "0.70.0"
 ns.state = {bridgeLabels={}}
 function ns.state.bridgeLabel(label) ns.state.bridgeLabels[#ns.state.bridgeLabels+1]=label end
 ns.classes = {}
@@ -40,7 +40,7 @@ function K.reason(key)
     key=K.canonical(key)
     if not key then return "Invalid shortcut" end
     if key:find("WIN-",1,true)==1 then return "Windows shortcut" end
-    if type(HandHelperProbeDB)=="table" and type(HandHelperProbeDB.keyBlacklist)=="table" and HandHelperProbeDB.keyBlacklist[key] then return "User blacklist" end
+    if type(FeuxtonDB)=="table" and type(FeuxtonDB.keyBlacklist)=="table" and FeuxtonDB.keyBlacklist[key] then return "User blacklist" end
     if K.defaults[key] then return K.defaults[key] end
     if key:match("^ALT%-CTRL%-[A-Z]$") or key:match("^ALT%-SHIFT%-[A-Z]$") or key:match("^CTRL%-SHIFT%-[A-Z]$") then return "Two-modifier letter shortcuts reserved for other apps" end
 end

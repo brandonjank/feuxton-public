@@ -281,18 +281,18 @@ end
 
 function S.captureCapabilities()
     local snapshot=S.buildCapabilityInventory()
-    if type(HandHelperProbeDB)~="table" then HandHelperProbeDB={} end
-    if type(HandHelperProbeDB.capabilities)~="table" then HandHelperProbeDB.capabilities={} end
+    if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+    if type(FeuxtonDB.capabilities)~="table" then FeuxtonDB.capabilities={} end
     -- Only retain the most recent snapshot for each mode, not an event history.
-    HandHelperProbeDB.capabilities[snapshot.mode]=snapshot
+    FeuxtonDB.capabilities[snapshot.mode]=snapshot
     return snapshot
 end
 
 function S.compareCapabilities()
-    local saved=type(HandHelperProbeDB)=="table" and HandHelperProbeDB.capabilities or nil
-    local lines={"Hand Helper direct API comparison 0.3.0"}
+    local saved=type(FeuxtonDB)=="table" and FeuxtonDB.capabilities or nil
+    local lines={"Feuxton direct API comparison 0.3.0"}
     if type(saved)~="table" or not saved.outside or not saved.combat then
-        lines[#lines+1]="Run /hhprobe once outside combat and once in combat, then /hhprobe compare."
+        lines[#lines+1]="Run /feuxtonprobe once outside combat and once in combat, then /feuxtonprobe compare."
         return table.concat(lines,"\n")
     end
     for _,mode in ipairs({"outside","combat"}) do
@@ -340,7 +340,7 @@ end
 ns.directSpellFlags=S.directSpellFlags
 
 function S.report()
-    local lines = { "Hand Helper capability report 0.3.0" }
+    local lines = { "Feuxton capability report 0.3.0" }
     local snapshot=S.captureCapabilities()
     local function add(label, value)
         lines[#lines + 1] = label .. ": " .. value
@@ -396,17 +396,17 @@ end
 
 -- Request the client's own disk logger. This does not read protected events
 -- or alter combat-log filtering, advanced logging, or other client settings.
-SLASH_HANDHELPERLOG1="/hhlog"
-SlashCmdList.HANDHELPERLOG=function(message)
+SLASH_FEUXTONLOG1="/feuxtonlog"
+SlashCmdList.FEUXTONLOG=function(message)
     message=(message or ""):lower():match("^%s*(.-)%s*$")
-    if type(LoggingCombat)~="function" then print("Hand Helper: native disk logging API missing; try /combatlog."); return end
+    if type(LoggingCombat)~="function" then print("Feuxton: native disk logging API missing; try /combatlog."); return end
     if message=="start" or message=="stop" then
         local ok,err=pcall(LoggingCombat,message=="start")
-        if not ok then print("Hand Helper: disk logging request failed: "..S.describe(err)); return end
+        if not ok then print("Feuxton: disk logging request failed: "..S.describe(err)); return end
     elseif message~="" and message~="status" then
-        print("Hand Helper: /hhlog start, /hhlog stop, /hhlog status"); return
+        print("Feuxton: /feuxtonlog start, /feuxtonlog stop, /feuxtonlog status"); return
     end
-    print("Hand Helper: native disk logging = "..S.query(LoggingCombat)..". Files are in the client's Logs folder.")
+    print("Feuxton: native disk logging = "..S.query(LoggingCombat)..". Files are in the client's Logs folder.")
 end
 
 -- Opt-in profiling uses only the client's public monotonic profiler clock.
@@ -429,16 +429,16 @@ function S.profileScript(frame, script, name)
         if not ok then error(err) end
     end)
 end
-SLASH_HANDHELPERPERF1="/hhperf"
-SlashCmdList.HANDHELPERPERF=function(message)
+SLASH_FEUXTONPERF1="/feuxtonperf"
+SlashCmdList.FEUXTONPERF=function(message)
     message=(message or ""):lower():match("^%s*(.-)%s*$")
     if message=="on" then
         S.performance.stages={};S.performance.enabled=true
-        print("Hand Helper: profiling ON. /hhperf report shows average / p95 milliseconds per callback (including idle frames).")
+        print("Feuxton: profiling ON. /feuxtonperf report shows average / p95 milliseconds per callback (including idle frames).")
     elseif message=="off" then
-        S.performance.enabled=false;print("Hand Helper: profiling OFF.")
+        S.performance.enabled=false;print("Feuxton: profiling OFF.")
     elseif message=="report" then
-        local lines={"Hand Helper addon performance · "..(S.performance.enabled and "ON" or "OFF"),"Milliseconds per callback, last 120 samples; includes idle OnUpdate calls."}
+        local lines={"Feuxton addon performance · "..(S.performance.enabled and "ON" or "OFF"),"Milliseconds per callback, last 120 samples; includes idle OnUpdate calls."}
         local names={};for name in pairs(S.performance.stages) do names[#names+1]=name end;table.sort(names)
         for _,name in ipairs(names) do
             local stage=S.performance.stages[name];local sorted={};local sum=0
@@ -446,9 +446,9 @@ SlashCmdList.HANDHELPERPERF=function(message)
             table.sort(sorted)
             lines[#lines+1]=string.format("%s: avg %.3f / p95 %.3f ms (%d samples, %d calls)",name,sum/#sorted,sorted[math.ceil(#sorted*.95)],#sorted,stage.calls)
         end
-        if #names==0 then lines[#lines+1]="No samples. Run /hhperf on and play normally first." end
+        if #names==0 then lines[#lines+1]="No samples. Run /feuxtonperf on and play normally first." end
         if type(debugprofilestop)~="function" then lines[#lines+1]="Client profiler clock unavailable." end
         S.edit:SetText(table.concat(lines,"\n"));S.panel:Show();S.edit:SetFocus();S.edit:HighlightText()
-    else print("Hand Helper: /hhperf on, /hhperf report, /hhperf off.") end
+    else print("Feuxton: /feuxtonperf on, /feuxtonperf report, /feuxtonperf off.") end
 end
 

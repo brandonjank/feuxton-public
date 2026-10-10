@@ -1,11 +1,11 @@
 ﻿## Interface: 16001
-## Title: Hand Helper Probe
-## Notes: Modular HUD and pixel data bridge for Hand Helper.
-## Author: Hand Helper
-## Version: 0.69.4
-## SavedVariables: HandHelperProbeDB
+## Title: Feuxton
+## Notes: Modular HUD and pixel data bridge for Feuxton.
+## Author: Feuxton
+## Version: 0.70.0
+## SavedVariables: FeuxtonDB
 
-HandHelperProbe.lua
+Feuxton.lua
 Classes\Hunter.lua
 Classes\Shaman.lua
 Classes\Warrior.lua

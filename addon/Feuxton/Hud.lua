@@ -11,7 +11,7 @@ for class,module in pairs(ns.classes) do
     if module.denseBridgeLayout then ns.denseBridgeLayouts[class]=module.denseBridgeLayout end
 end
 
-S.hud = CreateFrame("Frame", "HandHelperHud", UIParent)
+S.hud = CreateFrame("Frame", "FeuxtonHud", UIParent)
 ns.hud = S.hud
 -- Keep the wire above fullscreen low-health flashes. Their tint corrupts RGB
 -- cells and native gauges precisely when survival observations matter most.
@@ -50,7 +50,7 @@ for index, color in ipairs({ {1,0,1}, {0,1,1}, {1,1,0} }) do
 end
 S.hudTitle = S.hud:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 S.hudTitle:SetPoint("TOPLEFT", 12, -8)
-S.hudTitle:SetText("HAND HELPER v"..ns.version.." | DRAG HEADER / CLICK FOR OPTIONS")
+S.hudTitle:SetText("FEUXTON v"..ns.version.." | DRAG HEADER / CLICK FOR OPTIONS")
 S.hudFooter = S.hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 S.hudFooter:Hide()
 S.hudFooter:SetPoint("BOTTOMLEFT", 12, 8)

@@ -104,13 +104,13 @@ ns.initializePixelExperiment()
 ns.initializeDenseBridge()
 
 -- Read-only, lazy native-gauge laboratory. Never supplies production readings.
-SLASH_HANDHELPERGAUGETEST1="/hhgaugetest"
-SlashCmdList.HANDHELPERGAUGETEST=function(message)
+SLASH_FEUXTONGAUGETEST1="/feuxtongaugetest"
+SlashCmdList.FEUXTONGAUGETEST=function(message)
     message=(message or ""):lower():match("^%s*(.-)%s*$")
     local lab=ns.gaugeExperiment
     if message=="off" then if lab then lab.frame:Hide() end;return end
     if message=="report" then
-        if not lab then print("Hand Helper: run /hhgaugetest on first.");return end
+        if not lab then print("Feuxton: run /feuxtongaugetest on first.");return end
         for _,name in ipairs({"reference","folded"}) do
             local stat=lab.costs[name]
             if stat.calls>0 then print(string.format("Gauge %s: %.4f ms average, %.4f ms max, %d updates",name,stat.total/stat.calls,stat.maximum,stat.calls))
@@ -118,11 +118,11 @@ SlashCmdList.HANDHELPERGAUGETEST=function(message)
         end
         print("Native update submission only; excludes deferred rendering. Saved on /reload.");return
     end
-    if message~="" and message~="on" then print("Hand Helper: /hhgaugetest on, off, report.");return end
+    if message~="" and message~="on" then print("Feuxton: /feuxtongaugetest on, off, report.");return end
     if not lab then
         lab={rows={},errors={},costs={reference={calls=0,total=0,maximum=0},folded={calls=0,total=0,maximum=0}}};ns.gaugeExperiment=lab
         -- Bounded, public timings only. Never save unit values or native geometry.
-        HandHelperProbeDB.gaugeExperiment={version=2,costs=lab.costs,scope="Native SetMinMaxValues/SetValue submission; excludes deferred rendering",mirrorAvailable={}}
+        FeuxtonDB.gaugeExperiment={version=2,costs=lab.costs,scope="Native SetMinMaxValues/SetValue submission; excludes deferred rendering",mirrorAvailable={}}
         local frame=CreateFrame("Frame",nil,S.hud);lab.frame=frame
         frame:SetSize(424,172);frame:SetPoint("BOTTOMLEFT",S.hud,"TOPLEFT",0,8);frame:SetFrameStrata("HIGH");frame:SetClampedToScreen(true)
         frame:SetMovable(true);frame:EnableMouse(true);frame:RegisterForDrag("LeftButton")
@@ -174,7 +174,7 @@ SlashCmdList.HANDHELPERGAUGETEST=function(message)
             end)
             row.mirrorUnavailable=not mirrored
             if not mirrored then for _,clip in ipairs(row.mirrorClips) do clip:Hide() end;row.mirrorError=S.describe(mirrorError) end
-            HandHelperProbeDB.gaugeExperiment.mirrorAvailable[i]=mirrored
+            FeuxtonDB.gaugeExperiment.mirrorAvailable[i]=mirrored
             if i==1 then row.bars[#row.bars+1]=bar(frame,360,28,2,128,false,false,true) end
             row.gray=patch(336,y+9,8,8,1,.65,0);row.valid=patch(384,y+9,4,4,1,.65,0);row.grayValid=patch(392,y+9,4,4,1,.65,0);row.foldValid=patch(400,y+9,4,4,1,.65,0);row.mirrorValid=patch(408,y+9,4,4,1,.65,0)
             lab.rows[i]=row
@@ -225,5 +225,5 @@ SlashCmdList.HANDHELPERGAUGETEST=function(message)
         frame:SetScript("OnUpdate",function(_,dt)elapsed=elapsed+dt;if elapsed>=S.updateInterval() then elapsed=0;lab.render() end end)
     end
     lab.frame:Show();lab.render()
-    print("Hand Helper gauge lab ON (read only). /hhgaugetest off hides it.")
+    print("Feuxton gauge lab ON (read only). /feuxtongaugetest off hides it.")
 end
