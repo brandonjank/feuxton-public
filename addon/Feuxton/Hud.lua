@@ -50,7 +50,8 @@ for index, color in ipairs({ {1,0,1}, {0,1,1}, {1,1,0} }) do
 end
 S.hudTitle = S.hud:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 S.hudTitle:SetPoint("TOPLEFT", 12, -8)
-S.hudTitle:SetText("FEUXTON v"..ns.version.." | DRAG HEADER / CLICK FOR OPTIONS")
+S.hudTitle:SetWidth(290)
+S.hudTitle:SetText("FEUXTON v"..ns.version.." | OPTIONS / DRAG")
 S.hudFooter = S.hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 S.hudFooter:Hide()
 S.hudFooter:SetPoint("BOTTOMLEFT", 12, 8)
@@ -145,7 +146,8 @@ function S.refreshFlags()
     S.drawFlag(S.targetFlags[5], S.readableCall(UnitExists, "pet"))
     S.targetFlags[6]:SetVertexColor(1,1,1,1)
     S.drawFlag(S.targetFlags[6], S.autoActive)
-    if S.readableCall(function() local _,class=UnitClass("player");return class end)=="PALADIN" then
+    local meleeClass=S.readableCall(function() local _,class=UnitClass("player");return class end)
+    if meleeClass=="PALADIN" or meleeClass=="SHAMAN" then
         local ok,value=pcall(S.spellAPI.IsCurrentSpell or IsCurrentSpell,6603)
         if ok and not S.isSecret(value) and type(value)=="boolean" then S.drawFlag(S.targetFlags[6],value)
         elseif ok and S.isSecret(value) then

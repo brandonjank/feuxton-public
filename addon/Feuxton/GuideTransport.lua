@@ -114,7 +114,9 @@ do
         packet=packet..S.bytes(count or 255,1)..S.bytes(threat,1)..S.bytes(onPlayer==true and 2 or onPlayer==false and 1 or 0,1)
         probeTick=(probeTick+1)%4294967296
         packet=packet..S.bytes(probeTick,4)..S.executionBytes(4)
-        packet=packet..ns.features.Interrupts.bytes()
+        local enemyCast=ns.features.Interrupts.bytes()
+        packet=packet..enemyCast
+        if class=="PALADIN" or class=="SHAMAN" then S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast),true) end
         for _,tile in ipairs(S.tiles) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(tile),tile.known),1) end
         for _,spec in ipairs(ns.playerBuffSpecs or {}) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(spec),spec.known),1) end
         packet=packet..S.bytes(S.adler32(packet),4)
@@ -169,8 +171,9 @@ do
         if type(FeuxtonDB)~="table" then FeuxtonDB={} end
         FeuxtonDB.compactBridge=compact
         local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
+        if class=="SHAMAN" or class=="WARLOCK" then compact=true;S.compactBridge=true;FeuxtonDB.compactBridge=true end
         local profile=compact and ns.bridgeLayouts[class] or nil
-        local dense=compact and ns.denseBridgeLayouts[class] and FeuxtonDB.denseBridge~=false
+        local dense=compact and ns.denseBridgeLayouts[class] and (class=="SHAMAN" or class=="WARLOCK" or FeuxtonDB.denseBridge~=false)
         if dense then profile=ns.denseBridgeLayouts[class] end
         if S.denseBridge then S.denseBridge.setEnabled(false) end
         S.compactBridgeLayout=profile and profile.key or (compact and "hunter-v1" or "diagnostic")
@@ -244,6 +247,12 @@ do
         title:SetText("FEUXTON v"..ns.version.." | "..class)
         S.hudTitle:SetText("FEUXTON v"..ns.version.." | "..class.." | DRAG HEADER / CLICK FOR OPTIONS")
         if profile then
+            if class=="WARLOCK" then point(S.warlockNativePanel,S.hud,0,26);for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,18) end end
+            if class=="SHAMAN" then
+                point(S.shamanNativePanel,S.hud,0,26)
+                point(ns.features.Totems.panel,S.hud,0,144)
+                for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,18) end
+            end
             if paladin then
                 for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,18) end
                 point(S.paladinNativePanel,S.hud,0,profile.native)

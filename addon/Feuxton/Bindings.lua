@@ -9,8 +9,11 @@ local S = ns.state
 local M={entries={},reserved={},nextSlot=200,revision=0}
 S.managedSpells=M
 M.keys={}
-for code=65,90 do M.keys[#M.keys+1]="ALT-CTRL-SHIFT-"..string.char(code) end
-for _,key in ipairs({"-","=","[","]",";","'",",",".","/","8","9"}) do M.keys[#M.keys+1]="ALT-CTRL-SHIFT-"..key end
+for code=65,90 do
+    local key="ALT-CTRL-SHIFT-"..string.char(code)
+    if not ns.keyPolicy.builtinReason(key) then M.keys[#M.keys+1]=key end
+end
+for _,key in ipairs({"-","=","[","]",";","'",",",".","/"}) do M.keys[#M.keys+1]="ALT-CTRL-SHIFT-"..key end
 for code=0,9 do M.keys[#M.keys+1]="ALT-CTRL-NUMPAD"..code end
 local function bindingAction(key,overrides)
     return S.readableCall(GetBindingAction,key,overrides)
@@ -57,8 +60,9 @@ function M.catalog()
         local resolved=S.readableCall(S.spellAPI.GetSpellInfo,name)
         local current=S.safeField(resolved,"spellID")
         if type(current)=="number" and current>0 and known(current) then id=current end
-        if existing then if explicit then existing.unit=unit;existing.id=id;existing.petAttack=petAttack end;return end
-        local entry={id=id,name=name,unit=unit,startAttack=startAttack,petAttack=petAttack};byName[name]=entry;candidates[#candidates+1]=entry
+        if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.petAttack=petAttack end;return end
+        local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide"))
+        local entry={id=id,name=name,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom",healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack};byName[name]=entry;candidates[#candidates+1]=entry
     end
     local catalog=ns.classes[class]
     local specs=class=="HUNTER" and S.hunterSpecs or catalog and catalog.specs or {}
@@ -85,7 +89,14 @@ function M.catalog()
             end
         end
     end
-    if class=="PALADIN" then candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true} end
+    if class=="PALADIN" or class=="SHAMAN" then candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true}
+        if class=="PALADIN" then candidates[#candidates+1]={id=0,name="Feuxton Remove Fury",unit="player",cancelFury=true} end end
+    if ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
+    if class=="PALADIN" and ns.features.ControlEffects then
+        local spec=ns.features.ControlEffects.freedom;local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
+        add(S.safeField(info,"spellID"),spec.name,"target",true)
+    end
+    if ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
     return candidates,class
 end
 function M.refresh()
@@ -94,7 +105,7 @@ function M.refresh()
     if not M.owner then M.owner=CreateFrame("Frame",nil,UIParent) end
     local candidates,class=M.catalog()
     local signature={class or ""}
-    for _,candidate in ipairs(candidates) do signature[#signature+1]=candidate.name..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.petAttack==true) end
+    for _,candidate in ipairs(candidates) do signature[#signature+1]=candidate.name..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.itemID or 0) end
     signature=table.concat(signature,"|")
     local changed=signature~=M.signature or M.retry
     M.retry=false
@@ -107,7 +118,7 @@ function M.refresh()
             local entry=M.entries[family]
             if not entry and M.nextSlot<400 then
                 local name="FeuxtonClassSpell"..M.nextSlot
-                local button=CreateFrame("Button",name,UIParent,"SecureActionButtonTemplate")
+                local button=CreateFrame("Button",name,UIParent,"SecureActionButtonTemplate,SecureHandlerBaseTemplate")
                 button:SetSize(1,1);button:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000);button:SetAlpha(0)
                 button:RegisterForClicks("AnyDown","AnyUp");button:SetAttribute("useOnKeyDown",true)
                 button:SetAttribute("checkselfcast",false);button:SetAttribute("checkfocuscast",false);button:SetAttribute("checkmouseovercast",false)
@@ -121,19 +132,35 @@ function M.refresh()
                         if not M.reserved[key] and not ns.keyPolicy.reason(key) and bindingAction(key,false)=="" and bindingAction(key,true)=="" then entry.key=key;M.reserved[key]=family;break end
                     end
                 end
-                entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.petAttack=candidate.petAttack
-                entry.button:SetAttribute("spell",candidate.id>0 and candidate.id or nil);entry.button:SetAttribute("unit",candidate.unit)
+                entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID
+                entry.button:SetAttribute("item",candidate.itemID and candidate.itemID>0 and "item:"..candidate.itemID or nil)
+                entry.button:SetAttribute("spell",candidate.cancelFury and "Righteous Fury" or candidate.id>0 and candidate.id or nil);entry.button:SetAttribute("unit",candidate.unit)
                 -- One secure click commands the pet before the attack. This
                 -- also covers target changes while Mark is rate-limited; the
                 -- app never waits for pet arrival or a separate pet receipt.
-                local macro=candidate.stopCasting and "/stopcasting" or candidate.startAttack and "/startattack [harm,nodead]"
-                    or candidate.petAttack and ("/petattack [@target,harm,nodead]\n/cast [@target,harm,nodead] "..candidate.name) or nil
+                local macro=candidate.stopCasting and "/stopcasting" or candidate.startAttack and ("/startattack [harm,nodead]"..
+                    (candidate.id~=6603 and "\n/cast [@target,harm,nodead] "..candidate.name or ""))
+                    or candidate.petAttack and ("/petattack [@target,harm,nodead]\n/cast [@target,harm,nodead] "..(class=="WARLOCK" and candidate.name=="Shoot" and "!Shoot" or candidate.name)) or nil
                 entry.button:SetAttribute("macrotext",macro)
                 if entry.key then
                     local ok=pcall(SetOverrideBindingClick,M.owner,false,entry.key,entry.buttonName,"LeftButton")
                     entry.active=ok and bindingAction(entry.key,false)=="" and bindingAction(entry.key,true)==entry.action
                 end
-                entry.button:SetAttribute("type",entry.active and (macro and "macro" or "spell") or nil)
+                entry.button:SetAttribute("type",entry.active and (candidate.itemID and "item" or candidate.cancelFury and "cancelaura" or macro and "macro" or "spell") or nil)
+                entry.button.hhSpellID=candidate.id
+                if (candidate.friendly or candidate.name=="Lay on Hands") and not entry.recipientHook then
+                    local spec={healing=candidate.healing or candidate.name=="Lay on Hands",support=candidate.support,directSelf=candidate.name=="Lay on Hands"}
+                    entry.button:SetScript("PreClick",function(button,mouse,down) ns.features.Healing.track(button,spec,down) end)
+                    if candidate.friendly then
+                        entry.button:SetAttribute("hh-heal",candidate.healing==true or candidate.support==true)
+                        SecureHandlerWrapScript(entry.button,"OnClick",entry.button,[[
+                            local allowed = SecureCmdOptionParse("[@target,help,nodead]1;0") == "1"
+                            if not self:GetAttribute("hh-heal") then allowed = allowed and SecureCmdOptionParse("[nocombat]1;0") == "1" end
+                            self:SetAttribute("type",allowed and "spell" or nil)
+                        ]])
+                    end
+                    entry.recipientHook=true
+                end
                 if not entry.active then M.retry=true end
             end
         end
@@ -310,8 +337,14 @@ end
 
 -- Persist only user exclusions; built-in shortcut families cannot be unblocked.
 SLASH_FEUXTONKEYS1="/feuxtonkeys"
-SlashCmdList.FEUXTONKEYS=function(text)
-    local action,key=(text or ""):match("^%s*(%S+)%s*(.-)%s*$")
+S.shortcutCommand=function(text)
+    -- Chat pastes can retain code quotes, nonbreaking spaces or a full command.
+    -- Normalize only presentation characters, never execute pasted Lua/text.
+    text=type(text)=="string" and text or ""
+    text=text:gsub("\194\160"," "):gsub("\226\128\175"," "):gsub("`","")
+    text=text:match("^%s*(.-)%s*$")
+    text=text:gsub("^/[Ff][Ee][Uu][Xx][Tt][Oo][Nn][Kk][Ee][Yy][Ss]%s+","")
+    local action,key=text:match("^(%S+)%s*(.-)%s*$")
     action=action and action:lower() or "list"
     if action=="block" or action=="unblock" then
         if S.readableCall(InCombatLockdown)~=false then print("Feuxton: change shortcut exclusions outside combat.");return end
@@ -324,7 +357,7 @@ SlashCmdList.FEUXTONKEYS=function(text)
         S.discoverBindings()
         print("Feuxton: "..key.." / "..(ns.keyPolicy.reason(key) or "not excluded"));return
     end
-    if action~="list" then print("Feuxton: /feuxtonkeys list | block KEY | unblock KEY. Turn casting OFF before changing exclusions.");return end
+    if action~="list" then print("Feuxton: unknown shortcut action '"..action.."'. Use /feuxtonkeys block KEY, unblock KEY, or list. Turn casting OFF before changing exclusions.");return end
     print("Feuxton: blocks two-modifier letter shortcuts, Windows keys and common system/app shortcuts. Turn casting OFF before edits.")
     local keys={}
     for key in pairs(ns.keyPolicy.defaults) do keys[#keys+1]=key end
@@ -332,3 +365,4 @@ SlashCmdList.FEUXTONKEYS=function(text)
     for key in pairs(type(custom)=="table" and custom or {}) do if not ns.keyPolicy.defaults[key] then keys[#keys+1]=key end end
     table.sort(keys);for _,key in ipairs(keys) do print(key.." / "..ns.keyPolicy.reason(key)) end
 end
+SlashCmdList.FEUXTONKEYS=S.shortcutCommand

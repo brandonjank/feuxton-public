@@ -121,14 +121,15 @@ function S.renderCooldown(tile)
         return
     end
     if type(S.spellAPI.GetSpellCooldownDuration) == "function" and type(tile.cooldown.SetCooldownFromDurationObject) == "function" then
-        -- Readiness includes the GCD. Passing true hides it and lets the next
-        -- spell appear ready before the client can accept another cast.
-        local ok, duration = pcall(S.spellAPI.GetSpellCooldownDuration, tile.spellID, false)
+        -- Only explicitly off-GCD abilities exclude it. Their actual cooldown
+        -- remains native, including when its duration is restricted.
+        local ignoreGCD=tile.offGlobalCooldown==true
+        local ok, duration = pcall(S.spellAPI.GetSpellCooldownDuration, tile.spellID, ignoreGCD)
         if ok and not S.isSecret(duration) and duration ~= nil then
             local rendered, err = pcall(tile.cooldown.SetCooldownFromDurationObject, tile.cooldown, duration)
             if rendered then
                 tile.dial:SetColorTexture(1, 1, 1, 1)
-                tile.renderStatus = "duration object passed to native widget (includes GCD)"
+                tile.renderStatus = ignoreGCD and "native ability cooldown (off GCD)" or "duration object passed to native widget (includes GCD)"
                 return
             end
             tile.renderStatus = "duration render failed: " .. S.describe(err)

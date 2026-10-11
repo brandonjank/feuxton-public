@@ -10,6 +10,8 @@ function I.initialize()
     castActivity=ns.features.CastTracking.newActivityState()
     local dot=S.resourcePanel:CreateTexture(nil,"OVERLAY")
     dot:SetSize(8,8);dot:SetPoint("TOPLEFT",616,-4);I.dot=dot
+    I.stamp={}
+    for i=1,4 do local p=S.resourcePanel:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",628+(i-1)*6,-4);I.stamp[i]=p end
     local eventFrame=CreateFrame("Frame",nil,S.hud)
     for _,event in ipairs({"PLAYER_TARGET_CHANGED","UNIT_SPELLCAST_START","UNIT_SPELLCAST_STOP","UNIT_SPELLCAST_FAILED","UNIT_SPELLCAST_INTERRUPTED","UNIT_SPELLCAST_CHANNEL_START","UNIT_SPELLCAST_CHANNEL_STOP"}) do pcall(eventFrame.RegisterEvent,eventFrame,event) end
     eventFrame:SetScript("OnEvent",function(_,event,unit,castGUID,spellID)
@@ -26,6 +28,15 @@ function I.initialize()
             if castActivity.cast==false and castActivity.channel==false then active=false else active=nil end
         end
     end)
+end
+-- Public cast identity is shared by every class. The restricted interruptibility
+-- flag stays native; its checksum stamp joins it to this exact packet.
+function I.packet(tick,body)
+    local S=ns.state
+    local packet="HHE1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..body
+    local checksum=S.adler32(packet)
+    for i,p in ipairs(I.stamp or {}) do local c=math.floor(checksum/256^(i-1))%256/255;p:SetColorTexture(c,c,c,1) end
+    return packet..S.bytes(checksum,4)
 end
 function I.bytes()
     local S=ns.state

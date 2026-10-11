@@ -20,12 +20,12 @@ paladin.specs={
  {key="paladin.blessingKings",name="Blessing of Kings"},
  {key="paladin.devotionAura",name="Devotion Aura",unit="player"},
  {key="paladin.retributionAura",name="Retribution Aura",unit="player"},
- {key="paladin.hammerJustice",name="Hammer of Justice"},
+ {key="paladin.hammerJustice",name="Hammer of Justice",offGlobalCooldown=true},
  {key="paladin.exorcism",name="Exorcism"},
  {key="paladin.purify",name="Purify"},
  {key="paladin.divineProtection",name="Divine Protection",unit="player"},
  {key="paladin.divineShield",name="Divine Shield",unit="player"},
- {key="paladin.layHands",name="Lay on Hands"},
+ {key="paladin.layHands",name="Lay on Hands",unit="player"},
  {key="paladin.autoAttack",name="Attack",startAttack=true},
 }
 function paladin.capture()
@@ -110,23 +110,7 @@ paladin.packetKeys={}
 for i,key in ipairs(paladin.previewKeys) do paladin.packetKeys[i]=key end
 paladin.packetKeys[11]="retributionAura"
 paladin.packetKeys[12]="righteousFury";paladin.packetKeys[13]="layHands";paladin.packetKeys[14]="divineProtection"
-function paladin.bindingCode(key)
-    if type(key)~="string" then return 0 end
-    key=string.upper(key);local flags=0
-    while true do
-        local bit,prefix
-        if key:sub(1,4)=="ALT-" then bit,prefix=1,4 elseif key:sub(1,5)=="CTRL-" then bit,prefix=2,5 elseif key:sub(1,6)=="SHIFT-" then bit,prefix=4,6 else break end
-        if math.floor(flags/bit)%2==1 then return 0 end
-        flags=flags+bit;key=key:sub(prefix+1)
-    end
-    local code=#key==1 and key:byte() or 0
-    if not (code>=65 and code<=90 or code>=48 and code<=57) then
-        local fn=tonumber(key:match("^F(%d+)$"));local special={SPACE=32,["-"]=189,["="]=187,["["]=219,["]"]=221,[";"]=186,["'"]=222,[","]=188,["."]=190,["/"]=191}
-        local pad=tonumber(key:match("^NUMPAD(%d)$"))
-        code=pad and 96+pad or fn and fn>=1 and fn<=12 and 111+fn or special[key] or 0
-    end
-    return code>0 and flags*256+code or 0
-end
+paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
 -- never compares or serializes it. Orange means no supported rendering path.
 function paladin.renderHealWindows(readings,healMs,S)
@@ -193,6 +177,7 @@ local function initializeNative(S)
     end
     for i=1,14 do
         local tile={};local x=12+(i-1)*46
+        for _,spec in ipairs(paladin.specs) do if spec.key=="paladin."..paladin.packetKeys[i] then tile.offGlobalCooldown=spec.offGlobalCooldown==true;break end end
         tile.icon=panel:CreateTexture(nil,"ARTWORK");tile.icon:SetSize(16,16);tile.icon:SetPoint("TOPLEFT",x,-6)
         tile.dial=panel:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(16,16);tile.dial:SetPoint("TOPLEFT",x+18,-6)
         tile.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial)
@@ -326,10 +311,6 @@ function paladin.initializePreview()
                 end
             end end
             local visualChosen=chosen
-            if shortKey=="layHands" then
-                local entry=ns.features.Healing.assignments[17]
-                if entry and entry.key and entry.button.hhSpellID then chosen={key=entry.key,id=entry.button.hhSpellID,slot=1,kind="spell"} else chosen=nil end
-            end
             local key=chosen and chosen.key or "";local keyCode=paladin.bindingCode(key)
             if keyCode==0 then chosen=nil end
             local bound=chosen and chosen.id or id;bound=type(bound)=="number" and bound>0 and bound==math.floor(bound) and bound or 0
@@ -378,8 +359,8 @@ function paladin.initializePreview()
         local healInfo=group.read(function() return api.GetSpellInfo(nativeReadings[6].bound).castTime end,1)
         local healMs=healInfo.status=="observed" and type(healInfo.value)=="number" and healInfo.value>0 and healInfo.value<=10000 and math.floor(healInfo.value)==healInfo.value and healInfo.value or 0
         paladin.renderHealWindows(nativeReadings,healMs,S)
-        local cancel=ns.features.Healing.assignments[18]
-        local cancelKey=cancel and cancel.key and not ns.keyPolicy.reason(cancel.key) and GetBindingAction(cancel.key,true)=="CLICK "..cancel.name..":LeftButton" and paladin.bindingCode(cancel.key) or 0
+        local cancel=S.managedSpells and S.managedSpells.entries["PALADIN:Feuxton Remove Fury"]
+        local cancelKey=S.bindingsValid and S.managedSpells.current(cancel) and paladin.bindingCode(cancel.key) or 0
         packet=packet..S.bytes(healMs,2)..S.bytes(cancelKey,2)
         local attackKey=0
         if S.bindingsValid then for _,mapping in ipairs(S.setupMappings or {}) do

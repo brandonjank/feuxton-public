@@ -73,8 +73,12 @@ do
             display.health:SetStatusBarTexture(enabled and "Interface\\Buttons\\WHITE8X8" or "Interface\\TargetingFrame\\UI-StatusBar")
         end
         for _,display in ipairs(S.resourceDisplays) do display.bar:SetSize(enabled and 128 or 250,enabled and 4 or 10) end
-        if not enabled then return end
+        if not enabled then
+            for i,dot in ipairs(ns.features.Interrupts.stamp or {}) do dot:ClearAllPoints();dot:SetPoint("TOPLEFT",S.resourcePanel,"TOPLEFT",628+(i-1)*6,-4) end
+            return
+        end
         local top=profile.gauges
+        for i,dot in ipairs(ns.features.Interrupts.stamp or {}) do point(dot,316+(i-1)*6,top+20) end
         for i,display in ipairs(S.resourceDisplays) do
             local x=i<=2 and 12 or 176;local y=top+12+((i-1)%2)*8
             point(display.bar,x,y);point(display.dot,x+132,y)
@@ -100,6 +104,8 @@ end
 ns.features.Interrupts.initialize()
 ns.features.GroupContext.initialize()
 ns.classes.PALADIN.initializePreview()
+ns.classes.SHAMAN.initializePreview()
+ns.classes.WARLOCK.initializePreview()
 ns.initializePixelExperiment()
 ns.initializeDenseBridge()
 

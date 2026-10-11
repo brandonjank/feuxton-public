@@ -1,8 +1,8 @@
-﻿## Interface: 16001
+## Interface: 16001
 ## Title: Feuxton
 ## Notes: Modular HUD and pixel data bridge for Feuxton.
 ## Author: Feuxton
-## Version: 0.70.0
+## Version: 0.80.0
 ## SavedVariables: FeuxtonDB
 
 Feuxton.lua
@@ -17,10 +17,16 @@ Classes\Priest.lua
 Classes\Rogue.lua
 Features\Healing.lua
 Features\GroupContext.lua
+Features\RecipientTargeting.lua
 Features\Interrupts.lua
 Features\PetSupport.lua
 Features\Threat.lua
 Features\RangeTracking.lua
+Features\Totems.lua
+Features\SpellBridge.lua
+Features\Consumables.lua
+Features\Racials.lua
+Features\ControlEffects.lua
 Features\CastTracking.lua
 Diagnostics.lua
 ProbeWindow.lua

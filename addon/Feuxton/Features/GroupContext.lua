@@ -117,6 +117,8 @@ function feature.initialize()
         bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8");bar:SetStatusBarColor(0,1,0,1)
         local back=bar:CreateTexture(nil,"BACKGROUND");back:SetAllPoints();back:SetColorTexture(0.18,0.18,0.18,1)
         displays[index]={unit=unit,bar=bar,cells=feature.cells(panel,128,y,134,2)}
+        displays[index].healRanges={}
+        for action=1,3 do local dot=bar:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",bar,"TOPLEFT",108+(action-1)*6,0);displays[index].healRanges[action]=dot end
     end
     local tick,total=0,0
     panel:SetScript("OnUpdate",function(self,elapsed)
@@ -124,7 +126,8 @@ function feature.initialize()
         local raid=feature.code(feature.read(IsInRaid,1));local count=feature.read(GetNumGroupMembers,1)
         count=count.status=="observed" and type(count.value)=="number" and count.value>=0 and count.value<=40 and count.value==math.floor(count.value) and count.value or 255
         local healSpecs=ns.classes.PALADIN and ns.classes.PALADIN.rangeSpecs or {}
-        local friendly=feature.text(feature.read(UnitClass,2,"player"),16)=="PALADIN" and ns.features.Healing or nil
+        local playerClass=feature.text(feature.read(UnitClass,2,"player"),16)
+        local friendly=(playerClass=="PALADIN" or playerClass=="SHAMAN") and ns.features.Healing or nil
         local now=S.readableCall(GetTime)
         if friendly then
             friendly.spellStatus={}
@@ -158,7 +161,13 @@ function feature.initialize()
                     local range=feature.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and spell.id or spell.name,unit)
                     ranges=ranges+feature.code(range)*4^(i-1)
                 end
-                local packet=(friendly and "HHR3" or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
+                if friendly and friendly.shaman then for action,spec in ipairs({friendly.actions[1],friendly.actions[2],friendly.heal}) do
+                    local dot=display.healRanges[action];dot:Show();dot:SetColorTexture(1,1,1,1)
+                    local spell=friendly.spell(spec,unit);local ok,range=pcall(api.IsSpellInRange or function() end,spell.id,unit)
+                    local painted,result=pcall(ns.features.RangeTracking.paintBoolean,dot,range,{0,1,0,1},{1,0,0,1})
+                    if not ok or not painted or result~=true or spell.id==0 then dot:SetVertexColor(1,1,1,1);dot:SetColorTexture(1,.65,0,1) end
+                end else for _,dot in ipairs(display.healRanges) do dot:Hide() end end
+                local packet=(friendly and (friendly.shaman and "HHR4" or "HHR5") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
                 if friendly then packet=packet..friendly.memberBytes(index,unit,guid,class,role,now) end
                 packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=198);feature.paint(display.cells,packet)
                 S.publishTransportPacket(15+index,packet,true)
@@ -167,11 +176,14 @@ function feature.initialize()
         end
         -- Publish after all six rows, avoiding transient mixed roster sequences.
         local courtesy
-        if friendly and friendly.courtesy then
+        if friendly and not friendly.shaman and friendly.courtesy then
             local ok,packet=pcall(friendly.courtesy.packet,now,tick)
             if ok then courtesy=packet end
         end
         S.publishTransportPacket(4,courtesy,true)
+        local targeting
+        if friendly then local ok,packet=pcall(ns.features.RecipientTargeting.packet,now,tick);if ok then targeting=packet end end
+        S.publishTransportPacket(7,targeting,true)
         S.refreshTransportPacketState()
     end)
     S.profileScript(panel,"OnUpdate","group")

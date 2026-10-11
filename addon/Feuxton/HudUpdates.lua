@@ -133,6 +133,9 @@ ns.hudReport = function(add)
 end
 SLASH_FEUXTONPANEL1 = "/feuxton"
 SlashCmdList.FEUXTONPANEL = function(message)
+    local shortcut=message:match("^%s*[Kk][Ee][Yy][Ss]%s+(.+)%s*$")
+    if message:match("^%s*[Kk][Ee][Yy][Ss]%s*$") then shortcut="" end
+    if shortcut~=nil and S.shortcutCommand then S.shortcutCommand(shortcut);return end
     local rate=message:match("^rate%s+(.+)$")
     if message=="dense" or message=="standard" then
         if not ns.setDenseBridge(message=="dense") then print("Feuxton: dense layout requires Paladin and being outside combat.") end

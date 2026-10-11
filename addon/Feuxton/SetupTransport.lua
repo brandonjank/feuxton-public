@@ -80,21 +80,37 @@ S.setupSession=math.random(0,65535)*65536+math.random(0,65535)
 S.transportPackets={}
 function S.denseStatePacket(now,tick,unified)
     local core=S.transportPackets[1];local classID=core and string.byte(core.packet,11) or 0
-    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 end
+    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 and unified then ids[#ids+1]=11 end
     for id=16,21 do ids[#ids+1]=id end
     if classID==7 then ids[#ids+1]=4 end -- optional public courtesy recipients
-    if unified then ids[#ids+1]=5 end -- slow, cached character/setup page
-    local chunks,count={},0
+    if unified then ids[#ids+1]=5;if classID==7 or classID==2 then ids[#ids+1]=7;ids[#ids+1]=8 end end -- setup, recipients and shared enemy cast
+    if unified and ns.features.Consumables then
+        local ok,packet=pcall(ns.features.Consumables.packet,tick)
+        S.transportPackets[9]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=9
+    end
+    if unified and ns.features.ControlEffects then
+        local ok,packet=pcall(ns.features.ControlEffects.packet,tick)
+        S.transportPackets[10]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=10
+    end
+    local chunks,count={},0;local setupChunk;local liveBytes=23
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
         local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
         if age and age>=0 and age<=maxAge then
-            chunks[#chunks+1]=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#entry.packet,2)..entry.packet;count=count+1
+            local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#entry.packet,2)..entry.packet
+            if unified and id==5 then setupChunk=chunk
+            else chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk end
         end
     end
+    -- Setup is already a cached, optional paged stream. Keep combat/recipient
+    -- observations intact when unusually long identities or racials fill it.
+    if setupChunk and liveBytes+#setupChunk<=2304 then chunks[#chunks+1]=setupChunk;count=count+1 end
+    S.setupPageDeferred=setupChunk~=nil and liveBytes+#setupChunk>2304
     local payload=table.concat(chunks)
     local packet=(unified and "HHD2" or "HHD1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
-    packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(unified and 2304 or 1536),"dense packet capacity exceeded")
+    packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(unified and 2304 or 1536),"dense packet capacity exceeded: "..#packet)
     return packet
 end
 function S.refreshTransportPacketState(now)
