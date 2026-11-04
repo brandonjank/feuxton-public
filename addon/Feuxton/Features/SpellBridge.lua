@@ -35,6 +35,20 @@ function B.render(bridge,index,id,learned,spec)
 end
 function B.auras(bridge,specs,readings)
     local S=ns.state;local G=ns.features.GroupContext;local signature={}
+    local function actualAuraID(spec,reading)
+        local observed=bridge.verifiedAuras[spec.auraName or spec.name]
+        if observed then return observed end
+        -- Optional class calibration certifies only the exact client build,
+        -- bound spell rank and currently readable effect name. It configures
+        -- a native filter; it never supplies an aura presence/absence value.
+        if not spec.nativeAuraIDs then return nil end
+        local build=G.text(G.read(GetBuildInfo,2),16)
+        local ranks=spec.nativeAuraIDs[build];local id=ranks and ranks[reading.id]
+        if not id then return nil end
+        local info=S.readableCall(S.spellAPI.GetSpellInfo,id)
+        if S.safeField(info,"name")~=(spec.auraName or spec.name) then return nil end
+        return id
+    end
     -- One guarded scan per unit, reused by every aura family.
     local scans={}
     for _,unit in ipairs({"player","target"}) do
@@ -54,7 +68,7 @@ function B.auras(bridge,specs,readings)
     for i,spec in ipairs(specs) do if spec.aura then
         local scan=scans[spec.aura];local found=scan.names[spec.auraName or spec.name]
         readings[i].aura=found and {status="observed",value=true} or scan.complete and {status="observed",value=false} or {}
-        signature[#signature+1]=i..":"..readings[i].id..":"..G.code(readings[i].learned)..":"..(bridge.verifiedAuras[spec.auraName or spec.name] or 0)
+        signature[#signature+1]=i..":"..readings[i].id..":"..G.code(readings[i].learned)..":"..(actualAuraID(spec,readings[i]) or 0)
     end end
     signature=table.concat(signature,"|")
     if signature==bridge.auraSignature then return end
@@ -67,7 +81,7 @@ function B.auras(bridge,specs,readings)
         local ok=pcall(function()
             container=CreateFrame("AuraContainer",nil,bridge.panel,"CustomAuraContainerTemplate");container:SetAllPoints(bridge.panel)
             for i,spec in ipairs(specs) do if spec.aura==unit and readings[i].learned.status=="observed" and readings[i].learned.value==true then
-                local ids=spec.auraName and {} or {[readings[i].id]=true};local actual=bridge.verifiedAuras[spec.auraName or spec.name]
+                local ids=spec.auraName and {} or {[readings[i].id]=true};local actual=actualAuraID(spec,readings[i])
                 for _,known in ipairs(S.setupKnownSpells or {}) do if known.name==(spec.auraName or spec.name) then ids[known.id]=true end end
                 if actual then ids[actual]=true;certified[i]=true end
                 local x,y=12+(i-1)%14*46+36,6+math.floor((i-1)/14)*40

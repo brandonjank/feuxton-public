@@ -83,7 +83,7 @@ function S.denseStatePacket(now,tick,unified)
     local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 and unified then ids[#ids+1]=11 end
     for id=16,21 do ids[#ids+1]=id end
     if classID==7 then ids[#ids+1]=4 end -- optional public courtesy recipients
-    if unified then ids[#ids+1]=5;if classID==7 or classID==2 then ids[#ids+1]=7;ids[#ids+1]=8 end end -- setup, recipients and shared enemy cast
+    if unified then ids[#ids+1]=5;if classID==7 or classID==2 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 then ids[#ids+1]=8 end end -- setup, recipients and shared enemy cast
     if unified and ns.features.Consumables then
         local ok,packet=pcall(ns.features.Consumables.packet,tick)
         S.transportPackets[9]=ok and {packet=packet,at=now} or nil

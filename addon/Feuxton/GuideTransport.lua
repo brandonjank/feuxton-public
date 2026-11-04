@@ -116,7 +116,7 @@ do
         packet=packet..S.bytes(probeTick,4)..S.executionBytes(4)
         local enemyCast=ns.features.Interrupts.bytes()
         packet=packet..enemyCast
-        if class=="PALADIN" or class=="SHAMAN" then S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast),true) end
+        if class=="PALADIN" or class=="SHAMAN" or class=="HUNTER" then S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast),true) end
         for _,tile in ipairs(S.tiles) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(tile),tile.known),1) end
         for _,spec in ipairs(ns.playerBuffSpecs or {}) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(spec),spec.known),1) end
         packet=packet..S.bytes(S.adler32(packet),4)

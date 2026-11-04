@@ -1,12 +1,16 @@
--- HHX2: atomic shared control effects, racial spells and Freedom recipients.
+-- HHX4: shared control, self Purify and bounded readable harmful aura IDs.
 -- All secret fields remain unknown; native cooldown/usability stays rendered.
 local _,ns=...
 local X={cache={}}
 ns.features.ControlEffects=X
 X.freedom={key="paladin.freedom",name="Blessing of Freedom",support=true}
+-- Stable capability indexes shared with windows/Cleansing.cs. Add learned
+-- class removers here without giving unsupported classes an assumed spell.
+X.cleanseSpecs={{index=1,class="PALADIN",key="paladin.purify",name="Purify",unit="player"}}
 local movementNames={['Frostbolt']=true,['Frost Shock']=true,['Hamstring']=true,['Wing Clip']=true,['Concussive Shot']=true,['Crippling Poison']=true,['Entangling Roots']=true,['Frost Nova']=true,['Frost Trap Aura']=true,['Ensnare']=true,['Net']=true,['Web']=true,['Tendon Rip']=true}
 local function flag(v)return v==true and 2 or v==false and 1 or 0 end
 local function value(fn,...)return ns.state.readableCall(fn,...) end
+local debuffTypes={Poison=1,Disease=2,Curse=4,Magic=8,Bleed=16}
 -- A lower bound from available nameplate units, never a complete world count.
 -- Public eligibility is required before a secret range value can be rendered.
 function X.nearbyProbe()
@@ -61,7 +65,7 @@ function X.nearby()
  return S.bytes(id,4)..S.bytes(reach,1)..S.bytes(costID,4)..S.bytes(cost,1)..near
 end
 function X.effects(unit)
- local S=ns.state;local G=ns.features.GroupContext;local result={};local complete=false
+ local S=ns.state;local G=ns.features.GroupContext;local result={debuffs={}};local complete=false;local idsComplete=true;local seenIDs={}
  if value(UnitExists,unit)~=true then return result end
  local api=type(C_LossOfControl)=="table" and C_LossOfControl or {}
  local count
@@ -79,21 +83,35 @@ function X.effects(unit)
   end
  end
  if complete then result.forsaken=result.forsaken or false;result.stun=result.stun or false end
- local auraAPI=type(C_UnitAuras)=="table" and C_UnitAuras or {};local scanned=false;local unclassified=false;local classified=true
+ local auraAPI=type(C_UnitAuras)=="table" and C_UnitAuras or {};local scanned=false;local unclassified=false;local classified=true;local dispelClassified=true
  for i=1,80 do
   if type(auraAPI.GetAuraDataByIndex)~="function" then break end
   local ok,aura=pcall(auraAPI.GetAuraDataByIndex,unit,i,"HARMFUL")
   if not ok or S.isSecret(aura) then break end
   if aura==nil then scanned=true;break end
   local name=S.safeField(aura,"name");local dispel=S.safeField(aura,"dispelName")
+  local kind=debuffTypes[dispel]
+  if kind then
+   local id=S.safeField(aura,"spellId") or S.safeField(aura,"spellID")
+   if type(id)~="number" or id<=0 or id>2147483647 or id~=math.floor(id) then idsComplete=false
+   elseif seenIDs[id] then
+    local old=seenIDs[id];if math.floor(old.types/kind)%2==0 then old.types=old.types+kind end
+   elseif #result.debuffs<16 then local entry={id=id,types=kind};result.debuffs[#result.debuffs+1]=entry;seenIDs[id]=entry
+   else idsComplete=false end
+  end
   if type(name)~="string" or S.isSecret(aura.dispelName) then classified=false end
+  if S.isSecret(aura.dispelName) then dispelClassified=false end
   local impairment=S.safeField(aura,"isMovementImpairing")
   if movementNames[name] or impairment==true then result.movement=true elseif impairment~=false then unclassified=true end
   if name=="Sleep" or name=="Deep Sleep" or name=="Charm" or name=="Mind Control" then result.forsaken=true end
   if dispel=="Curse" then result.curse=true end
   if dispel=="Poison" or dispel=="Disease" or dispel=="Bleed" then result.stoneform=true end
+  if dispel=="Poison" then result.poison=true end
+  if dispel=="Disease" then result.disease=true end
  end
  if scanned and classified then result.curse=result.curse or false;result.stoneform=result.stoneform or false end
+ if scanned and dispelClassified then result.poison=result.poison or false;result.disease=result.disease or false end
+ result.debuffsComplete=scanned and dispelClassified and idsComplete
  -- LoC commonly omits slows. Never certify their absence from an empty LoC list.
  if scanned and complete and not unclassified then result.movement=result.movement or false end
  return result
@@ -138,6 +156,11 @@ function X.native()
   X.tiles[i]=tile
  end
  for i=1,5 do local p=S.hud:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",510+(i-1)*6,-2);X.ranges[i]=p end
+ -- Spare header space between the existing Freedom signals and range dots.
+ local tile={};tile.dial=S.hud:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(8,8);tile.dial:SetPoint("TOPLEFT",490,-1)
+ tile.cooldown=CreateFrame("Cooldown",nil,S.hud,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial);tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
+ tile.signals={};for j=1,4 do local dot=S.hud:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",500+(j-1)%2*5,-1-math.floor((j-1)/2)*5);tile.signals[j]=dot end
+ X.cleanseTile=tile
  for i=1,4 do local p=S.hud:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",550+(i-1)*6,-2);X.stamp[i]=p end
 end
 function X.packet(tick)
@@ -149,7 +172,7 @@ function X.packet(tick)
  local roster=S.transportPackets[16];local rosterTick=roster and string.byte(roster.packet,9) and 0 or nil
  if roster then for i=0,3 do rosterTick=rosterTick+string.byte(roster.packet,9+i)*256^i end end
  local revision=F.revision or 0
- local packet="HHX2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
+ local packet="HHX4"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
  local contexts={value(IsFalling),value(IsStealthed),value(UnitIsPlayer,"target"),value(UnitIsDeadOrGhost,"target"),value(UnitAffectingCombat,"player")}
  local corpseType=value(UnitCreatureType,"target")
  contexts[6]=(corpseType=="Humanoid" or corpseType=="Undead") and true or type(corpseType)=="string" and false or nil
@@ -191,6 +214,16 @@ function X.packet(tick)
   end
  end
  packet=packet..X.nearby()
+ local spec;for _,candidate in ipairs(X.cleanseSpecs) do if candidate.class==class then spec=candidate;break end end
+ local cleanse=spec and F.spell(spec,"player") or {id=0}
+ local managed=spec and S.managedSpells.entries[class..":"..spec.name] or nil
+ local valid=managed and S.bindingsValid and S.managedSpells.current(managed) and managed.unit=="player" and not managed.friendly and managed.id==cleanse.id
+ local pf=G.code(cleanse.learned)+G.code(cleanse.usable)*4+G.code(cleanse.mana)*16+G.code(cleanse.ready)*64
+ local effects=X.effects("player")
+ packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4,1)
+ packet=packet..S.bytes(flag(effects.debuffsComplete),1)..S.bytes(#effects.debuffs,1)
+ for _,aura in ipairs(effects.debuffs) do packet=packet..S.bytes(aura.id,4)..S.bytes(aura.types,1) end
+ if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player");if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
  local checksum=S.adler32(packet)
  for i,p in ipairs(X.stamp or {}) do local c=math.floor(checksum/256^(i-1))%256/255;p:SetColorTexture(c,c,c,1) end
  return packet..S.bytes(checksum,4)

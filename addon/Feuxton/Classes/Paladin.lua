@@ -7,6 +7,7 @@ paladin.denseBridgeLayout={key="paladin-dense-v4",height=132,gauges=68,native=28
 paladin.specs={
  {key="paladin.holyStrike",name="Holy Strike"},
  {key="paladin.judgement",name="Judgement"},
+ {key="paladin.swiftJudgement",name="Swift Judgement",unit="player",offGlobalCooldown=true},
  {key="paladin.consecration",name="Consecration"},
  {key="paladin.sealRighteousness",name="Seal of Righteousness",unit="player"},
  {key="paladin.sealCommand",name="Seal of Command",unit="player"},
@@ -22,7 +23,7 @@ paladin.specs={
  {key="paladin.retributionAura",name="Retribution Aura",unit="player"},
  {key="paladin.hammerJustice",name="Hammer of Justice",offGlobalCooldown=true},
  {key="paladin.exorcism",name="Exorcism"},
- {key="paladin.purify",name="Purify"},
+ {key="paladin.purify",name="Purify",unit="player"},
  {key="paladin.divineProtection",name="Divine Protection",unit="player"},
  {key="paladin.divineShield",name="Divine Shield",unit="player"},
  {key="paladin.layHands",name="Lay on Hands",unit="player"},
@@ -110,6 +111,7 @@ paladin.packetKeys={}
 for i,key in ipairs(paladin.previewKeys) do paladin.packetKeys[i]=key end
 paladin.packetKeys[11]="retributionAura"
 paladin.packetKeys[12]="righteousFury";paladin.packetKeys[13]="layHands";paladin.packetKeys[14]="divineProtection"
+paladin.packetKeys[15]="swiftJudgement"
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
 -- never compares or serializes it. Orange means no supported rendering path.
@@ -175,17 +177,26 @@ local function initializeNative(S)
     for i=1,4 do
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",626+(i-1)*6,0);paladin.nativeStamp[i]=dot
     end
-    for i=1,14 do
+    for i=1,15 do
         local tile={};local x=12+(i-1)*46
+        -- The reset uses the remaining right-hand strip; existing tile geometry
+        -- stays intact for recorded frames and legacy readers.
+        local small=i==15;if small then x=656 end
         for _,spec in ipairs(paladin.specs) do if spec.key=="paladin."..paladin.packetKeys[i] then tile.offGlobalCooldown=spec.offGlobalCooldown==true;break end end
         tile.icon=panel:CreateTexture(nil,"ARTWORK");tile.icon:SetSize(16,16);tile.icon:SetPoint("TOPLEFT",x,-6)
         tile.dial=panel:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(16,16);tile.dial:SetPoint("TOPLEFT",x+18,-6)
         tile.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial)
         tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
         tile.aura=panel:CreateTexture(nil,"ARTWORK");tile.aura:SetSize(8,8);tile.aura:SetPoint("TOPLEFT",x+36,-6);tile.aura:SetColorTexture(0,0.25,1,1)
+        if small then
+            tile.icon:SetSize(8,8);tile.dial:SetSize(8,8)
+            tile.dial:ClearAllPoints();tile.dial:SetPoint("TOPLEFT",x,-16)
+            tile.aura:Hide()
+        end
         tile.visualSignals={}
         for j=1,4 do
             local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+(j-1)*6,-32);tile.visualSignals[j]=dot
+            if small then dot:ClearAllPoints();dot:SetPoint("TOPLEFT",x+((j-1)%2)*6,-26-math.floor((j-1)/2)*6) end
         end
         paladin.nativeTiles[i]=tile
         local useButton=S.attachSpellUse(panel,tile.icon,"paladin."..paladin.packetKeys[i])
@@ -284,7 +295,7 @@ function paladin.initializePreview()
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
         local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
-        local packet="HHP7"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
+        local packet="HHP9"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
         -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
         local auras,auraIDs,complete={},{},false
         if type(C_UnitAuras)=="table" and type(C_UnitAuras.GetAuraDataByIndex)=="function" then
@@ -330,7 +341,7 @@ function paladin.initializePreview()
             local flags=0
             for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
             packet=packet..S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
-            if index<=14 then renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S) end
+            renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S)
             paladin.verifiedAuraIDs=paladin.verifiedAuraIDs or {}
             local family=spec.key..":"..bound
             if learned.status=="observed" and learned.value==true and auraIDs[spec.name] and S.readableCall(InCombatLockdown)==false then paladin.verifiedAuraIDs[family]=auraIDs[spec.name] end
@@ -372,6 +383,7 @@ function paladin.initializePreview()
         local stopEntry=S.managedSpells and S.managedSpells.entries["PALADIN:Feuxton Stop Casting"]
         local stopKey=S.bindingsValid and S.managedSpells.current(stopEntry) and paladin.bindingCode(stopEntry.key) or 0
         packet=packet..S.bytes(stopKey,2)
+        packet=packet..S.bytes(paladin.bindingCode(ns.features.Threat.readyBinding()),2)
         local checksum=S.adler32(packet)
         for i,dot in ipairs(paladin.nativeStamp) do local value=math.floor(checksum/256^(i-1))%256/255;dot:SetColorTexture(value,value,value,1) end
         packet=packet..S.bytes(checksum,4);assert(#packet<=357);group.paint(cells,packet)

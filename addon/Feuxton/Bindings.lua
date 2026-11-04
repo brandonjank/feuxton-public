@@ -90,7 +90,10 @@ function M.catalog()
         end
     end
     if class=="PALADIN" or class=="SHAMAN" then candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true}
-        if class=="PALADIN" then candidates[#candidates+1]={id=0,name="Feuxton Remove Fury",unit="player",cancelFury=true} end end
+        if class=="PALADIN" then
+            candidates[#candidates+1]={id=0,name="Feuxton Remove Fury",unit="player",cancelFury=true}
+            candidates[#candidates+1]={id=0,name="Feuxton Skull",unit="target",skull=true}
+        end end
     if ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
     if class=="PALADIN" and ns.features.ControlEffects then
         local spec=ns.features.ControlEffects.freedom;local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
@@ -132,7 +135,7 @@ function M.refresh()
                         if not M.reserved[key] and not ns.keyPolicy.reason(key) and bindingAction(key,false)=="" and bindingAction(key,true)=="" then entry.key=key;M.reserved[key]=family;break end
                     end
                 end
-                entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID
+                entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID;entry.skull=candidate.skull
                 entry.button:SetAttribute("item",candidate.itemID and candidate.itemID>0 and "item:"..candidate.itemID or nil)
                 entry.button:SetAttribute("spell",candidate.cancelFury and "Righteous Fury" or candidate.id>0 and candidate.id or nil);entry.button:SetAttribute("unit",candidate.unit)
                 -- One secure click commands the pet before the attack. This
@@ -146,8 +149,17 @@ function M.refresh()
                     local ok=pcall(SetOverrideBindingClick,M.owner,false,entry.key,entry.buttonName,"LeftButton")
                     entry.active=ok and bindingAction(entry.key,false)=="" and bindingAction(entry.key,true)==entry.action
                 end
-                entry.button:SetAttribute("type",entry.active and (candidate.itemID and "item" or candidate.cancelFury and "cancelaura" or macro and "macro" or "spell") or nil)
+                entry.button:SetAttribute("marker",candidate.skull and 8 or nil)
+                entry.button:SetAttribute("action",candidate.skull and "set" or nil)
+                entry.button:SetAttribute("type",entry.active and (candidate.skull and "raidtarget" or candidate.itemID and "item" or candidate.cancelFury and "cancelaura" or macro and "macro" or "spell") or nil)
                 entry.button.hhSpellID=candidate.id
+                if candidate.skull and not entry.tankMarkHook then
+                    entry.button:HookScript("PreClick",function(button,mouse,down)
+                        local threat=ns.features.Threat
+                        if threat then threat.clicked(down) end
+                    end)
+                    entry.tankMarkHook=true
+                end
                 if (candidate.friendly or candidate.name=="Lay on Hands") and not entry.recipientHook then
                     local spec={healing=candidate.healing or candidate.name=="Lay on Hands",support=candidate.support,directSelf=candidate.name=="Lay on Hands"}
                     entry.button:SetScript("PreClick",function(button,mouse,down) ns.features.Healing.track(button,spec,down) end)
