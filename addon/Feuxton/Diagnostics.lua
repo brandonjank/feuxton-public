@@ -321,10 +321,7 @@ ns.compareCapabilities=S.compareCapabilities
 function S.directSpellFlags(name,id,known,unit)
     if known~=true or type(id)~="number" then return 0 end
     local api=type(C_Spell)=="table" and C_Spell or {}
-    local function flag(fn,index,...)
-        if type(fn)~="function" then return 0 end
-        local args={...}
-        local ok,value=pcall(function() return select(index,fn(unpack(args))) end)
+    local function flag(ok,value)
         if not ok then return 0 end
         local state=S.capabilityValue(value)
         if state~="readable" then return 0 end
@@ -332,9 +329,12 @@ function S.directSpellFlags(name,id,known,unit)
         if value==false or value==0 then return 1 end
         return 0
     end
-    local range=flag(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and id or name,unit or "target")
-    local usable=flag(api.IsSpellUsable or IsUsableSpell,1,id)
-    local power=flag(api.IsSpellUsable or IsUsableSpell,2,id)
+    local R=ns.features.RangeTracking
+    local rangeOK,rangeValue=R.range(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and id or name,unit or "target")
+    local usableOK,usableValue,powerValue=R.usability(api.IsSpellUsable or IsUsableSpell,id)
+    local range=flag(rangeOK,rangeValue)
+    local usable=flag(usableOK,usableValue)
+    local power=flag(usableOK,powerValue)
     return range+usable*4+power*16
 end
 ns.directSpellFlags=S.directSpellFlags
@@ -411,44 +411,79 @@ end
 
 -- Opt-in profiling uses only the client's public monotonic profiler clock.
 -- Bounded storage; disabled profiling does not call the clock or allocate samples.
-S.performance = {enabled=false, stages={}}
+S.performance = {enabled=false, detail=false, stages={},paint={updates=0,visits=0,writes=0,skippedBlocks=0}}
+-- Profiler clocks are diagnostic only. Missing, restricted or failing clocks
+-- must never prevent the actual pixel write or become a zero-cost sample.
+function S.profileClock()
+    if type(debugprofilestop)~="function" then return nil end
+    local ok,value=pcall(debugprofilestop)
+    if not ok or S.isSecret(value) or type(value)~="number" or value~=value or value==math.huge or value==-math.huge then return nil end
+    return value
+end
+local function profileResults(...) return {n=select("#",...),...} end
+function S.profileFunction(original,name)
+    return function(...)
+        if not S.performance.enabled or type(debugprofilestop)~="function" then return original(...) end
+        local start=S.profileClock()
+        local results=profileResults(pcall(original,...))
+        local finish=S.profileClock()
+        if start and finish and finish>=start then
+            local stage=S.performance.stages[name]
+            if not stage then stage={samples={},cursor=0,calls=0,totalMs=0,peakMs=0};S.performance.stages[name]=stage end
+            stage.cursor=stage.cursor%120+1;stage.samples[stage.cursor]=finish-start;stage.calls=stage.calls+1
+            stage.totalMs=(stage.totalMs or 0)+finish-start;stage.peakMs=math.max(stage.peakMs or 0,finish-start)
+        end
+        if not results[1] then error(results[2],0) end
+        return unpack(results,2,results.n)
+    end
+end
 function S.profileScript(frame, script, name)
     if not frame then return end
     local original=frame:GetScript(script)
-    if not original then return end
-    frame:SetScript(script,function(...)
-        if not S.performance.enabled or type(debugprofilestop)~="function" then return original(...) end
-        local start=debugprofilestop()
-        local ok,err=pcall(original,...)
-        local finish=debugprofilestop()
-        if not S.isSecret(start) and not S.isSecret(finish) and type(start)=="number" and type(finish)=="number" and finish>=start then
-            local stage=S.performance.stages[name]
-            if not stage then stage={samples={},cursor=0,calls=0};S.performance.stages[name]=stage end
-            stage.cursor=stage.cursor%120+1;stage.samples[stage.cursor]=finish-start;stage.calls=stage.calls+1
-        end
-        if not ok then error(err) end
-    end)
+    if original then frame:SetScript(script,S.profileFunction(original,name)) end
 end
 SLASH_FEUXTONPERF1="/feuxtonperf"
 SlashCmdList.FEUXTONPERF=function(message)
     message=(message or ""):lower():match("^%s*(.-)%s*$")
-    if message=="on" then
-        S.performance.stages={};S.performance.enabled=true
-        print("Feuxton: profiling ON. /feuxtonperf report shows average / p95 milliseconds per callback (including idle frames).")
+    if message=="on" or message=="detail" then
+        S.performance.stages={};S.performance.enabled=true;S.performance.started=S.readableCall(GetTime);S.performance.stopped=nil
+        S.performance.detail=message=="detail"
+        S.performance.paint={updates=0,visits=0,writes=0,skippedBlocks=0}
+        S.performance.paintDetail={updates=0,writes=0,setterSamples=0,controlSamples=0,setterMs=0,controlMs=0}
+        print(S.performance.detail and "Feuxton: detail profiling ON. Extra clock reads perturb timing; /feuxtonperf report shows setter and clock-control totals." or "Feuxton: profiling ON. /feuxtonperf report shows due-update and event costs; nested totals include their children.")
     elseif message=="off" then
-        S.performance.enabled=false;print("Feuxton: profiling OFF.")
+        S.performance.stopped=S.readableCall(GetTime);S.performance.enabled=false;S.performance.detail=false;print("Feuxton: profiling OFF.")
     elseif message=="report" then
-        local lines={"Feuxton addon performance · "..(S.performance.enabled and "ON" or "OFF"),"Milliseconds per callback, last 120 samples; includes idle OnUpdate calls."}
+        local lines={"Feuxton addon performance · "..(S.performance.enabled and "ON" or "OFF"),"Milliseconds per callback, last 120 samples. Coordinated total includes producers, assembly and painting; assembly includes support/consumables."}
+        local now=S.performance.enabled and S.readableCall(GetTime) or S.performance.stopped
+        local elapsed=type(now)=="number" and type(S.performance.started)=="number" and now-S.performance.started or 0
+        lines[#lines+1]="Measured callback CPU ms/s is elapsed-window cost, not percent of all addon CPU. Deferred client/GPU rendering is excluded; native API call time is included."
         local names={};for name in pairs(S.performance.stages) do names[#names+1]=name end;table.sort(names)
         for _,name in ipairs(names) do
             local stage=S.performance.stages[name];local sorted={};local sum=0
             for _,value in ipairs(stage.samples) do sorted[#sorted+1]=value;sum=sum+value end
             table.sort(sorted)
             lines[#lines+1]=string.format("%s: avg %.3f / p95 %.3f ms (%d samples, %d calls)",name,sum/#sorted,sorted[math.ceil(#sorted*.95)],#sorted,stage.calls)
+            if elapsed>0 then lines[#lines+1]=string.format("  window %.1fs: %.3f CPU ms/s; peak %.3f ms",elapsed,(stage.totalMs or sum)/elapsed,stage.peakMs or 0) end
+        end
+        local paint=S.performance.paint
+        if paint and paint.updates>0 then
+            lines[#lines+1]=string.format("RGB work per successful paint: %.1f cells decoded; %.1f color writes; %.1f unchanged blocks skipped (%d paints).",paint.visits/paint.updates,paint.writes/paint.updates,paint.skippedBlocks/paint.updates,paint.updates)
+        end
+        local detail=S.performance.paintDetail
+        if detail and detail.updates>0 then
+            local function timing(label,total,samples)
+                if samples==0 then return string.format("%s: unavailable (0/%d writes timed)",label,detail.writes) end
+                if elapsed>0 then return string.format("%s: %.3f CPU ms/s (%d/%d writes timed)",label,total/elapsed,samples,detail.writes) end
+                return string.format("%s: %.3f ms total (%d/%d writes timed)",label,total,samples,detail.writes)
+            end
+            lines[#lines+1]=timing("RGB native setter",detail.setterMs,detail.setterSamples)
+            lines[#lines+1]=timing("RGB adjacent two-clock control",detail.controlMs,detail.controlSamples)
+            lines[#lines+1]="Detail adds four guarded clock reads per changed color and perturbs total time; do not compare this total directly with normal mode. Setter/control subtraction is only approximate, not pure scan CPU."
         end
         if #names==0 then lines[#lines+1]="No samples. Run /feuxtonperf on and play normally first." end
         if type(debugprofilestop)~="function" then lines[#lines+1]="Client profiler clock unavailable." end
         S.edit:SetText(table.concat(lines,"\n"));S.panel:Show();S.edit:SetFocus();S.edit:HighlightText()
-    else print("Feuxton: /feuxtonperf on, /feuxtonperf report, /feuxtonperf off.") end
+    else print("Feuxton: /feuxtonperf on, /feuxtonperf detail, /feuxtonperf report, /feuxtonperf off.") end
 end
 

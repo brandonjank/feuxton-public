@@ -2,8 +2,8 @@
 local _, ns = ...
 local S = ns.state
 
-function S.mirrorColor(dot, source, method)
-    dot:SetColorTexture(1, 1, 1, 1)
+function S.mirrorColor(dot, source, method,whiteBase)
+    if not whiteBase then dot:SetColorTexture(1, 1, 1, 1) end
     if not source or type(source[method]) ~= "function" then return false end
     -- Forward the native color straight to another native renderer. Do not
     -- inspect, branch on, stringify or serialize any of its channels.
@@ -15,6 +15,7 @@ S.signalUpdater:SetScript("OnUpdate", function(self, elapsed)
     S.signalElapsed = S.signalElapsed + elapsed
     if S.signalElapsed < S.updateInterval() then return end
     S.signalElapsed = 0
+    if S.setupString(S.setupValue(UnitClass,2,"player"))~="HUNTER" then return end
     for _, tile in ipairs(S.tiles) do
         local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
         local button = chosen and chosen.button
@@ -27,16 +28,17 @@ S.signalUpdater:SetScript("OnUpdate", function(self, elapsed)
         elseif visible then
             local hotkey = button.HotKey or _G[button:GetName() .. "HotKey"]
             local rangeMethod = hotkey and type(hotkey.GetVertexColor) == "function" and "GetVertexColor" or "GetTextColor"
-            rangeOK = S.mirrorColor(tile.visualSignals[1], hotkey, rangeMethod)
-            usableOK = S.mirrorColor(tile.visualSignals[3], button.icon or button.Icon, "GetVertexColor")
+            rangeOK = S.mirrorColor(tile.visualSignals[1], hotkey, rangeMethod,true)
+            usableOK = S.mirrorColor(tile.visualSignals[3], button.icon or button.Icon, "GetVertexColor",true)
             if rangeOK then
                 pcall(function() tile.binding:SetVertexColor(hotkey[rangeMethod](hotkey)) end)
             end
         end
-        S.drawFlag(tile.visualSignals[2], rangeOK)
-        S.drawFlag(tile.visualSignals[4], usableOK)
-        if not rangeOK then tile.visualSignals[1]:SetColorTexture(1, 0.65, 0, 1); tile.binding:SetVertexColor(1,1,1,1) end
-        if not usableOK then tile.visualSignals[3]:SetColorTexture(1, 0.65, 0, 1) end
+        local R=ns.features.RangeTracking
+        R.paintFlag(tile.visualSignals[2], rangeOK)
+        R.paintFlag(tile.visualSignals[4], usableOK)
+        if not rangeOK then R.paintColor(tile.visualSignals[1],1,.65,0,1); tile.binding:SetVertexColor(1,1,1,1) end
+        if not usableOK then R.paintColor(tile.visualSignals[3],1,.65,0,1) end
     end
 end)
 

@@ -15,7 +15,9 @@ H.specs={
  {key="shaman.manaSpring",name="Mana Spring Totem",element=3,unit="player"},{key="shaman.healingStream",name="Healing Stream Totem",element=3,unit="player"},
  {key="shaman.windfuryTotem",name="Windfury Totem",element=4,unit="player"},{key="shaman.graceAir",name="Grace of Air Totem",element=4,unit="player"},
  {key="shaman.tremor",name="Tremor Totem",element=2,unit="player"},{key="shaman.grounding",name="Grounding Totem",element=4,unit="player"},{key="shaman.earthbind",name="Earthbind Totem",element=2,unit="player"},
- {key="shaman.chainHeal",name="Chain Heal",healing=true,unit="player"},{key="shaman.autoAttack",name="Attack",startAttack=true},{key="shaman.earthShockInterrupt",name="Earth Shock"}
+ {key="shaman.chainHeal",name="Chain Heal",healing=true,unit="player"},{key="shaman.autoAttack",name="Attack",startAttack=true},{key="shaman.earthShockInterrupt",name="Earth Shock"},
+ {key="shaman.rageFarseer",name="Rage of the Farseer",unit="player"},
+ {key="shaman.flametongueTotem",name="Flametongue Totem",element=1,unit="player"}
 }
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext
@@ -30,14 +32,14 @@ function H.initializePreview()
   local readings={}
   for i,spec in ipairs(H.specs) do local r=F.spell(spec,spec.unit or "target");readings[i]=r;B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec) end
   B.auras(bridge,H.specs,readings)
-  local packet="SHS1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local packet="SHS2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
    local r=readings[i];local entry=S.managedSpells and S.managedSpells.entries["SHAMAN:"..spec.name]
    local key=S.bindingsValid and S.managedSpells.current(entry) and S.compactBindingCode(entry.key) or 0
    local ready=r.ready
    if spec.key=="shaman.autoAttack" then r.learned={status="observed",value=r.id==6603};r.usable={status="observed",value=true};r.mana={status="observed",value=false};ready={status="observed",value=true} end
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
-   local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=0 end
+   local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end
    local absent=bridge.absence and bridge.absence[i] and GetTime()>=(bridge.settledAt or math.huge)
    packet=packet..S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(S.spellUseCode(spec.key)+(absent and 4 or 0),1)..S.bytes(ms,2)
   end
@@ -53,6 +55,7 @@ function H.initializePreview()
   local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1})
   if not painted or result~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
   packet=packet..S.executionBytes(2)..S.bytes(G.code(dungeon),1)..S.bytes(G.code(combat),1)..ns.features.Totems.observe(H.specs)..S.bytes(G.code(main),1)..S.bytes(G.code(off),1)..S.bytes(stopKey,2)
+  packet=packet..S.bytes(B.stackCount("player","Maelstrom Weapon",5),1)
   local sum=S.adler32(packet);for i,dot in ipairs(bridge.stamp) do local v=math.floor(sum/256^(i-1))%256/255;dot:SetColorTexture(v,v,v,1) end
   S.publishTransportPacket(6,packet..S.bytes(sum,4))
  end

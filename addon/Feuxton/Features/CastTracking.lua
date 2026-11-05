@@ -76,3 +76,13 @@ function P.activityFlag(state,fn,mode)
     if not ok or ns.state.isSecret(name) then return state[mode] end
     return name~=nil
 end
+-- Public identity from the current START lifecycle. A secret/new START clears
+-- the previous ID; no retained receipt is treated as the current cast.
+function P.activityIdentity()
+    local state=P.currentActivity
+    if not state then return 0,0 end
+    if state.mode=="cast" and state.cast==true then return state.id or 0,2 end
+    if state.mode=="channel" and state.channel==true then return state.id or 0,3 end
+    if state.cast==false and state.channel==false then return 0,1 end
+    return 0,0
+end

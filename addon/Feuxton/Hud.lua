@@ -120,9 +120,9 @@ function S.refreshMeleeRanges()
     for _,probe in ipairs(S.meleeProbes) do
         local value
         if hostile and probe.known==true and type(probe.spellID)=="number" then
-            if type(S.spellAPI.IsSpellInRange)=="function" then
-                value=S.readableCall(S.spellAPI.IsSpellInRange,probe.spellID,"target")
-            else value=S.readableCall(IsSpellInRange,probe.name,"target") end
+            local native=type(S.spellAPI.IsSpellInRange)=="function"
+            local observed=ns.features.RangeTracking.readRange(native and S.spellAPI.IsSpellInRange or IsSpellInRange,native and probe.spellID or probe.name,"target")
+            if observed.status=="observed" then value=observed.value end
             if type(value)=="number" then
                 if value==1 then value=true elseif value==0 then value=false else value=nil end
             end

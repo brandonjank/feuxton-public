@@ -27,11 +27,12 @@ function S.renderFastSetup()
     for i,name in ipairs(classes) do if class==name then classID=i; break end end
     local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
     if level<0 or level>100 then level=0 end
-    local packet="HHF4"..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(classID,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(10,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
+    local count=ns.classes[class] and ns.classes[class].coreSlotCount or 10
+    local packet="HHF4"..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(classID,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(count,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
     if classID~=1 then
-        -- HHF4 keeps its ten-slot shape, but Hunter observations belong only
-        -- to Hunter. Other classes supply abilities through their class packet.
-        packet=packet..string.rep("\0",100)
+        -- Positional placeholders match the registered class contract; current
+        -- non-Hunter spell observations come from the class-owned packet.
+        packet=packet..string.rep("\0",count*10)
     else
     for tileIndex,tile in ipairs(S.tiles) do
         if tileIndex>10 then break end

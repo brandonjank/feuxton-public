@@ -4,16 +4,27 @@ local feature = {}
 ns.features.GroupContext = feature
 
 -- Keep false/zero distinct from unknown and never inspect protected scalars/tables.
-function feature.read(fn, index, ...)
-    if type(fn) ~= "function" then return {status="unavailable"} end
-    local args={...}
-    local ok,value=pcall(function() return select(index,fn(unpack(args))) end)
-    if not ok then return {status="error"} end
+function feature.scalar(value)
     if type(issecretvalue)=="function" and issecretvalue(value) then return {status="restricted"} end
     local kind=type(value)
     if kind~="boolean" and kind~="number" and kind~="string" then return {status="unknown"} end
     if kind=="number" and (value~=value or value==math.huge or value==-math.huge) then return {status="unknown"} end
     return {status="observed",value=value}
+end
+function feature.read(fn, index, ...)
+    if type(fn) ~= "function" then return {status="unavailable"} end
+    local args={...}
+    local ok,value=pcall(function() return select(index,fn(unpack(args))) end)
+    if not ok then return {status="error"} end
+    return feature.scalar(value)
+end
+-- Sample related API results together. Each scalar retains its own restriction
+-- status; one secret result must not hide an independently readable result.
+function feature.readPair(fn, ...)
+    if type(fn)~="function" then return {status="unavailable"},{status="unavailable"} end
+    local ok,first,second=pcall(fn,...)
+    if not ok then return {status="error"},{status="error"} end
+    return feature.scalar(first),feature.scalar(second)
 end
 function feature.field(object, key)
     if type(issecretvalue)=="function" and issecretvalue(object) then return {status="restricted"} end
@@ -49,7 +60,7 @@ function feature.capture(spells)
         local api=type(C_Spell)=="table" and C_Spell or {}
         for _,spell in ipairs(spells or {}) do
             if spell.id and spell.id.status=="observed" and type(spell.id.value)=="number" then
-                member.ranges[spell.key]=feature.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and spell.id.value or spell.name,unit)
+                member.ranges[spell.key]=ns.features.RangeTracking.readRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and spell.id.value or spell.name,unit)
             else member.ranges[spell.key]={status="unknown"} end
         end
         member.auras=feature.auraSummary(unit)
@@ -71,15 +82,25 @@ function feature.text(value,limit)
 end
 -- Forever's second UnitName result is the surname, not the realm. Keep the
 -- complete public name for recipient receipts; first names are not unique.
-function feature.fullName(unit,limit)
-    local ok,first,surname=pcall(UnitName,unit)
-    if not ok or ns.state.isSecret(first) or ns.state.isSecret(surname) or type(first)~="string" or first=="" then return "" end
+local function fullName(first,surname,limit)
+    if ns.state.isSecret(first) or ns.state.isSecret(surname) or type(first)~="string" or first=="" then return "" end
     if surname~=nil and type(surname)~="string" then return "" end
     local separator=feature.read(function() return Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR end,1)
     if separator.status=="restricted" then return "" end
     separator=separator.status=="observed" and type(separator.value)=="string" and separator.value or " "
     local name=type(surname)=="string" and surname~="" and first..separator..surname or first
     return #name<=(limit or 64) and name or ""
+end
+-- A party row needs both the fallback first name and the complete name. Keep
+-- the two results from one query, without retaining a unit snapshot for casts.
+function feature.names(unit,limit)
+    local ok,first,surname=pcall(UnitName,unit)
+    if not ok then return "","" end
+    return feature.text(feature.scalar(first),limit or 64),fullName(first,surname,limit)
+end
+function feature.fullName(unit,limit)
+    local _,name=feature.names(unit,limit)
+    return name
 end
 function feature.paint(cells,packet)
     local S=ns.state
@@ -118,7 +139,7 @@ function feature.initialize()
         local back=bar:CreateTexture(nil,"BACKGROUND");back:SetAllPoints();back:SetColorTexture(0.18,0.18,0.18,1)
         displays[index]={unit=unit,bar=bar,cells=feature.cells(panel,128,y,134,2)}
         displays[index].healRanges={}
-        for action=1,3 do local dot=bar:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",bar,"TOPLEFT",108+(action-1)*6,0);displays[index].healRanges[action]=dot end
+        for action=1,3 do local dot=bar:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",bar,"TOPLEFT",108+(action-1)*6,0);ns.features.RangeTracking.initialize(dot,1,.65,0,1);displays[index].healRanges[action]=dot end
     end
     local tick,total=0,0
     panel:SetScript("OnUpdate",function(self,elapsed)
@@ -127,19 +148,20 @@ function feature.initialize()
         count=count.status=="observed" and type(count.value)=="number" and count.value>=0 and count.value<=40 and count.value==math.floor(count.value) and count.value or 255
         local healSpecs=ns.classes.PALADIN and ns.classes.PALADIN.rangeSpecs or {}
         local playerClass=feature.text(feature.read(UnitClass,2,"player"),16)
-        local friendly=(playerClass=="PALADIN" or playerClass=="SHAMAN") and ns.features.Healing or nil
+        local friendly=(playerClass=="PALADIN" or playerClass=="SHAMAN" or playerClass=="DRUID") and ns.features.Healing or nil
         local now=S.readableCall(GetTime)
         if friendly then
             friendly.spellStatus={}
             if type(now)~="number" or not pcall(friendly.refresh,now) then friendly=nil end
         elseif ns.features.Healing then pcall(ns.features.Healing.refresh,now) end
         for index,display in ipairs(displays) do
-            local ok=pcall(function()
+            local ok,rowError=pcall(function()
                 local unit=display.unit
                 local exists=feature.read(UnitExists,1,unit)
                 local guid=exists.value==true and feature.text(feature.read(UnitGUID,1,unit),40) or ""
-                local name=exists.value==true and feature.text(feature.read(UnitName,1,unit),24) or ""
-                local full=exists.value==true and feature.fullName(unit,24) or "";if full~="" then name=full end
+                local name,full="",""
+                if exists.value==true then name,full=feature.names(unit,24) end
+                if full~="" then name=full end
                 local rendered=false
                 if exists.value==true and guid~="" then
                     rendered=pcall(function()
@@ -157,26 +179,38 @@ function feature.initialize()
                 local class=feature.text(feature.read(UnitClass,2,unit),16);local classID=0
                 for i,key in ipairs({"HUNTER","SHAMAN","WARRIOR","WARLOCK","DRUID","ROGUE","PALADIN","PRIEST","MAGE"}) do if class==key then classID=i end end
                 local ranges=0;local api=type(C_Spell)=="table" and C_Spell or {}
+                -- A row consumes each friendly spell immediately: public flags
+                -- go to its packet, while raw restricted range goes only to
+                -- that row's native indicator. No global sample map is needed.
+                local spells=friendly and {} or nil
+                if friendly then for action,spec in ipairs(friendly.deliverySpecs()) do
+                    local spell,rangeOK,rangeRaw=friendly.spell(spec,unit);spells[spec.key]=spell
+                    if friendly.shaman or friendly.druid then
+                        local druid=ns.classes.DRUID
+                        local dot=friendly.druid and druid.recipientDots and druid.recipientDots[index].range[action] or display.healRanges[action];dot:Show()
+                        local painted,result=pcall(ns.features.RangeTracking.paintBoolean,dot,rangeRaw,{0,1,0,1},{1,0,0,1})
+                        if not rangeOK or not painted or result~=true or spell.id==0 then ns.features.RangeTracking.paintColor(dot,1,.65,0,1) end
+                    end
+                end end
+                if friendly and friendly.druid and ns.classes.DRUID.observeRecipient then ns.classes.DRUID.observeRecipient(index,unit,guid,spells) end
                 for i,spell in ipairs(healSpecs) do
-                    local range=feature.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and spell.id or spell.name,unit)
+                    local range
+                    for _,sample in pairs(spells or {}) do if sample.id==spell.id then range=sample.range;break end end
+                    if not range then range=ns.features.RangeTracking.readRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and spell.id or spell.name,unit) end
                     ranges=ranges+feature.code(range)*4^(i-1)
                 end
-                if friendly and friendly.shaman then for action,spec in ipairs({friendly.actions[1],friendly.actions[2],friendly.heal}) do
-                    local dot=display.healRanges[action];dot:Show();dot:SetColorTexture(1,1,1,1)
-                    local spell=friendly.spell(spec,unit);local ok,range=pcall(api.IsSpellInRange or function() end,spell.id,unit)
-                    local painted,result=pcall(ns.features.RangeTracking.paintBoolean,dot,range,{0,1,0,1},{1,0,0,1})
-                    if not ok or not painted or result~=true or spell.id==0 then dot:SetVertexColor(1,1,1,1);dot:SetColorTexture(1,.65,0,1) end
-                end else for _,dot in ipairs(display.healRanges) do dot:Hide() end end
-                local packet=(friendly and (friendly.shaman and "HHR4" or "HHR5") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
-                if friendly then packet=packet..friendly.memberBytes(index,unit,guid,class,role,now) end
-                packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=198);feature.paint(display.cells,packet)
+                if not friendly or not (friendly.shaman or friendly.druid) then for _,dot in ipairs(display.healRanges) do dot:Hide() end end
+                local packet=(friendly and (friendly.druid and "HHR7" or friendly.shaman and "HHR4" or "HHR5") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
+                if friendly then packet=packet..friendly.memberBytes(index,unit,guid,class,role,now,spells) end
+                packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(friendly and friendly.druid and 256 or 198));feature.paint(display.cells,packet)
                 S.publishTransportPacket(15+index,packet,true)
             end)
+            S.groupRowErrors=S.groupRowErrors or {};S.groupRowErrors[index]=not ok and S.describe(rowError) or nil
             if not ok then feature.paint(display.cells,"");S.publishTransportPacket(15+index,nil,true) end -- bad rows never retain old identity/health
         end
         -- Publish after all six rows, avoiding transient mixed roster sequences.
         local courtesy
-        if friendly and not friendly.shaman and friendly.courtesy then
+        if friendly and not friendly.shaman and not friendly.druid and friendly.courtesy then
             local ok,packet=pcall(friendly.courtesy.packet,now,tick)
             if ok then courtesy=packet end
         end

@@ -46,6 +46,8 @@ do
         spec.cooldown:SetDrawEdge(false); spec.cooldown:SetDrawSwipe(true); spec.cooldown:SetSwipeColor(0,0,0,1); spec.cooldown:SetHideCountdownNumbers(true)
         spec.warning=panel:CreateTexture(nil,"OVERLAY"); spec.warning:SetSize(4,4); spec.warning:SetPoint("TOPLEFT",spec.x+28,-30)
         spec.warningSource=panel:CreateTexture(nil,"OVERLAY"); spec.warningSource:SetSize(4,4); spec.warningSource:SetPoint("TOPLEFT",spec.x+34,-30)
+        ns.features.RangeTracking.initialize(spec.warning,1,.65,0,1)
+        ns.features.RangeTracking.initialize(spec.warningSource,1,.65,0,1)
     end
     for _,spec in ipairs(specs) do S.attachSpellUse(panel,spec.icon,spec.key) end
     S.refreshSpellUse()
@@ -105,12 +107,13 @@ do
             local button=selected and selected.button
             local slot=button and S.readableCall(function() return button.action end)
             local valid=button and slot==selected.slot and S.readableCall(button.IsVisible,button)==true
-            local source=valid and S.mirrorColor(spec.warning,button.icon or button.Icon,"GetVertexColor") or false
+            local source=valid and S.mirrorColor(spec.warning,button.icon or button.Icon,"GetVertexColor",true) or false
             if selected and selected.managed then
                 spec.nativeSignals=spec.nativeSignals or {spec.warning,spec.warningSource,spec.warning,spec.warningSource}
                 local _,usable=ns.features.RangeTracking.render(spec.nativeSignals,selected.id,"player");source=usable
             end
-            S.drawFlag(spec.warningSource,source); if not source then spec.warning:SetColorTexture(1,0.65,0,1) end
+            ns.features.RangeTracking.paintFlag(spec.warningSource,source)
+            if not source then ns.features.RangeTracking.paintColor(spec.warning,1,.65,0,1) end
         end
     end)
     local report=ns.hudReport

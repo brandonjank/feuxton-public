@@ -9,6 +9,7 @@ function T.initialize(parent)
     T.combat=panel:CreateTexture(nil,"OVERLAY");T.combat:SetSize(4,4);T.combat:SetPoint("TOPLEFT",220,-4)
     for slot=1,4 do
         local active=panel:CreateTexture(nil,"OVERLAY");active:SetSize(4,4);active:SetPoint("TOPLEFT",12+(slot-1)*50,-4)
+        ns.features.RangeTracking.initialize(active,1,.65,0,1)
         local icon=panel:CreateTexture(nil,"ARTWORK");icon:SetSize(16,16);icon:SetPoint("TOPLEFT",18+(slot-1)*50,0)
         T.slots[slot]={active=active,icon=icon}
     end
@@ -37,7 +38,6 @@ function T.observe(specs)
             end
             if active~=nil then state=active and 2 or 1 end
         end
-        tile.active:SetColorTexture(1,1,1,1)
         local rendered,value=pcall(function()
             if active~=nil then return ns.features.RangeTracking.paintBoolean(tile.active,active,{0,1,0,1},{.2,.2,.2,1}) end
             -- Restricted lifetime data stays native. No comparison, negation
@@ -51,7 +51,7 @@ function T.observe(specs)
             if timer==nil then return ns.features.RangeTracking.paintBoolean(tile.active,false,{0,1,0,1},{.2,.2,.2,1}) end
             return ns.features.RangeTracking.paintBoolean(tile.active,timer:HasExpired(),{.2,.2,.2,1},{0,1,0,1})
         end)
-        if not ok or not rendered or value~=true then tile.active:SetVertexColor(1,1,1,1);tile.active:SetColorTexture(1,.65,0,1) end
+        if not ok or not rendered or value~=true then ns.features.RangeTracking.paintColor(tile.active,1,.65,0,1) end
         if ok then pcall(tile.icon.SetTexture,tile.icon,icon) else tile.icon:SetTexture(nil) end
         bytes=bytes..S.bytes(state,1)..S.bytes(id,4)..S.bytes(remaining,4)
     end

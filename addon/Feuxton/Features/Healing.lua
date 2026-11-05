@@ -6,6 +6,7 @@ ns.features.Healing=F
 F.actions={{key="paladin.blessingMight",name="Blessing of Might"},{key="paladin.blessingWisdom",name="Blessing of Wisdom"},{key="paladin.blessingKings",name="Blessing of Kings"}}
 F.heal={key="paladin.holyLight",name="Holy Light",healing=true}
 function F.deliverySpecs()
+    if F.druid then return ns.classes.DRUID.healingSpecs end
     local specs={F.actions[1],F.actions[2],F.heal}
     if not F.shaman then specs[4]=F.actions[3] end
     return specs
@@ -105,7 +106,7 @@ function F.track(button,spec,down)
 end
 function F.delivery(spec)
     local S=ns.state;local class=S.readableCall(function() local _,key=UnitClass("player");return key end)
-    local e=S.managedSpells and S.managedSpells.entries[class..":"..spec.name]
+    local e=S.managedSpells and S.managedSpells.entries[class..":"..(spec.managedName or spec.name)]
     return S.bindingsValid and S.managedSpells.current(e) and e.unit=="target" and e.friendly and (not (spec.healing or spec.support) or F.receiptsAvailable) and e or nil
 end
 function F.initialize()
@@ -138,11 +139,19 @@ function F.refresh(now)
     local G=ns.features.GroupContext;local S=ns.state
     if S.readableCall(InCombatLockdown)~=false or type(now)~="number" then return end
     local class=G.text(G.read(UnitClass,2,"player"),16)
-    if class~="PALADIN" and class~="SHAMAN" then return end
-    if class=="SHAMAN" and not F.shaman then
-        F.shaman=true
-        F.actions={{key="shaman.healingWave",name="Healing Wave",healing=true},{key="shaman.lesserHealingWave",name="Lesser Healing Wave",healing=true}}
-        F.heal={key="shaman.riptide",name="Riptide",healing=true}
+    if class~="PALADIN" and class~="SHAMAN" and class~="DRUID" then return end
+    if F.classKey~=class then
+        F.classKey=class;F.shaman=class=="SHAMAN";F.druid=class=="DRUID"
+        F.signature=nil;F.attempt=nil;F.cache={}
+        if F.druid then
+            F.actions={};F.heal=ns.classes.DRUID.healingSpecs[1]
+        elseif F.shaman then
+            F.actions={{key="shaman.healingWave",name="Healing Wave",healing=true},{key="shaman.lesserHealingWave",name="Lesser Healing Wave",healing=true}}
+            F.heal={key="shaman.riptide",name="Riptide",healing=true}
+        else
+            F.actions={{key="paladin.blessingMight",name="Blessing of Might"},{key="paladin.blessingWisdom",name="Blessing of Wisdom"},{key="paladin.blessingKings",name="Blessing of Kings"}}
+            F.heal={key="paladin.holyLight",name="Holy Light",healing=true}
+        end
     end
     F.initialize();ns.features.RecipientTargeting.refresh()
     local signature={tostring(ns.features.RecipientTargeting.revision)}
@@ -152,47 +161,82 @@ function F.refresh(now)
     if value~=F.signature then F.signature=value;F.revision=(F.revision+1)%4294967296 end
 end
 function F.spell(spec,unit)
-    local G=ns.features.GroupContext;local S=ns.state;local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
+    local G=ns.features.GroupContext;local S=ns.state;local R=ns.features.RangeTracking;local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
     local cached=F.spellStatus and F.spellStatus[spec.key]
-    if cached then cached.range=cached.id>0 and G.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and cached.id or spec.name,unit) or {};return cached end
+    if cached then
+        -- Metadata is shared per spell; a caller owns its per-unit range view.
+        -- Never change an earlier caller's record when the next unit is read.
+        local result={};for key,value in pairs(cached) do result[key]=value end
+        local rangeOK,rangeRaw
+        if cached.id>0 then result.range,rangeOK,rangeRaw=R.observeRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and cached.id or spec.name,unit) else result.range={} end
+        return result,rangeOK,rangeRaw
+    end
     local ok,info=pcall(api.GetSpellInfo or function() end,spec.name);local id=ok and numeric(G.field(info,"spellID")) or nil
-    for _,known in ipairs(S.setupKnownSpells or {}) do
-        if known.name==spec.name and type(known.id)=="number" and (not id or known.id>id) and G.read(book.IsSpellKnown or IsSpellKnown,1,known.id).value==true then id=known.id end
+    if spec.pinnedSpellID then
+        local learned=G.read(book.IsSpellKnown or IsSpellKnown,1,spec.pinnedSpellID)
+        local pinnedInfo=S.readableCall(api.GetSpellInfo,spec.pinnedSpellID)
+        if learned.value==true and S.safeField(pinnedInfo,"name")==spec.name then id=spec.pinnedSpellID
+        else
+            local missing={id=0,learned=learned.value==false and learned or {},usable={},mana={},range={},ready={}}
+            if F.spellStatus then F.spellStatus[spec.key]=missing end
+            return missing
+        end
+    end
+    if not id or G.read(book.IsSpellKnown or IsSpellKnown,1,id).value~=true then
+        local candidate,ambiguous
+        for _,known in ipairs(S.setupKnownSpells or {}) do
+            if known.name==spec.name and type(known.id)=="number" and G.read(book.IsSpellKnown or IsSpellKnown,1,known.id).value==true then
+                if candidate and candidate~=known.id then ambiguous=true end
+                candidate=known.id
+            end
+        end
+        -- Numeric spell IDs do not encode rank, especially for Forever's
+        -- replacement spells. Only one verified fallback is unambiguous.
+        if candidate then id=not ambiguous and candidate or nil end
     end
     if spec.healing and S.bindingsValid then
         local chosen
+        local family=F.druid and S.managedSpells and S.managedSpells.entries["DRUID:"..(spec.managedName or spec.name)]
+        if family and S.managedSpells.current(family) then chosen=family end
         for _,mapping in ipairs(S.setupMappings or {}) do
-            if mapping.name==spec.name and mapping.key and (not chosen or chosen.kind~="spell" and mapping.kind=="spell") then chosen=mapping end
+            if not F.druid and mapping.name==spec.name and mapping.key and (not spec.pinnedSpellID or mapping.id==id) and (not chosen or chosen.kind~="spell" and mapping.kind=="spell") then chosen=mapping end
         end
         if chosen and type(chosen.id)=="number" and chosen.id>0 then id=chosen.id end
     end
     local result={id=id or 0,learned={},usable={},mana={},range={},ready={}}
+    local rangeOK,rangeRaw
     if id then
-        result.learned=G.read(book.IsSpellKnown or IsSpellKnown,1,id);result.usable=G.read(api.IsSpellUsable or IsUsableSpell,1,id);result.mana=G.read(api.IsSpellUsable or IsUsableSpell,2,id)
-        result.range=G.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and id or spec.name,unit)
-        local cdOK,cd=pcall(api.GetSpellCooldown or function() end,id)
-        if cdOK then
-            local start,duration,enabled=G.field(cd,"startTime"),G.field(cd,"duration"),G.field(cd,"isEnabled")
-            if start.status=="observed" and duration.status=="observed" and type(start.value)=="number" and type(duration.value)=="number" and enabled.status=="observed" and enabled.value==true then result.ready={status="observed",value=duration.value==0 or start.value+duration.value<=GetTime()} end
+        result.learned=G.read(book.IsSpellKnown or IsSpellKnown,1,id)
+        result.usable,result.mana=R.readUsability(api.IsSpellUsable or IsUsableSpell,id)
+        result.range,rangeOK,rangeRaw=R.observeRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and id or spec.name,unit)
+        -- Off-GCD abilities need the native cooldown's ignore-GCD mode; a
+        -- public global cooldown must not be mistaken for their own cooldown.
+        if not spec.offGlobalCooldown then
+            local cdOK,cd=pcall(api.GetSpellCooldown or function() end,id)
+            if cdOK then
+                local start,duration,enabled=G.field(cd,"startTime"),G.field(cd,"duration"),G.field(cd,"isEnabled")
+                if start.status=="observed" and duration.status=="observed" and type(start.value)=="number" and type(duration.value)=="number" and enabled.status=="observed" and enabled.value==true then result.ready={status="observed",value=duration.value==0 or start.value+duration.value<=GetTime()} end
+            end
         end
     end
     if F.spellStatus then F.spellStatus[spec.key]=result end
-    return result
+    return result,rangeOK,rangeRaw
 end
-function F.memberBytes(index,unit,identity,class,role,now)
+function F.memberBytes(index,unit,identity,class,role,now,spells)
     local G=ns.features.GroupContext;local S=ns.state
     local values,at
-    if F.shaman then values,at={{},{},{}},now else values,at=F.scan(unit,identity,now) end
+    if F.shaman or F.druid then values,at={{},{},{}},now else values,at=F.scan(unit,identity,now) end
     local age=type(at)=="number" and math.floor(math.max(0,now-at)*1000) or 65535
     local scope=identity~="" and 2 or 0
-    local packet=S.bytes(F.revision,4)..S.bytes(scope,1)..S.bytes(G.code(F.melee(unit,class,role)),1)..S.bytes(math.min(65535,age),2)
+    local packet=(F.druid and S.bytes(#F.deliverySpecs(),1) or "")..S.bytes(F.revision,4)..S.bytes(scope,1)..S.bytes(G.code(F.melee(unit,class,role)),1)..S.bytes(math.min(65535,age),2)
     for action,spec in ipairs(F.deliverySpecs()) do
-        local spell=F.spell(spec,unit);local aura=values[blessing(spec.name) or 0] or {}
+        local spell=spells and spells[spec.key] or F.spell(spec,unit);local aura=F.druid and (F.druidAuras and F.druidAuras[unit] and F.druidAuras[unit][spec.key] or {}) or values[blessing(spec.name) or 0] or {}
         local flags=0
         for i,v in ipairs({spell.learned,spell.usable,spell.mana,spell.ready,spell.range,aura.present or {},aura.own or {},aura.other or {}}) do flags=flags+G.code(v)*4^(i-1) end
         flags=flags+S.spellUseCode(spec.key)*65536
-        packet=packet..S.bytes(spell.id,4)..S.bytes(flags,3)..S.bytes(0,1)
+        packet=packet..S.bytes(spell.id,4)..S.bytes(flags,3)..S.bytes(F.druid and (aura.nativeFlags or 0) or 0,1)
     end
+    if F.druid then packet=packet..S.bytes(F.druidGeometry and F.druidGeometry[unit] or 0,1)..S.bytes(F.druidAuraRevisions and F.druidAuraRevisions[unit] or 0,4) end
     if index==1 then
         local r=F.attempt;local identity=r and r.identity or ""
         local age=r and math.floor(math.max(0,now-(r.eventAt or r.at))*1000) or 65535

@@ -43,6 +43,7 @@ do
     end
     local tracking=ns.features.CastTracking
     local castActivity=tracking.newActivityState()
+    tracking.currentActivity=castActivity
     panel:SetScript("OnEvent",function(self,event,unit,guid,id)
         if event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_DEAD" then tracking.activityEvent(castActivity,event);return end
         if S.isSecret(unit) or unit~="player" then return end

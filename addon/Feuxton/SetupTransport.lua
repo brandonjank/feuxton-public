@@ -66,7 +66,13 @@ function S.jsonObject(fields)
 end
 function S.adler32(data)
     local a,b=1,0
-    for i=1,#data do a=(a+string.byte(data,i))%65521; b=(b+a)%65521 end
+    local byte=string.byte
+    -- Reduce once per bounded block. With reduced starting sums, 5552 bytes
+    -- keep even the worst all-255 intermediate sum within an exact integer.
+    for first=1,#data,5552 do
+        for i=first,math.min(first+5551,#data) do a=a+byte(data,i);b=b+a end
+        a=a%65521;b=b%65521
+    end
     return b*65536+a
 end
 function S.bytes(value,count)
@@ -80,10 +86,10 @@ S.setupSession=math.random(0,65535)*65536+math.random(0,65535)
 S.transportPackets={}
 function S.denseStatePacket(now,tick,unified)
     local core=S.transportPackets[1];local classID=core and string.byte(core.packet,11) or 0
-    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 and unified then ids[#ids+1]=11 end
+    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 and unified then ids[#ids+1]=11 elseif classID==5 and unified then ids[#ids+1]=12 end
     for id=16,21 do ids[#ids+1]=id end
     if classID==7 then ids[#ids+1]=4 end -- optional public courtesy recipients
-    if unified then ids[#ids+1]=5;if classID==7 or classID==2 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 then ids[#ids+1]=8 end end -- setup, recipients and shared enemy cast
+    if unified then ids[#ids+1]=5;if classID==7 or classID==2 or classID==5 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 or classID==4 or classID==5 then ids[#ids+1]=8 end end -- setup, recipients and shared enemy cast
     if unified and ns.features.Consumables then
         local ok,packet=pcall(ns.features.Consumables.packet,tick)
         S.transportPackets[9]=ok and {packet=packet,at=now} or nil
@@ -114,6 +120,7 @@ function S.denseStatePacket(now,tick,unified)
     return packet
 end
 function S.refreshTransportPacketState(now)
+    if S.packetUpdateActive then return end
     now=now or S.setupNumber(S.readableCall(GetTime))
     for _,bridge in ipairs({ns.pixelExperiment or false,S.denseBridge or false}) do
         if bridge and bridge.enabled and bridge.publishState then
@@ -131,8 +138,41 @@ function S.publishTransportPacket(id,packet,defer)
         local now=S.setupNumber(S.readableCall(GetTime))
         if now and type(packet)=="string" then S.transportPackets[id]={packet=packet,at=now} end
     end
+    if S.packetUpdateActive then
+        S.packetUpdateStamps[id]=packet or false
+        return
+    end
     if bridge and bridge.enabled and bridge.stamp then bridge.stamp(id,packet) end
     if not defer then S.refreshTransportPacketState() end
+end
+-- The scheduler owns periodic publication. Explicit refreshes outside a batch
+-- (login, layout changes and diagnostics) retain their immediate behavior.
+function S.beginPacketUpdate()
+    assert(not S.packetUpdateActive,"Nested packet update")
+    S.packetUpdateActive=true;S.packetUpdateStamps={}
+    local bridge=S.denseBridge
+    if bridge and bridge.enabled and bridge.stamp then
+        for _,id in ipairs({1,2,16,17,18,19,20,21}) do bridge.stamp(id,nil) end
+    end
+end
+function S.endPacketUpdate(ok,reason)
+    local stamps=S.packetUpdateStamps or {}
+    S.packetUpdateActive=false;S.packetUpdateStamps=nil
+    local bridge=S.denseBridge
+    if not ok then
+        S.transportPackets={}
+        for _,target in ipairs({ns.pixelExperiment or false,bridge or false}) do
+            if target and target.enabled then
+                target.errors.state=reason or "Coordinated update failed";target.lastStatePacket=nil
+                target.paint(target.stateCells,"",24)
+            end
+        end
+        return
+    end
+    if bridge and bridge.enabled and bridge.stamp then
+        for id,packet in pairs(stamps) do bridge.stamp(id,packet or nil) end
+    end
+    S.refreshTransportPacketState()
 end
 S.setupRevision,S.setupPage,S.setupDirty=0,0,true
 S.setupPayload,S.setupPages,S.setupError="",{},nil
@@ -185,6 +225,12 @@ function S.collectSetup()
         if known~=true then return end
         seen[id]=true
         local info=S.readableCall(S.spellAPI.GetSpellInfo,id)
+        if not key then
+            local spellName=name or S.safeField(info,"name")
+            for _,spec in ipairs(ns.classes[class] and ns.classes[class].specs or {}) do
+                if spec.name==spellName then key=spec.key;break end
+            end
+        end
         if not key and class=="HUNTER" then
             local spellName=name or S.safeField(info,"name")
             for _,aspect in ipairs(ns.playerBuffSpecs or {}) do

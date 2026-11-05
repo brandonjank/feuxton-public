@@ -88,6 +88,17 @@ do
     end
     local function render()
         local class=S.setupString(S.setupValue(UnitClass,2,"player"))
+        if class~="HUNTER" then
+            -- Other classes consume their own ability packet. Keep the shared
+            -- enemy-cast source current without querying hidden Hunter tiles.
+            probeTick=(probeTick+1)%4294967296
+            S.publishTransportPacket(2,nil,true)
+            if class=="PALADIN" or class=="SHAMAN" or class=="DRUID" or class=="WARLOCK" then
+                local enemyCast=ns.features.Interrupts.bytes()
+                S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast))
+            else S.publishTransportPacket(8,nil) end
+            return
+        end
         local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
         if level<0 or level>100 then level=0 end
         local packet="HHG7"..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(class=="HUNTER" and 1 or 0,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(11,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
@@ -171,9 +182,9 @@ do
         if type(FeuxtonDB)~="table" then FeuxtonDB={} end
         FeuxtonDB.compactBridge=compact
         local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
-        if class=="SHAMAN" or class=="WARLOCK" then compact=true;S.compactBridge=true;FeuxtonDB.compactBridge=true end
+        if class=="SHAMAN" or class=="WARLOCK" or class=="DRUID" then compact=true;S.compactBridge=true;FeuxtonDB.compactBridge=true end
         local profile=compact and ns.bridgeLayouts[class] or nil
-        local dense=compact and ns.denseBridgeLayouts[class] and (class=="SHAMAN" or class=="WARLOCK" or FeuxtonDB.denseBridge~=false)
+        local dense=compact and ns.denseBridgeLayouts[class] and (class=="SHAMAN" or class=="WARLOCK" or class=="DRUID" or FeuxtonDB.denseBridge~=false)
         if dense then profile=ns.denseBridgeLayouts[class] end
         if S.denseBridge then S.denseBridge.setEnabled(false) end
         S.compactBridgeLayout=profile and profile.key or (compact and "hunter-v1" or "diagnostic")
@@ -248,6 +259,7 @@ do
         S.hudTitle:SetText("FEUXTON v"..ns.version.." | "..class.." | DRAG HEADER / CLICK FOR OPTIONS")
         if profile then
             if class=="WARLOCK" then point(S.warlockNativePanel,S.hud,0,26);for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,18) end end
+            if class=="DRUID" then point(S.druidNativePanel,S.hud,0,26);for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,18) end end
             if class=="SHAMAN" then
                 point(S.shamanNativePanel,S.hud,0,26)
                 point(ns.features.Totems.panel,S.hud,0,144)
@@ -307,3 +319,60 @@ for _,entry in ipairs({
 }) do S.profileScript(entry[1],"OnUpdate",entry[2]) end
 S.profileScript(S.hudEvents,"OnEvent","hud events")
 S.profileScript(S.setupEvents,"OnEvent","setup events")
+
+-- One periodic owner. Metadata may change bindings; class rendering supplies
+-- group range specs; core observes the completed batch before one publication.
+-- Cast/target event handlers remain immediate and are not moved into this loop.
+do
+    local coordinator={entries={},elapsed=0,updates=0}
+    S.updateCoordinator=coordinator
+    -- Nested attribution for the final publication work. Wrappers preserve
+    -- return values/errors and do not query a clock while profiling is OFF.
+    S.denseStatePacket=S.profileFunction(S.denseStatePacket,"packet assembly (includes support)")
+    ns.features.ControlEffects.packet=S.profileFunction(ns.features.ControlEffects.packet,"support packet")
+    ns.features.Consumables.packet=S.profileFunction(ns.features.Consumables.packet,"consumable packet")
+    S.denseBridge.paint=S.profileFunction(S.denseBridge.paint,"packet paint")
+    local function register(frame,name)
+        if not frame then return end
+        local callback=frame:GetScript("OnUpdate")
+        if type(callback)~="function" then return end
+        frame.feuxtonUpdateCallback=callback
+        coordinator.entries[#coordinator.entries+1]={frame=frame,callback=callback,name=name}
+        frame:SetScript("OnUpdate",nil)
+    end
+    register(S.metadataFrame,"setup")
+    register(S.hud,"hud")
+    register(S.unitHud,"shared units")
+    register(S.activityPanel,"activity")
+    register(S.resourcePanel,"gauges")
+    register(S.auraMirror,"target auras")
+    register(S.playerPanel,"player auras")
+    register(S.signalUpdater,"signals")
+    register(S.paladinPanel,"paladin preview")
+    register(S.shamanNativePanel,"Shaman bridge")
+    register(S.druidNativePanel,"Druid bridge")
+    register(S.warlockNativePanel,"Warlock bridge")
+    register(S.guidePanel,"guide")
+    register(S.groupPanel,"group")
+    register(S.fastFrame,"core")
+    local update=S.profileFunction(function(delta)
+        S.beginPacketUpdate()
+        local ok,err=true,nil
+        for _,entry in ipairs(coordinator.entries) do
+            if S.readableCall(entry.frame.IsShown,entry.frame)==true then
+                ok,err=pcall(entry.callback,entry.frame,delta)
+                if not ok then err=entry.name..": "..S.describe(err);break end
+            end
+        end
+        coordinator.updates=coordinator.updates+1;coordinator.lastError=not ok and err or nil
+        S.endPacketUpdate(ok,err)
+    end,"coordinated total (includes producers)")
+    local frame=CreateFrame("Frame",nil,S.hud);coordinator.frame=frame
+    frame:SetScript("OnUpdate",function(_,elapsed)
+        if S.readableCall(S.hud.IsShown,S.hud)~=true then return end
+        coordinator.elapsed=coordinator.elapsed+elapsed
+        if coordinator.elapsed<S.updateInterval() then return end
+        local delta=coordinator.elapsed;coordinator.elapsed=0
+        update(delta)
+    end)
+end

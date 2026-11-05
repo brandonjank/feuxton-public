@@ -15,6 +15,17 @@ for code=65,90 do
 end
 for _,key in ipairs({"-","=","[","]",";","'",",",".","/"}) do M.keys[#M.keys+1]="ALT-CTRL-SHIFT-"..key end
 for code=0,9 do M.keys[#M.keys+1]="ALT-CTRL-NUMPAD"..code end
+-- Preserve the global 36-key vocabulary and its 16-byte legacy wire limit.
+-- Druid's counted compact protocol can additionally carry longer numpad
+-- chords, disjoint from courtesy's plain digits and +/- quarantine banks.
+M.extendedKeys={}
+for code=0,9 do
+    local key="ALT-CTRL-SHIFT-NUMPAD"..code
+    if not ns.keyPolicy.builtinReason(key) then M.extendedKeys[#M.extendedKeys+1]=key end
+end
+local druidKeys={};for _,key in ipairs(M.keys)do druidKeys[#druidKeys+1]=key end
+for _,key in ipairs(M.extendedKeys)do druidKeys[#druidKeys+1]=key end
+function M.keysForClass(class)return class=="DRUID"and druidKeys or M.keys end
 local function bindingAction(key,overrides)
     return S.readableCall(GetBindingAction,key,overrides)
 end
@@ -48,30 +59,48 @@ end
 function M.catalog()
     local class=S.readableCall(function() local _,key=UnitClass("player");return key end)
     local candidates,byName={},{}
-    local function add(id,name,unit,explicit,startAttack,petAttack)
+    local function add(id,name,unit,explicit,startAttack,petAttack,managedName,spec)
         if S.isSecret(id) or type(id)~="number" or id<=0 or id>=2147483648 or id~=math.floor(id) or not known(id) then return end
         local info=S.readableCall(S.spellAPI.GetSpellInfo,id)
         name=S.safeField(info,"name") or name
         if S.isSecret(name) or type(name)~="string" or name=="" then return end
         if S.readableCall(S.spellAPI.IsSpellPassive or IsPassiveSpell,id)==true then return end
-        local existing=byName[name]
+        local family=managedName or name
+        local existing=byName[family]
         -- Name resolution chooses the client's current learned rank, never a
         -- macro-selected rank or a guessed ordering of spell IDs.
-        local resolved=S.readableCall(S.spellAPI.GetSpellInfo,name)
-        local current=S.safeField(resolved,"spellID")
-        if type(current)=="number" and current>0 and known(current) then id=current end
+        if not (spec and spec.pinnedSpellID) then
+            local resolved=S.readableCall(S.spellAPI.GetSpellInfo,name)
+            local current=S.safeField(resolved,"spellID")
+            if type(current)=="number" and current>0 and known(current) then id=current end
+        end
         if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.petAttack=petAttack end;return end
-        local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide"))
-        local entry={id=id,name=name,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom",healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack};byName[name]=entry;candidates[#candidates+1]=entry
+        local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and (name=="Healing Touch" or spec and spec.healing==true))
+        local entry={id=id,name=name,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom",healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
+    end
+    if class=="DRUID" then
+        candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true}
+        candidates[#candidates+1]={id=0,name="Feuxton Cancel Form",unit="player",cancelForm=true}
+        if ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
     end
     local catalog=ns.classes[class]
     local specs=class=="HUNTER" and S.hunterSpecs or catalog and catalog.specs or {}
     for _,spec in ipairs(specs) do
-        local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
+        local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.pinnedSpellID or spec.name)
         local unit=spec.unit or "target"
-        add(S.safeField(info,"spellID"),spec.name,unit,true,spec.startAttack,spec.petAttack)
+        add(spec.pinnedSpellID or S.safeField(info,"spellID"),spec.name,unit,true,spec.startAttack,spec.petAttack,spec.managedName,spec)
+    end
+    if ns.features.PetSupport and ns.features.PetSupport.candidate then
+        local candidate=ns.features.PetSupport.candidate(class);if candidate then candidates[#candidates+1]=candidate end
+    end
+    -- Reserve the Warlock channel safety action before optional spellbook
+    -- utilities can exhaust the finite, non-recycled managed-key pool.
+    if class=="WARLOCK" then
+        candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true}
+        if ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
     end
     if class=="HUNTER" then for _,spec in ipairs(ns.playerBuffSpecs or {}) do add(spec.spellID,spec.name,"player",true) end end
+    if class=="DRUID" and ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
     local lines=S.readableCall(S.bookAPI.GetNumSpellBookSkillLines)
     local bank=type(Enum)=="table" and S.safeField(S.safeField(Enum,"SpellBookSpellBank"),"Player")
     if type(lines)=="number" and lines>=0 and lines<=64 and type(bank)=="number" then
@@ -94,12 +123,12 @@ function M.catalog()
             candidates[#candidates+1]={id=0,name="Feuxton Remove Fury",unit="player",cancelFury=true}
             candidates[#candidates+1]={id=0,name="Feuxton Skull",unit="target",skull=true}
         end end
-    if ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
+    if class~="DRUID" and ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
     if class=="PALADIN" and ns.features.ControlEffects then
         local spec=ns.features.ControlEffects.freedom;local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
         add(S.safeField(info,"spellID"),spec.name,"target",true)
     end
-    if ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
+    if class~="WARLOCK" and class~="DRUID" and ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
     return candidates,class
 end
 function M.refresh()
@@ -107,8 +136,9 @@ function M.refresh()
     M.refreshing=true
     if not M.owner then M.owner=CreateFrame("Frame",nil,UIParent) end
     local candidates,class=M.catalog()
+    local keys=M.keysForClass(class)
     local signature={class or ""}
-    for _,candidate in ipairs(candidates) do signature[#signature+1]=candidate.name..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.itemID or 0) end
+    for _,candidate in ipairs(candidates) do signature[#signature+1]=(candidate.managedName or candidate.name)..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.petCommand==true)..":"..tostring(candidate.itemID or 0)..":"..tostring(candidate.cancelForm==true)..":"..tostring(candidate.noToggle==true)..":"..tostring(candidate.groundAtCursor==true) end
     signature=table.concat(signature,"|")
     local changed=signature~=M.signature or M.retry
     M.retry=false
@@ -117,7 +147,7 @@ function M.refresh()
         ClearOverrideBindings(M.owner)
         for _,entry in pairs(M.entries) do entry.active=false;entry.button:SetAttribute("type",nil) end
         for _,candidate in ipairs(candidates) do
-            local family=class..":"..candidate.name
+            local family=class..":"..(candidate.managedName or candidate.name)
             local entry=M.entries[family]
             if not entry and M.nextSlot<400 then
                 local name="FeuxtonClassSpell"..M.nextSlot
@@ -131,17 +161,21 @@ function M.refresh()
             if entry then
                 if entry.key and (ns.keyPolicy.reason(entry.key) or bindingAction(entry.key,false)~="" or bindingAction(entry.key,true)~="") then entry.key=nil end
                 if not entry.key then
-                    for _,key in ipairs(M.keys) do
+                    for _,key in ipairs(keys) do
                         if not M.reserved[key] and not ns.keyPolicy.reason(key) and bindingAction(key,false)=="" and bindingAction(key,true)=="" then entry.key=key;M.reserved[key]=family;break end
                     end
                 end
-                entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID;entry.skull=candidate.skull
+                entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelForm=candidate.cancelForm;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID;entry.skull=candidate.skull;entry.petCommand=candidate.petCommand
                 entry.button:SetAttribute("item",candidate.itemID and candidate.itemID>0 and "item:"..candidate.itemID or nil)
                 entry.button:SetAttribute("spell",candidate.cancelFury and "Righteous Fury" or candidate.id>0 and candidate.id or nil);entry.button:SetAttribute("unit",candidate.unit)
                 -- One secure click commands the pet before the attack. This
                 -- also covers target changes while Mark is rate-limited; the
                 -- app never waits for pet arrival or a separate pet receipt.
-                local macro=candidate.stopCasting and "/stopcasting" or candidate.startAttack and ("/startattack [harm,nodead]"..
+                local macro=candidate.petCommand and "/petattack [@target,harm,nodead]" or candidate.unit=="mouseover" and ((class=="WARLOCK" and "/petattack [@target,harm,nodead]\n" or "").."/cast [@mouseover,harm,nodead] "..candidate.name)
+                    or candidate.stopCasting and "/stopcasting" or candidate.cancelForm and "/cancelform"
+                    or candidate.noToggle and ("/cast !"..candidate.name)
+                    or candidate.groundAtCursor and ("/cast [@cursor] "..candidate.name)
+                    or candidate.startAttack and ("/startattack [harm,nodead]"..
                     (candidate.id~=6603 and "\n/cast [@target,harm,nodead] "..candidate.name or ""))
                     or candidate.petAttack and ("/petattack [@target,harm,nodead]\n/cast [@target,harm,nodead] "..(class=="WARLOCK" and candidate.name=="Shoot" and "!Shoot" or candidate.name)) or nil
                 entry.button:SetAttribute("macrotext",macro)

@@ -40,7 +40,7 @@ for index, spec in ipairs(S.hunterSpecs) do
         local dot = tile:CreateTexture(nil, "OVERLAY")
         dot:SetSize(5, 5)
         dot:SetPoint("TOPLEFT", 30 + (signal - 1) * 7, -50)
-        dot:SetColorTexture(1, 0.65, 0, 1)
+        ns.features.RangeTracking.initialize(dot,1,.65,0,1)
         tile.visualSignals[signal] = dot
     end
     tile.renderStatus = "not queried"
@@ -113,10 +113,28 @@ function S.resolveSpells()
     S.refreshMeleeRanges()
 end
 
+-- Only the public icon identity and final dial backing color are retained.
+-- Native cooldown values are still forwarded on every render.
+function S.renderSpellIcon(tile,info)
+    local icon=S.safeField(info,"iconID") or "Interface\\Icons\\INV_Misc_QuestionMark"
+    if tile.feuxtonIcon~=icon then
+        tile.feuxtonIcon=nil
+        tile.icon:SetTexture(icon)
+        tile.feuxtonIcon=icon
+    end
+end
+local function cooldownColor(tile,rendered)
+    if tile.feuxtonCooldownColor~=rendered then
+        local shade=rendered and 1 or .35
+        tile.feuxtonCooldownColor=nil
+        tile.dial:SetColorTexture(shade,shade,shade,1)
+        tile.feuxtonCooldownColor=rendered
+    end
+end
 function S.renderCooldown(tile)
-    tile.dial:SetColorTexture(0.35, 0.35, 0.35, 1)
     if type(tile.spellID) ~= "number" or tile.known == false then
         tile.cooldown:Clear()
+        cooldownColor(tile,false)
         tile.renderStatus = tile.known == false and "not learned" or "spell data unavailable"
         return
     end
@@ -128,7 +146,7 @@ function S.renderCooldown(tile)
         if ok and not S.isSecret(duration) and duration ~= nil then
             local rendered, err = pcall(tile.cooldown.SetCooldownFromDurationObject, tile.cooldown, duration)
             if rendered then
-                tile.dial:SetColorTexture(1, 1, 1, 1)
+                cooldownColor(tile,true)
                 tile.renderStatus = ignoreGCD and "native ability cooldown (off GCD)" or "duration object passed to native widget (includes GCD)"
                 return
             end
@@ -150,7 +168,7 @@ function S.renderCooldown(tile)
                 tile.cooldown:SetCooldown(data.startTime, data.duration)
             end)
             if rendered then
-                tile.dial:SetColorTexture(1, 1, 1, 1)
+                cooldownColor(tile,true)
                 tile.renderStatus = "numeric timing passed to native widget (includes GCD)"
                 return
             end
@@ -158,6 +176,7 @@ function S.renderCooldown(tile)
         end
     end
     tile.cooldown:Clear()
+    cooldownColor(tile,false)
 end
 function S.refreshCooldowns()
     for _, tile in ipairs(S.tiles) do S.renderCooldown(tile) end

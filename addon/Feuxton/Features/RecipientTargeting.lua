@@ -67,13 +67,14 @@ function T.packet(now,tick)
  local flags=G.code(G.read(UnitExists,1,"target"))
  for i=1,7 do flags=flags+G.code(G.read(UnitIsUnit,1,"target",T.units[i]))*4^i end
  local identity=G.text(G.read(UnitGUID,1,"target"),40)
- local packet=(F.shaman and "HHT1" or "HHT2")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(F.revision,4)..S.bytes(flags,2)..S.bytes(#identity,1)..identity
+ local packet=(F.druid and "HHT3" or F.shaman and "HHT1" or "HHT2")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(F.revision,4)..S.bytes(flags,2)..S.bytes(#identity,1)..identity
  local existing=0
  for i=1,9 do local e=T.entries[i];local valid=T.current(e)
   packet=packet..S.bytes(valid and S.compactBindingCode(e.key) or 0,2)
   if valid and e.existing then existing=existing+2^(i-1) end
  end
  packet=packet..S.bytes(existing,2)
+ if F.druid then packet=packet..S.bytes(#F.deliverySpecs(),1) end
  for _,spec in ipairs(F.deliverySpecs()) do
   local e=F.delivery(spec);packet=packet..S.bytes(e and e.id or 0,4)..S.bytes(e and S.compactBindingCode(e.key) or 0,2)
  end

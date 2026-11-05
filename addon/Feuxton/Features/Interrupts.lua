@@ -10,7 +10,9 @@ function I.initialize()
     castActivity=ns.features.CastTracking.newActivityState()
     local dot=S.resourcePanel:CreateTexture(nil,"OVERLAY")
     dot:SetSize(8,8);dot:SetPoint("TOPLEFT",616,-4);I.dot=dot
+    ns.features.RangeTracking.initialize(dot,1,.65,0,1)
     I.window=S.hud:CreateTexture(nil,"OVERLAY");I.window:SetSize(4,4);I.window:SetPoint("TOPLEFT",540,-2)
+    ns.features.RangeTracking.initialize(I.window,1,.65,0,1)
     I.stamp={}
     for i=1,4 do local p=S.resourcePanel:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",628+(i-1)*6,-4);I.stamp[i]=p end
     local eventFrame=CreateFrame("Frame",nil,S.hud)
@@ -67,12 +69,12 @@ function I.bytes()
         remaining=math.max(0,math.floor(endMs-now*1000))
     end
     if I.window then
-        I.window:SetColorTexture(1,.65,0,1)
+        ns.features.RangeTracking.paintColor(I.window,1,.65,0,1)
         if current==true and channel==false then
             if remaining~=4294967295 then
-                if remaining==0 then I.window:SetColorTexture(1,0,0,1)
-                elseif remaining<=lead then I.window:SetColorTexture(0,1,0,1)
-                else I.window:SetColorTexture(.2,.2,.2,1) end
+                if remaining==0 then ns.features.RangeTracking.paintColor(I.window,1,0,0,1)
+                elseif remaining<=lead then ns.features.RangeTracking.paintColor(I.window,0,1,0,1)
+                else ns.features.RangeTracking.paintColor(I.window,.2,.2,.2,1) end
             else pcall(function()
                 if I.windowLead~=lead then
                     local curve=C_CurveUtil.CreateColorCurve();curve:SetType(Enum.LuaCurveType.Step)
@@ -81,18 +83,17 @@ function I.bytes()
                 end
                 local duration=UnitCastingDuration("target")
                 local color=duration:EvaluateRemainingDuration(I.windowCurve)
-                I.window:SetColorTexture(color:GetRGBA())
+                I.window:SetVertexColor(color:GetRGBA())
             end) end
         end
     end
     I.timingBytes=S.bytes(current==true and (channel==true and 2 or channel==false and 1 or 0) or 0,1)..S.bytes(lead,2)..S.bytes(remaining,4)
     if I.dot then
-        I.dot:SetColorTexture(1,1,1,1)
         local ok,painted=pcall(function()
             if current~=true then return false end
             return ns.features.RangeTracking.paintBoolean(I.dot,blocked,{.2,.2,.2,1},{0,1,0,1})
         end)
-        if not ok or painted~=true then I.dot:SetVertexColor(1,1,1,1);I.dot:SetColorTexture(1,.65,0,1) end
+        if not ok or painted~=true then ns.features.RangeTracking.paintColor(I.dot,1,.65,0,1) end
     end
     if current==true then
         if S.isSecret(id) or type(id)~="number" then id=eventID end

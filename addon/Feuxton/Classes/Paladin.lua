@@ -46,9 +46,8 @@ function paladin.capture()
         local spell={key=spec.key,name=spec.name,id=id,castTimeMs=group.field(info,"castTime"),minimumRange=group.field(info,"minRange"),maximumRange=group.field(info,"maxRange"),learned={status="unknown"},usable={status="unknown"},insufficientPower={status="unknown"},targetRange={status="unknown"}}
         if id.status=="observed" and type(id.value)=="number" then
             spell.learned=group.read(book.IsSpellKnown or IsSpellKnown,1,id.value)
-            spell.usable=group.read(api.IsSpellUsable or IsUsableSpell,1,id.value)
-            spell.insufficientPower=group.read(api.IsSpellUsable or IsUsableSpell,2,id.value)
-            spell.targetRange=group.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and id.value or spec.name,"target")
+            spell.usable,spell.insufficientPower=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,id.value)
+            spell.targetRange=ns.features.RangeTracking.readRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and id.value or spec.name,"target")
         end
         spell.bindings={}
         for _,mapping in ipairs(S.setupMappings or {}) do
@@ -112,6 +111,7 @@ for i,key in ipairs(paladin.previewKeys) do paladin.packetKeys[i]=key end
 paladin.packetKeys[11]="retributionAura"
 paladin.packetKeys[12]="righteousFury";paladin.packetKeys[13]="layHands";paladin.packetKeys[14]="divineProtection"
 paladin.packetKeys[15]="swiftJudgement"
+paladin.packetKeys[16]="exorcism"
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
 -- never compares or serializes it. Orange means no supported rendering path.
@@ -174,14 +174,19 @@ local function initializeNative(S)
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",4+(i-1)*6,0);dot:SetColorTexture(color[1],color[2],color[3],1)
     end
     paladin.nativeStamp={};paladin.nativeTiles={}
+    paladin.castIdentityCells={}
+    for i=1,3 do
+        local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",610+(i-1)*6,0)
+        paladin.castIdentityCells[i]=dot
+    end
     for i=1,4 do
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",626+(i-1)*6,0);paladin.nativeStamp[i]=dot
     end
-    for i=1,15 do
+    for i=1,16 do
         local tile={};local x=12+(i-1)*46
         -- The reset uses the remaining right-hand strip; existing tile geometry
         -- stays intact for recorded frames and legacy readers.
-        local small=i==15;if small then x=656 end
+        local small=i>=15;if small then x=i==15 and 656 or 0 end
         for _,spec in ipairs(paladin.specs) do if spec.key=="paladin."..paladin.packetKeys[i] then tile.offGlobalCooldown=spec.offGlobalCooldown==true;break end end
         tile.icon=panel:CreateTexture(nil,"ARTWORK");tile.icon:SetSize(16,16);tile.icon:SetPoint("TOPLEFT",x,-6)
         tile.dial=panel:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(16,16);tile.dial:SetPoint("TOPLEFT",x+18,-6)
@@ -195,9 +200,10 @@ local function initializeNative(S)
         end
         tile.visualSignals={}
         for j=1,4 do
-            local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+(j-1)*6,-32);tile.visualSignals[j]=dot
+            local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+(j-1)*6,-32);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot
             if small then dot:ClearAllPoints();dot:SetPoint("TOPLEFT",x+((j-1)%2)*6,-26-math.floor((j-1)/2)*6) end
         end
+        tile.manaCost=ns.features.SpellBridge.createManaCost(panel,30+(i-1)*36,0,28)
         paladin.nativeTiles[i]=tile
         local useButton=S.attachSpellUse(panel,tile.icon,"paladin."..paladin.packetKeys[i])
         -- Keep the switch marker inside the compact icon. The shared outside
@@ -209,7 +215,7 @@ end
 
 local function renderNative(tile,bound,learned,chosen,info,S)
     tile.spellID=bound>0 and bound or nil;tile.known=learned.status=="observed" and learned.value or false
-    tile.icon:SetTexture(S.safeField(info,"iconID") or "Interface\\Icons\\INV_Misc_QuestionMark")
+    S.renderSpellIcon(tile,info)
     S.renderCooldown(tile)
     local button=chosen and chosen.kind=="spell" and chosen.button
     local visible=button and S.readableCall(button.IsVisible,button)==true
@@ -222,16 +228,17 @@ local function renderNative(tile,bound,learned,chosen,info,S)
         local hotkey=button.HotKey
         if type(hotkey)~="table" and type(hotkey)~="userdata" then hotkey=nil end
         local method=hotkey and type(hotkey.GetVertexColor)=="function" and "GetVertexColor" or "GetTextColor"
-        rangeOK=S.mirrorColor(tile.visualSignals[1],hotkey,method)
+        rangeOK=S.mirrorColor(tile.visualSignals[1],hotkey,method,true)
         local icon=button.icon or button.Icon
-        if type(icon)=="table" or type(icon)=="userdata" then usableOK=S.mirrorColor(tile.visualSignals[3],icon,"GetVertexColor") end
+        if type(icon)=="table" or type(icon)=="userdata" then usableOK=S.mirrorColor(tile.visualSignals[3],icon,"GetVertexColor",true) end
     end
-    S.drawFlag(tile.visualSignals[2],rangeOK);S.drawFlag(tile.visualSignals[4],usableOK)
+    local R=ns.features.RangeTracking
+    R.paintFlag(tile.visualSignals[2],rangeOK);R.paintFlag(tile.visualSignals[4],usableOK)
     -- Cyan certifies a direct spell-range result; legacy non-red bar text
     -- alone cannot prove that a spell has a meaningful range check.
-    if chosen and chosen.managed and rangeOK then tile.visualSignals[2]:SetColorTexture(0,1,1,1) end
-    if not rangeOK then tile.visualSignals[1]:SetColorTexture(1,0.65,0,1) end
-    if not usableOK then tile.visualSignals[3]:SetColorTexture(1,0.65,0,1) end
+    if chosen and chosen.managed and rangeOK then R.paintColor(tile.visualSignals[2],0,1,1,1) end
+    if not rangeOK then R.paintColor(tile.visualSignals[1],1,.65,0,1) end
+    if not usableOK then R.paintColor(tile.visualSignals[3],1,.65,0,1) end
 end
 
 local function refreshNativeAuras(readings,S)
@@ -295,7 +302,7 @@ function paladin.initializePreview()
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
         local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
-        local packet="HHP9"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
+        local packet="HHPA"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
         -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
         local auras,auraIDs,complete={},{},false
         if type(C_UnitAuras)=="table" and type(C_UnitAuras.GetAuraDataByIndex)=="function" then
@@ -326,9 +333,9 @@ function paladin.initializePreview()
             if keyCode==0 then chosen=nil end
             local bound=chosen and chosen.id or id;bound=type(bound)=="number" and bound>0 and bound==math.floor(bound) and bound or 0
             local learned=bound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,bound) or {}
-            local usable=bound>0 and group.read(api.IsSpellUsable or IsUsableSpell,1,bound) or {}
-            local mana=bound>0 and group.read(api.IsSpellUsable or IsUsableSpell,2,bound) or {}
-            local range=bound>0 and group.read(api.IsSpellInRange or IsSpellInRange,1,api.IsSpellInRange and bound or spec.name,"target") or {}
+            local usable,mana={},{}
+            if bound>0 then usable,mana=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
+            local range=bound>0 and ns.features.RangeTracking.readRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and bound or spec.name,"target") or {}
             local ready={}
             if bound>0 and type(api.GetSpellCooldown)=="function" then
                 local cdOK,cd=pcall(api.GetSpellCooldown,bound)
@@ -342,6 +349,7 @@ function paladin.initializePreview()
             for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
             packet=packet..S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
             renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S)
+            ns.features.SpellBridge.renderManaCost(paladin.nativeTiles[index].manaCost,bound,learned.status=="observed" and learned.value==true)
             paladin.verifiedAuraIDs=paladin.verifiedAuraIDs or {}
             local family=spec.key..":"..bound
             if learned.status=="observed" and learned.value==true and auraIDs[spec.name] and S.readableCall(InCombatLockdown)==false then paladin.verifiedAuraIDs[family]=auraIDs[spec.name] end
@@ -384,7 +392,15 @@ function paladin.initializePreview()
         local stopKey=S.bindingsValid and S.managedSpells.current(stopEntry) and paladin.bindingCode(stopEntry.key) or 0
         packet=packet..S.bytes(stopKey,2)
         packet=packet..S.bytes(paladin.bindingCode(ns.features.Threat.readyBinding()),2)
+        packet=packet..S.bytes(ns.features.SpellBridge.stackCount("player","Unsealed Wrath",3),1)
+        local creature=S.readableCall(UnitCreatureType,"target")
+        packet=packet..S.bytes(creature=="Undead" and 2 or creature=="Demon" and 3 or type(creature)=="string" and 1 or 0,1)
         local checksum=S.adler32(packet)
+        local activeID,activeKind=ns.features.CastTracking.activityIdentity()
+        local active=S.bytes(activeID,4)..S.bytes(activeKind,1)
+        -- Associate public RGB identity with this exact checksummed class frame.
+        active=active..S.bytes(S.adler32(active..S.bytes(checksum,4)),4)
+        for i,dot in ipairs(paladin.castIdentityCells) do dot:SetColorTexture(string.byte(active,(i-1)*3+1)/255,string.byte(active,(i-1)*3+2)/255,string.byte(active,(i-1)*3+3)/255,1) end
         for i,dot in ipairs(paladin.nativeStamp) do local value=math.floor(checksum/256^(i-1))%256/255;dot:SetColorTexture(value,value,value,1) end
         packet=packet..S.bytes(checksum,4);assert(#packet<=357);group.paint(cells,packet)
         S.publishTransportPacket(3,packet)

@@ -7,7 +7,7 @@ R.specs={
  {key="racial.cannibalize",name="Cannibalize"},
  {key="racial.bloodFury",name="Blood Fury"},
  {key="racial.shatterCurse",name="Shatter Curse"},
- {key="racial.warStomp",name="War Stomp"},
+ {key="racial.warStomp",name="War Stomp",offGlobalCooldown=true},
  {key="racial.cultivation",name="Cultivation"},
  {key="racial.berserking",name="Berserking"},
  {key="racial.regeneration",name="Rapid Regeneration"},
@@ -31,7 +31,7 @@ function R.learned()
   local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
   local id=S.safeField(info,"spellID")
   if type(id)=="number" and id>0 and S.readableCall(S.bookAPI.IsSpellKnown or IsSpellKnown,id)==true and S.readableCall(S.spellAPI.IsSpellPassive or IsPassiveSpell,id)~=true then
-   list[#list+1]={index=index,key=spec.key,name=spec.name,id=id,unit="player"}
+   list[#list+1]={index=index,key=spec.key,name=spec.name,id=id,unit="player",offGlobalCooldown=spec.offGlobalCooldown}
   end
  end
  if type(now)=="number" then R.cache=list;R.at=now end

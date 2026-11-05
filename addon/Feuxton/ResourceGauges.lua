@@ -103,9 +103,9 @@ end
 
 ns.features.Interrupts.initialize()
 ns.features.GroupContext.initialize()
-ns.classes.PALADIN.initializePreview()
-ns.classes.SHAMAN.initializePreview()
-ns.classes.WARLOCK.initializePreview()
+for _,class in pairs(ns.classes) do
+    if type(class.initializePreview)=="function" then class.initializePreview() end
+end
 ns.initializePixelExperiment()
 ns.initializeDenseBridge()
 
