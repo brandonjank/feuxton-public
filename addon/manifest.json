@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.17",
+    "addonVersion":  "0.81.18",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v26",
-    "sourceRevision":  "f5ae9832e6c320512b0b53d77eb26d732464ed4b",
+    "sourceRevision":  "ba5d710d7f21aed43a6957720ed8a1403dd9a988",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "2ACC2B74A92B7CB645FE4D0BDD44246A308A256988AE9EEF081448396BCE9D49",
+                      "sha256":  "32B2FC3179F44B4BB4E651CDD5120B578D37786C48DFD7771C1450096E0E8CF6",
                       "size":  5393
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "46A0D685A094E98F917E691E4424E44CA69949295DB8FFEEC7A473DB7AE9CDB2",
+                      "sha256":  "7D3DF92F305FC7B44E0FAF8C1944E18FE55C8364B239551015FE907AFEABC02B",
                       "size":  960
                   },
                   {
@@ -192,8 +192,8 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "CBEF6CB4B81F839FCAD839BF13B6E390CD2BBFBA49C85C1F53DD0DF53BF8BC3E",
-                      "size":  21680
+                      "sha256":  "40CD071119D33C8887665EFDEE02CB6E8063C0ABD676E9577E75301F1735EF49",
+                      "size":  21968
                   },
                   {
                       "path":  "SpellWidgets.lua",
