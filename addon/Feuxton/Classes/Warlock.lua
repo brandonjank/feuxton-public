@@ -154,9 +154,10 @@ function H.initializePreview()
   combatDot:SetColorTexture(1,1,1,1)
   local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1})
   if not painted or result~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
-  -- Auto-repeat identifies a spell type; current-spell reports whether Shoot
-  -- is active. Use the numeric ID and the same native API as Auto Shot.
-  local wand=G.read(S.spellAPI.IsCurrentSpell or IsCurrentSpell,1,5019)
+  -- Start/stop events describe the whole auto-repeat session. A current-spell
+  -- query can be false between wand shots, so use it only before a known event.
+  local wand=S.autoStateSource=="autorepeat event" and type(S.autoActive)=="boolean"
+    and {status="observed",value=S.autoActive} or G.read(S.spellAPI.IsCurrentSpell or IsCurrentSpell,1,5019)
   local stones=0
   for _,id in ipairs(ns.features.Consumables.ids) do local n=count(id);if n==65535 then stones=65535;break end;stones=math.min(65534,stones+n) end
   packet=packet..S.executionBytes(2)..S.bytes(G.code(combat),1)..S.bytes(count(6265),2)..S.bytes(G.code(wand),1)..S.bytes(stones,2)

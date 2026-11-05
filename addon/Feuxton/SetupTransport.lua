@@ -186,6 +186,42 @@ ns.markSetupDirty=function()
     S.setupDirty=true
 end
 S.setupAbilityKeys={"hunter.autoShot","hunter.arcaneShot","hunter.concussiveShot","hunter.aimedShot","hunter.multiShot","hunter.huntersMark","hunter.serpentSting","hunter.rapidFire","hunter.bestialWrath","hunter.volley","hunter.summonHawk","hunter.raptorStrike","hunter.mongooseBite","hunter.wingClip","hunter.intimidation","hunter.feignDeath","hunter.immolationTrap","hunter.freezingTrap","hunter.frostTrap","hunter.mendPet"}
+-- Realm-list records are optional in the in-game environment. Only inspect
+-- the existing list; do not request a refresh, select a realm or infer type
+-- from a player's PvP flag or current zone.
+function S.collectRealmInfo()
+    local realm=S.setupString(S.readableCall(GetRealmName))
+    if not realm or realm=="" or #realm>80 then return nil,nil end
+    local api=type(C_RealmList)=="table" and C_RealmList or nil
+    if not api or type(api.GetAvailableCategories)~="function" or type(api.GetRealmsInCategory)~="function" or type(api.GetRealmInfo)~="function" then return realm,nil end
+    local categories=S.readableCall(api.GetAvailableCategories)
+    if S.isSecret(categories) or type(categories)~="table" or #categories>32 then return realm,nil end
+    local found,count,seen=nil,0,{}
+    for _,category in ipairs(categories) do
+        if S.isSecret(category) then return realm,nil end
+        local realms=S.readableCall(api.GetRealmsInCategory,category)
+        if S.isSecret(realms) or type(realms)~="table" or #realms>128 then return realm,nil end
+        for _,address in ipairs(realms) do
+            if S.isSecret(address) or (type(address)~="string" and type(address)~="number") then return realm,nil end
+            if not seen[address] then
+                seen[address]=true;count=count+1
+                if count>512 then return realm,nil end
+                local info=S.readableCall(api.GetRealmInfo,address)
+                if not S.isSecret(info) and type(info)=="table" then
+                    local name=S.setupString(S.setupValue(function() return info.name end,1))
+                    if name==realm then
+                        if found then return realm,nil end
+                        local pvp=S.setupValue(function() return info.isPvP end,1)
+                        local rp=S.setupValue(function() return info.isRP end,1)
+                        if type(pvp)~="boolean" or type(rp)~="boolean" then return realm,nil end
+                        found=pvp and (rp and "RP PvP" or "PvP") or (rp and "RP" or "Normal")
+                    end
+                end
+            end
+        end
+    end
+    return realm,found
+end
 function S.collectSetup()
     local class=S.setupString(S.setupValue(UnitClass,2,"player"))
     local level=S.setupNumber(S.readableCall(UnitLevel,"player"))
@@ -197,7 +233,8 @@ function S.collectSetup()
     if not specName and specIndex and type(C_SpecializationInfo)=="table" then
         specName=S.setupString(S.setupValue(C_SpecializationInfo.GetSpecializationInfo,2,specIndex))
     end
-    local character=S.jsonObject({name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,
+    local realm,serverType=S.collectRealmInfo()
+    local character=S.jsonObject({name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,realm=realm,serverType=serverType,
         race=S.setupString(S.readableCall(UnitRace,"player")),zone=S.setupString(S.readableCall(GetRealZoneText)) or S.setupString(S.readableCall(GetZoneText)),
         subzone=S.setupString(S.readableCall(GetSubZoneText)),scannedAt=S.setupNumber(S.readableCall(GetServerTime))})
     local bindings={}
@@ -379,7 +416,7 @@ function S.renderSetupPage()
     if published then S.setupPage=(S.setupPage+1)%count end
 end
 S.setupEvents=CreateFrame("Frame")
-for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP","ZONE_CHANGED","ZONE_CHANGED_INDOORS","ZONE_CHANGED_NEW_AREA","SPELLS_CHANGED","UPDATE_BINDINGS","UPDATE_MACROS","ACTIONBAR_SLOT_CHANGED","ACTIONBAR_PAGE_CHANGED","PLAYER_TALENT_UPDATE","TRAIT_CONFIG_UPDATED","ACTIVE_TALENT_GROUP_CHANGED","PLAYER_REGEN_ENABLED","PET_BAR_UPDATE","PET_BAR_UPDATE_USABLE","UNIT_PET"}) do
+for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP","ZONE_CHANGED","ZONE_CHANGED_INDOORS","ZONE_CHANGED_NEW_AREA","REALM_LIST_UPDATED","SPELLS_CHANGED","UPDATE_BINDINGS","UPDATE_MACROS","ACTIONBAR_SLOT_CHANGED","ACTIONBAR_PAGE_CHANGED","PLAYER_TALENT_UPDATE","TRAIT_CONFIG_UPDATED","ACTIVE_TALENT_GROUP_CHANGED","PLAYER_REGEN_ENABLED","PET_BAR_UPDATE","PET_BAR_UPDATE_USABLE","UNIT_PET"}) do
     pcall(S.setupEvents.RegisterEvent,S.setupEvents,event)
 end
 S.setupEvents:SetScript("OnEvent",ns.markSetupDirty)

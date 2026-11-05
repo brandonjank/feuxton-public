@@ -171,7 +171,8 @@ function M.refresh()
                 -- One secure click commands the pet before the attack. This
                 -- also covers target changes while Mark is rate-limited; the
                 -- app never waits for pet arrival or a separate pet receipt.
-                local macro=candidate.petCommand and "/petattack [@target,harm,nodead]" or candidate.unit=="mouseover" and ((class=="WARLOCK" and "/petattack [@target,harm,nodead]\n" or "").."/cast [@mouseover,harm,nodead] "..candidate.name)
+                local macro=candidate.petCommand and "/petattack [@target,harm,nodead]" or candidate.unit=="mouseover" and
+                    (class=="WARLOCK" and ("/petattack [combat,@target,harm,nodead]\n/cast [combat,@mouseover,harm,nodead] "..candidate.name) or ("/cast [@mouseover,harm,nodead] "..candidate.name))
                     or candidate.stopCasting and "/stopcasting" or candidate.cancelForm and "/cancelform"
                     or candidate.noToggle and ("/cast !"..candidate.name)
                     or candidate.groundAtCursor and ("/cast [@cursor] "..candidate.name)
