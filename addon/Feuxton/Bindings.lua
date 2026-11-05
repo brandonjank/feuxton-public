@@ -74,7 +74,7 @@ function M.catalog()
             local current=S.safeField(resolved,"spellID")
             if type(current)=="number" and current>0 and known(current) then id=current end
         end
-        if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.petAttack=petAttack end;return end
+        if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.startAttack=startAttack;existing.petAttack=petAttack end;return end
         local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and (name=="Healing Touch" or spec and spec.healing==true))
         local entry={id=id,name=name,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom",healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
     end
@@ -138,7 +138,7 @@ function M.refresh()
     local candidates,class=M.catalog()
     local keys=M.keysForClass(class)
     local signature={class or ""}
-    for _,candidate in ipairs(candidates) do signature[#signature+1]=(candidate.managedName or candidate.name)..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.petCommand==true)..":"..tostring(candidate.itemID or 0)..":"..tostring(candidate.cancelForm==true)..":"..tostring(candidate.noToggle==true)..":"..tostring(candidate.groundAtCursor==true) end
+    for _,candidate in ipairs(candidates) do signature[#signature+1]=(candidate.managedName or candidate.name)..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.startAttack==true)..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.petCommand==true)..":"..tostring(candidate.itemID or 0)..":"..tostring(candidate.cancelForm==true)..":"..tostring(candidate.noToggle==true)..":"..tostring(candidate.groundAtCursor==true) end
     signature=table.concat(signature,"|")
     local changed=signature~=M.signature or M.retry
     M.retry=false
@@ -176,7 +176,7 @@ function M.refresh()
                     or candidate.stopCasting and "/stopcasting" or candidate.cancelForm and "/cancelform"
                     or candidate.noToggle and ("/cast !"..candidate.name)
                     or candidate.groundAtCursor and ("/cast [@cursor] "..candidate.name)
-                    or candidate.startAttack and ("/startattack [harm,nodead]"..
+                    or candidate.startAttack and ((candidate.petAttack and "/petattack [@target,harm,nodead]\n" or "").."/startattack [harm,nodead]"..
                     (candidate.id~=6603 and "\n/cast [@target,harm,nodead] "..candidate.name or ""))
                     or candidate.petAttack and ("/petattack [@target,harm,nodead]\n/cast [@target,harm,nodead] "..(class=="WARLOCK" and candidate.name=="Shoot" and "!Shoot" or candidate.name)) or nil
                 entry.button:SetAttribute("macrotext",macro)

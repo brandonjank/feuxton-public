@@ -17,7 +17,7 @@ S.hunterSpecs = {
     { name = "Bestial Wrath", short = "Wrath", base = 19574, unit = "player" },
     { name = "Volley", short = "Volley", base = 1510 },
     { name = "Summon Hawk", short = "Summon", base = 0, petAttack = true },
-    { name = "Raptor Strike", short = "Raptor", base = 2973, petAttack = true },
+    { name = "Raptor Strike", short = "Raptor", base = 2973, petAttack = true, startAttack = true },
     { name = "Mongoose Bite", short = "Mongoose", base = 1495, petAttack = true },
     { name = "Wing Clip", short = "Wing", base = 2974 },
     { name = "Intimidation", short = "Intimid", base = 19577, petAttack = true },
