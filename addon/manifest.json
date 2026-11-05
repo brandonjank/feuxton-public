@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.20",
+    "addonVersion":  "0.81.21",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v26",
-    "sourceRevision":  "efa02ef880853c0eb41c3aacbdbfa7e393a16bd1",
+    "sourceRevision":  "0c98a97de40590a92f2e63d0696c0d7041a2e765",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "6648F6C201E4C389021EB754493004A51C68990D874032F9819C3847EAE87BE1",
-                      "size":  27823
+                      "sha256":  "559EBFD1032B1A5B5350685DBF5927CA6FD0BD304F3A115769A2A18750E9D5CB",
+                      "size":  27970
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "23A9F301098414561D009322E2F39BA8B0D268B60450CF9100E62C3BC0B849AC",
+                      "sha256":  "2E5798B81D08828C37B6B74A2C4B9063394D6FC967AFEC23EAC30F22096A0C00",
                       "size":  5393
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "0F68F10FD430CAACEFEFFDAA3DE14C14F0353132E0F40126187F089769E72BFE",
+                      "sha256":  "1A3B122F21C0629D7864B51A5083EF852420BDBC76950D0BEDDE6DA01D858E84",
                       "size":  960
                   },
                   {
@@ -162,8 +162,8 @@
                   },
                   {
                       "path":  "HunterSpells.lua",
-                      "sha256":  "C15F640B0AD7810D8CC5789AC9A67311657C5ACF9B11E744D9AE4A46ED69974E",
-                      "size":  6361
+                      "sha256":  "E86F63A1D660E86F541A5DDE897F7A0DC3BC74ECE424120ACAD3E9AE40D15687",
+                      "size":  6381
                   },
                   {
                       "path":  "LICENSE",
