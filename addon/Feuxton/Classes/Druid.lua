@@ -55,9 +55,10 @@ function H.initializePreview()
  local function dot(x,y)local d=bridge.panel:CreateTexture(nil,"OVERLAY");d:SetSize(4,4);d:SetPoint("TOPLEFT",x,-y);R.initialize(d,1,.65,0,1);return d end
  local combatDot=dot(650,132);H.combatDot=combatDot
  local resources={};H.resources=resources
- for i,power in ipairs({0,1,3})do resources[i]=B.createManaCost(bridge.panel,12+(i-1)*164,122,128);resources[i].powerType=power end
- local combo=B.createManaCost(bridge.panel,504,122,128);H.combo=combo
- local stacks=B.createManaCost(bridge.panel,504,128,128);H.stacks=stacks
+ local function resource(x,y)local widget=B.createManaCost(bridge.panel,x,y,128);R.initialize(widget.valid,1,.65,0,1);return widget end
+ for i,power in ipairs({0,1,3})do resources[i]=resource(12+(i-1)*164,122);resources[i].powerType=power end
+ local combo=resource(504,122);H.combo=combo
+ local stacks=resource(504,128);H.stacks=stacks
  local clearcastingBackground=dot(508,86);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
  local attackerDots={};H.attackerDots=attackerDots
  for i=1,40 do attackerDots[i]={dot(12+(i-1)*6,170),dot(280+(i-1)*6,170)}end
