@@ -197,7 +197,9 @@ function S.collectSetup()
     if not specName and specIndex and type(C_SpecializationInfo)=="table" then
         specName=S.setupString(S.setupValue(C_SpecializationInfo.GetSpecializationInfo,2,specIndex))
     end
-    local character=S.jsonObject({name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,scannedAt=S.setupNumber(S.readableCall(GetServerTime))})
+    local character=S.jsonObject({name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,
+        race=S.setupString(S.readableCall(UnitRace,"player")),zone=S.setupString(S.readableCall(GetRealZoneText)) or S.setupString(S.readableCall(GetZoneText)),
+        subzone=S.setupString(S.readableCall(GetSubZoneText)),scannedAt=S.setupNumber(S.readableCall(GetServerTime))})
     local bindings={}
     for _,mapping in ipairs(S.setupMappings) do
         local id=S.setupNumber(mapping.id)
@@ -377,7 +379,7 @@ function S.renderSetupPage()
     if published then S.setupPage=(S.setupPage+1)%count end
 end
 S.setupEvents=CreateFrame("Frame")
-for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP","SPELLS_CHANGED","UPDATE_BINDINGS","UPDATE_MACROS","ACTIONBAR_SLOT_CHANGED","ACTIONBAR_PAGE_CHANGED","PLAYER_TALENT_UPDATE","TRAIT_CONFIG_UPDATED","ACTIVE_TALENT_GROUP_CHANGED","PLAYER_REGEN_ENABLED","PET_BAR_UPDATE","PET_BAR_UPDATE_USABLE","UNIT_PET"}) do
+for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP","ZONE_CHANGED","ZONE_CHANGED_INDOORS","ZONE_CHANGED_NEW_AREA","SPELLS_CHANGED","UPDATE_BINDINGS","UPDATE_MACROS","ACTIONBAR_SLOT_CHANGED","ACTIONBAR_PAGE_CHANGED","PLAYER_TALENT_UPDATE","TRAIT_CONFIG_UPDATED","ACTIVE_TALENT_GROUP_CHANGED","PLAYER_REGEN_ENABLED","PET_BAR_UPDATE","PET_BAR_UPDATE_USABLE","UNIT_PET"}) do
     pcall(S.setupEvents.RegisterEvent,S.setupEvents,event)
 end
 S.setupEvents:SetScript("OnEvent",ns.markSetupDirty)
