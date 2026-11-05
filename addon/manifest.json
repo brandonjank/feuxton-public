@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.19",
+    "addonVersion":  "0.81.20",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v26",
-    "sourceRevision":  "8695bb2afdd54d5b4a96148f93c1533fe5dbbe39",
+    "sourceRevision":  "efa02ef880853c0eb41c3aacbdbfa7e393a16bd1",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -17,8 +17,8 @@
                   },
                   {
                       "path":  "Classes/Druid.lua",
-                      "sha256":  "E1CE3689111D0B55DE0D391894AC01BB9D2E5D1C0CEC2EF2586ACD8D3B11AD87",
-                      "size":  14505
+                      "sha256":  "39E9DEFD753ABC302B9341E12EC22B7DCF15526E5934DCED30721E8EA421D546",
+                      "size":  14566
                   },
                   {
                       "path":  "Classes/Hunter.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "FBACEC2D4E24EE45189F77B7CB2F2611E6B1C263DC6BB4C1CF461B9F7EACB63F",
+                      "sha256":  "23A9F301098414561D009322E2F39BA8B0D268B60450CF9100E62C3BC0B849AC",
                       "size":  5393
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "D570B3A62D322A194781AE7C119F8446160BF20F54DB9E5AD82799CA6A3AA46B",
+                      "sha256":  "0F68F10FD430CAACEFEFFDAA3DE14C14F0353132E0F40126187F089769E72BFE",
                       "size":  960
                   },
                   {
