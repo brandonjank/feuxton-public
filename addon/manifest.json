@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.18",
+    "addonVersion":  "0.81.19",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v26",
-    "sourceRevision":  "ba5d710d7f21aed43a6957720ed8a1403dd9a988",
+    "sourceRevision":  "8695bb2afdd54d5b4a96148f93c1533fe5dbbe39",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "FF2FFF6E6DD5A5461E69A708C9B696A0E1D19808F2BF74196AFA5DA5E2604F23",
-                      "size":  27743
+                      "sha256":  "6648F6C201E4C389021EB754493004A51C68990D874032F9819C3847EAE87BE1",
+                      "size":  27823
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -52,8 +52,8 @@
                   },
                   {
                       "path":  "Classes/Warlock.lua",
-                      "sha256":  "ED217E9DA7AD99F8B835367560D473B6EC18058A29D57C8ECB6913EFE18B6F1D",
-                      "size":  14496
+                      "sha256":  "49DBF83782C2D11D43099AFF6E11BB8A6A4F9388B21D6091DD6DD7E6CDA22FCA",
+                      "size":  14628
                   },
                   {
                       "path":  "Classes/Warrior.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "32B2FC3179F44B4BB4E651CDD5120B578D37786C48DFD7771C1450096E0E8CF6",
+                      "sha256":  "FBACEC2D4E24EE45189F77B7CB2F2611E6B1C263DC6BB4C1CF461B9F7EACB63F",
                       "size":  5393
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "7D3DF92F305FC7B44E0FAF8C1944E18FE55C8364B239551015FE907AFEABC02B",
+                      "sha256":  "D570B3A62D322A194781AE7C119F8446160BF20F54DB9E5AD82799CA6A3AA46B",
                       "size":  960
                   },
                   {
@@ -192,8 +192,8 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "40CD071119D33C8887665EFDEE02CB6E8063C0ABD676E9577E75301F1735EF49",
-                      "size":  21968
+                      "sha256":  "DD24109BBDD413E547EF9D15E351A81BD1D9B21F48BE37AED8ED975542B0EE84",
+                      "size":  24265
                   },
                   {
                       "path":  "SpellWidgets.lua",
