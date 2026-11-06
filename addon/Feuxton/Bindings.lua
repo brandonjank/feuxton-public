@@ -174,11 +174,11 @@ function M.refresh()
                 local macro=candidate.petCommand and "/petattack [@target,harm,nodead]" or candidate.unit=="mouseover" and
                     (class=="WARLOCK" and ("/petattack [combat,@target,harm,nodead]\n/cast [combat,@mouseover,harm,nodead] "..candidate.name) or ("/cast [@mouseover,harm,nodead] "..candidate.name))
                     or candidate.stopCasting and "/stopcasting" or candidate.cancelForm and "/cancelform"
-                    or candidate.noToggle and ("/cast !"..candidate.name)
+                    or candidate.noToggle and not candidate.startAttack and not candidate.petAttack and ("/cast !"..candidate.name)
                     or candidate.groundAtCursor and ("/cast [@cursor] "..candidate.name)
                     or candidate.startAttack and ((candidate.petAttack and "/petattack [@target,harm,nodead]\n" or "").."/startattack [harm,nodead]"..
-                    (candidate.id~=6603 and "\n/cast [@target,harm,nodead] "..candidate.name or ""))
-                    or candidate.petAttack and ("/petattack [@target,harm,nodead]\n/cast [@target,harm,nodead] "..(class=="WARLOCK" and candidate.name=="Shoot" and "!Shoot" or candidate.name)) or nil
+                    (candidate.id~=6603 and "\n/cast [@target,harm,nodead] "..(candidate.noToggle and "!" or "")..candidate.name or ""))
+                    or candidate.petAttack and ("/petattack [@target,harm,nodead]\n/cast [@target,harm,nodead] "..((candidate.noToggle or class=="WARLOCK" and candidate.name=="Shoot") and "!" or "")..candidate.name) or nil
                 entry.button:SetAttribute("macrotext",macro)
                 if entry.key then
                     local ok=pcall(SetOverrideBindingClick,M.owner,false,entry.key,entry.buttonName,"LeftButton")

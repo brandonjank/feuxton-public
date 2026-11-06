@@ -28,23 +28,39 @@ end
 -- bounded scan stay unknown; Well Fed is not an active eating effect.
 function C.recovery()
     local S=ns.state;local A=type(C_UnitAuras)=="table" and C_UnitAuras or {}
-    if type(A.GetAuraDataByIndex)~="function" then return nil,nil end
+    local campfireName="Welcoming Campfire";local campfire
+    if type(A.GetAuraDataBySpellName)=="function" then
+        local ok,a=pcall(A.GetAuraDataBySpellName,"player",campfireName,"HELPFUL")
+        if ok and not S.isSecret(a) then
+            if a==nil then campfire=false
+            elseif type(a)=="table" and S.safeField(a,"name")==campfireName then campfire=true end
+        end
+    end
+    if type(A.GetAuraDataByIndex)~="function" then return nil,nil,campfire end
     local eating,drinking,complete=false,false,true
+    local campfireFound=false
+    local function result(ended)
+        local fire=campfire
+        -- A later exact readable presence wins over an earlier targeted nil.
+        if campfireFound then fire=true elseif fire==nil and ended and complete then fire=false end
+        if ended and complete then return eating,drinking,fire end
+        return eating and true or nil,drinking and true or nil,fire
+    end
     for i=1,80 do
         local ok,a=pcall(A.GetAuraDataByIndex,"player",i,"HELPFUL")
         if not ok or S.isSecret(a) then complete=false
         elseif a==nil then
-            if not complete then return eating and true or nil,drinking and true or nil end
-            return eating,drinking
+            return result(true)
         else
             local name=S.safeField(a,"name")
             if type(name)~="string" then complete=false
             elseif name=="Food" or name==FOOD then eating=true
             elseif name=="Drink" or name==DRINK then drinking=true
-            elseif name=="Food & Drink" or name=="Refreshment" then eating=true;drinking=true end
+            elseif name=="Food & Drink" or name=="Refreshment" then eating=true;drinking=true
+            elseif name==campfireName then campfireFound=true end
         end
     end
-    return eating and true or nil,drinking and true or nil
+    return result(false)
 end
 function C.packet(tick)
     local S=ns.state;local id,count=C.inventory();local ready,usable,spellID
@@ -66,8 +82,11 @@ function C.packet(tick)
     local M=S.managedSpells;local entry=M and M.entries[class..":Feuxton Healthstone"]
     local key=M and M.current(entry) and entry.itemID==id and S.compactBindingCode(entry.key) or 0
     local function flag(v)return v==true and 2 or v==false and 1 or 0 end
-    local eating,drinking=C.recovery()
-    local packet="HHI2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)
+    local eating,drinking,campfire=C.recovery()
+    if C.campfireSession~=S.setupSession then C.campfireSession=S.setupSession;C.campfireHeld=false end
+    if campfire==true then C.campfireHeld=true elseif campfire==false then C.campfireHeld=false end
+    local campfireState=campfire==nil and C.campfireHeld and 3 or flag(campfire)
+    local packet="HHI3"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(campfireState,1)
     return packet..S.bytes(S.adler32(packet),4)
 end
 local events=CreateFrame("Frame")
