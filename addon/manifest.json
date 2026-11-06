@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.21",
+    "addonVersion":  "0.81.23",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v26",
-    "sourceRevision":  "0c98a97de40590a92f2e63d0696c0d7041a2e765",
+    "contract":  "feuxton-dense-v27",
+    "sourceRevision":  "190d4039ce82c99a492d533ad8ffcb33dfbac2b6",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "559EBFD1032B1A5B5350685DBF5927CA6FD0BD304F3A115769A2A18750E9D5CB",
-                      "size":  27970
+                      "sha256":  "DFEB15D9BADA94C0A23FF752EFAF5E7E0F2E06B3444342810507BC2CC72D2FC7",
+                      "size":  28087
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -77,8 +77,8 @@
                   },
                   {
                       "path":  "Features/Consumables.lua",
-                      "sha256":  "CE31ECC1BAA4A631BC5D0700976BC70AF77A2FD239EC9DED081DDED5885EFFB9",
-                      "size":  4358
+                      "sha256":  "959904F2DA7D0E8085CECD3C5469106B868944742E8CB1A9BFC33D5F5B0DAE42",
+                      "size":  5431
                   },
                   {
                       "path":  "Features/ControlEffects.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "2E5798B81D08828C37B6B74A2C4B9063394D6FC967AFEC23EAC30F22096A0C00",
+                      "sha256":  "58E1CE226E6A63047B7CC81A4186F9FE3226CF54523B76BA2BC1AE06CBBCD7B5",
                       "size":  5393
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "1A3B122F21C0629D7864B51A5083EF852420BDBC76950D0BEDDE6DA01D858E84",
+                      "sha256":  "A9AFB08E738BEB93C25F672BF931E5027048D95ED7F98D6FCDE96A3FF71771CA",
                       "size":  960
                   },
                   {
@@ -162,8 +162,8 @@
                   },
                   {
                       "path":  "HunterSpells.lua",
-                      "sha256":  "E86F63A1D660E86F541A5DDE897F7A0DC3BC74ECE424120ACAD3E9AE40D15687",
-                      "size":  6381
+                      "sha256":  "56D47EA9D3305AD65ED4F0A8BA244DF3ABBCA229DB7CA40D5BDBB1270114600B",
+                      "size":  6398
                   },
                   {
                       "path":  "LICENSE",
