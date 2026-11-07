@@ -1,15 +1,24 @@
--- HHX4: shared control, self Purify and bounded readable harmful aura IDs.
+-- HHX5: shared control, friendly target/mouseover and independent Freedom receipt.
 -- All secret fields remain unknown; native cooldown/usability stays rendered.
 local _,ns=...
 local X={cache={}}
 ns.features.ControlEffects=X
-X.freedom={key="paladin.freedom",name="Blessing of Freedom",support=true}
+X.freedom={key="paladin.freedom",name="Blessing of Freedom",support=true,offGlobalCooldown=true}
+X.units={"player","party1","party2","party3","party4","target","mouseover"}
 -- Stable capability indexes shared with windows/Cleansing.cs. Add learned
 -- class removers here without giving unsupported classes an assumed spell.
 X.cleanseSpecs={{index=1,class="PALADIN",key="paladin.purify",name="Purify",unit="player"}}
 local movementNames={['Frostbolt']=true,['Frost Shock']=true,['Hamstring']=true,['Wing Clip']=true,['Concussive Shot']=true,['Crippling Poison']=true,['Entangling Roots']=true,['Frost Nova']=true,['Frost Trap Aura']=true,['Ensnare']=true,['Net']=true,['Web']=true,['Tendon Rip']=true}
+-- Exact known stun names supplement clients whose unit LoC API omits allies.
+-- Unknown names and secret aura fields never acquire a guessed mechanic.
+local stunNames={['Hammer of Justice']=true,['Bash']=true,['War Stomp']=true,['Intimidation']=true,['Cheap Shot']=true,['Kidney Shot']=true,['Concussion Blow']=true,['Pounce']=true}
 local function flag(v)return v==true and 2 or v==false and 1 or 0 end
 local function value(fn,...)return ns.state.readableCall(fn,...) end
+local function learned(spell)
+ local observation=spell and spell.learned
+ if type(observation)=="table" and observation.status=="observed" and not ns.state.isSecret(observation.value) and type(observation.value)=="boolean" then return observation.value end
+ return nil
+end
 local debuffTypes={Poison=1,Disease=2,Curse=4,Magic=8,Bleed=16}
 -- A lower bound from available nameplate units, never a complete world count.
 -- Public eligibility is required before a secret range value can be rendered.
@@ -173,6 +182,7 @@ function X.effects(unit)
   if S.isSecret(aura.dispelName) then dispelClassified=false end
   local impairment=S.safeField(aura,"isMovementImpairing")
   if movementNames[name] or impairment==true then result.movement=true elseif impairment~=false then unclassified=true end
+  if stunNames[name] then result.stun=true end
   if name=="Sleep" or name=="Deep Sleep" or name=="Charm" or name=="Mind Control" then result.forsaken=true end
   if dispel=="Curse" then result.curse=true end
   if dispel=="Poison" or dispel=="Disease" or dispel=="Bleed" then result.stoneform=true end
@@ -233,7 +243,7 @@ function X.native()
   for j=1,4 do local dot=S.hud:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+14+(j-1)%2*5,-1-math.floor((j-1)/2)*5);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.signals[j]=dot end
   X.tiles[i]=tile
  end
- for i=1,5 do local p=S.hud:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",510+(i-1)*6,-2);ns.features.RangeTracking.initialize(p,1,.65,0,1);X.ranges[i]=p end
+ for i=1,#X.units do local p=S.hud:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",510+(i-1)*6,-2);ns.features.RangeTracking.initialize(p,1,.65,0,1);X.ranges[i]=p end
  -- Spare header space between the existing Freedom signals and range dots.
  local tile={};tile.dial=S.hud:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(8,8);tile.dial:SetPoint("TOPLEFT",490,-1)
  tile.cooldown=CreateFrame("Cooldown",nil,S.hud,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial);tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
@@ -253,7 +263,7 @@ function X.packet(tick)
  local roster=S.transportPackets[16];local rosterTick=roster and string.byte(roster.packet,9) and 0 or nil
  if roster then for i=0,3 do rosterTick=rosterTick+string.byte(roster.packet,9+i)*256^i end end
  local revision=F.revision or 0
- local packet="HHX4"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
+ local packet="HHX5"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
  local contexts={value(IsFalling),value(IsStealthed),value(UnitIsPlayer,"target"),value(UnitIsDeadOrGhost,"target"),value(UnitAffectingCombat,"player")}
  local corpseType=value(UnitCreatureType,"target")
  contexts[6]=(corpseType=="Humanoid" or corpseType=="Undead") and true or type(corpseType)=="string" and false or nil
@@ -274,29 +284,37 @@ function X.packet(tick)
   local range=ns.features.RangeTracking.readRange(S.spellAPI.IsSpellInRange,spec.id,"target")
   sf=sf+G.code(range)*256
   packet=packet..S.bytes(spec.index,1)..S.bytes(spec.id,4)..S.bytes(code,2)..S.bytes(sf,2)..S.bytes(S.spellUseCode(spec.key),1)
-  if i<=3 and X.tiles then local tile=X.tiles[i];tile.spellID=spec.id;tile.offGlobalCooldown=spec.offGlobalCooldown==true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,spec.id,"player");if tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
+  if i<=3 and X.tiles then local tile=X.tiles[i];tile.spellID=spec.id;tile.known=learned(spell);tile.offGlobalCooldown=spec.offGlobalCooldown==true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,spec.id,"player");if tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
  end
  local freedom,freedomRangeOK,freedomRangeRaw
  if class=="PALADIN" then freedom,freedomRangeOK,freedomRangeRaw=F.spell(X.freedom,"player") else freedom={id=0} end
  local entry=class=="PALADIN" and F.delivery(X.freedom) or nil
  packet=packet..S.bytes(freedom.id or 0,4)..S.bytes(entry and S.compactBindingCode(entry.key) or 0,2)..S.bytes(S.spellUseCode(X.freedom.key),1)
- if X.tiles then local tile=X.tiles[4];tile.spellID=(freedom.id or 0)>0 and freedom.id or nil;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,freedom.id or 0,"player");if class=="PALADIN" and (freedom.id or 0)>0 and not tile.useKey then S.attachSpellUse(S.hud,tile.dial,X.freedom.key);tile.useKey=X.freedom.key end end
- for index,unit in ipairs({"player","party1","party2","party3","party4"}) do
-  local identity=G.text(G.read(UnitGUID,1,unit),40);local effects=X.effects(unit);unitEffects[unit]=effects;local ef=0
+ if X.tiles then local tile=X.tiles[4];tile.spellID=(freedom.id or 0)>0 and freedom.id or nil;tile.known=learned(freedom);tile.offGlobalCooldown=true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,freedom.id or 0,"player");if class=="PALADIN" and (freedom.id or 0)>0 and not tile.useKey then S.attachSpellUse(S.hud,tile.dial,X.freedom.key);tile.useKey=X.freedom.key end end
+ for index,unit in ipairs(X.units) do
+  -- Optional scopes must be friendly players; avoid scanning hostile hovers or
+  -- adding aura work for other classes. The app joins their HHB3 identities.
+  local covered=index<=5 or class=="PALADIN" and G.read(UnitIsPlayer,1,unit).value==true and G.read(UnitCanAssist,1,"player",unit).value==true
+  local identity=covered and G.text(G.read(UnitGUID,1,unit),40) or "";local effects=covered and X.effects(unit) or {};unitEffects[unit]=effects;local ef=0
   for i,key in ipairs({"movement","forsaken","stun","curse","stoneform"}) do ef=ef+flag(effects[key])*4^(i-1) end
   local spell,rangeOK,rangeRaw
-  if class=="PALADIN" then
+  if class=="PALADIN" and covered then
    if unit=="player" then spell,rangeOK,rangeRaw=freedom,freedomRangeOK,freedomRangeRaw else spell,rangeOK,rangeRaw=F.spell(X.freedom,unit) end
   else spell={id=0} end
   local sf=G.code(spell.learned)+G.code(spell.usable)*4+G.code(spell.mana)*16+G.code(spell.ready)*64+G.code(spell.range)*256
   local presence
-  if class=="PALADIN" then presence=active(X.freedom.name,unit,helpful) end
+  if class=="PALADIN" and covered then presence=active(X.freedom.name,unit,helpful) end
   packet=packet..S.bytes(#identity,1)..identity..S.bytes(ef,2)..S.bytes(sf,2)..S.bytes(flag(presence),1)
   if X.ranges and (freedom.id or 0)>0 then
    local painted,result=pcall(ns.features.RangeTracking.paintBoolean,X.ranges[index],rangeRaw,{0,1,0,1},{1,0,0,1})
    if not rangeOK or not painted or result~=true then ns.features.RangeTracking.paintColor(X.ranges[index],1,.65,0,1) end
   end
  end
+ -- Freedom can happen during a heal. Its click/result must not replace the
+ -- ordinary managed healing attempt or consume its eventual terminal event.
+ local receipt=F.supportAttempt;local identity=receipt and receipt.identity or "";local now=value(GetTime)
+ local age=receipt and type(now)=="number" and math.floor(math.max(0,now-(receipt.eventAt or receipt.at))*1000) or 65535
+ packet=packet..S.bytes(receipt and receipt.sequence or 0,4)..S.bytes(receipt and receipt.revision or 0,4)..S.bytes(receipt and receipt.id or 0,4)..S.bytes(receipt and receipt.kind or 0,1)..S.bytes(math.min(65535,age),2)..S.bytes(#identity,1)..identity
  local nearby,probe,reach=X.nearby();packet=packet..nearby
  local spec;for _,candidate in ipairs(X.cleanseSpecs) do if candidate.class==class then spec=candidate;break end end
  local cleanse=spec and F.spell(spec,"player") or {id=0}
@@ -307,7 +325,7 @@ function X.packet(tick)
  packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4,1)
  packet=packet..S.bytes(flag(effects.debuffsComplete),1)..S.bytes(#effects.debuffs,1)
  for _,aura in ipairs(effects.debuffs) do packet=packet..S.bytes(aura.id,4)..S.bytes(aura.types,1) end
- if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player");if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
+ if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;tile.known=learned(cleanse);S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player");if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
  -- Paint this final native witness beside the matching support stamp only
  -- after all packet assembly succeeds. A failed producer retains no new pair.
  X.targetMelee(probe,reach)

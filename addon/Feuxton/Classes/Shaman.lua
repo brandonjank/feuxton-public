@@ -1,6 +1,6 @@
 -- Adaptive Shaman catalog and SHS1 class packet. No rotation or input here.
 local _,ns=...
-local H={denseBridgeLayout={key="shaman-dense-v1",height=232,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=196,grid=196,roster=196,coreStamp=108,targetStamp=122,marker={.25,.5,1}}}
+local H={denseBridgeLayout={key="shaman-dense-v5",height=377,nativeVitalsTop=232,nativeVitalsHeight=87,nativeSignalsTop=319,nativeSignalsHeight=58,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=196,grid=196,roster=196,coreStamp=108,targetStamp=122,marker={.25,.5,1}}}
 ns.classes.SHAMAN=H
 H.specs={
  {key="shaman.lightningBolt",name="Lightning Bolt"},{key="shaman.chainLightning",name="Chain Lightning"},

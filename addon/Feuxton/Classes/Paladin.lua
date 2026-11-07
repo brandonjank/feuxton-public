@@ -3,7 +3,7 @@ local _, ns = ...
 local paladin={}
 ns.classes.PALADIN=paladin
 paladin.bridgeLayout={key="paladin-v2",height=300,native=28,units=68,activity=90,resources=102,setup=138,core=150,guide=162,roster=178,classPacket=280}
-paladin.denseBridgeLayout={key="paladin-dense-v4",height=132,gauges=68,native=28,units=68,unitHeight=28,activity=14,headerActivity=true,resources=68,setup=96,grid=96,roster=96,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
+paladin.denseBridgeLayout={key="paladin-dense-v8",height=277,nativeVitalsTop=132,nativeVitalsHeight=87,nativeSignalsTop=219,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=28,activity=14,headerActivity=true,resources=68,setup=96,grid=96,roster=96,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
 paladin.specs={
  {key="paladin.holyStrike",name="Holy Strike"},
  {key="paladin.judgement",name="Judgement"},
@@ -25,6 +25,7 @@ paladin.specs={
  {key="paladin.exorcism",name="Exorcism"},
  {key="paladin.purify",name="Purify",unit="player"},
  {key="paladin.divineProtection",name="Divine Protection",unit="player"},
+ {key="paladin.blessingProtection",name="Blessing of Protection",unit="player"},
  {key="paladin.divineShield",name="Divine Shield",unit="player"},
  {key="paladin.layHands",name="Lay on Hands",unit="player"},
  {key="paladin.autoAttack",name="Attack",startAttack=true},
@@ -112,6 +113,8 @@ paladin.packetKeys[11]="retributionAura"
 paladin.packetKeys[12]="righteousFury";paladin.packetKeys[13]="layHands";paladin.packetKeys[14]="divineProtection"
 paladin.packetKeys[15]="swiftJudgement"
 paladin.packetKeys[16]="exorcism"
+paladin.packetKeys[17]="blessingProtection"
+paladin.packetKeys[18]="flashLight"
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
 -- never compares or serializes it. Orange means no supported rendering path.
@@ -121,8 +124,9 @@ function paladin.renderHealWindows(readings,healMs,S)
         if not pixel then pixel=S.paladinNativePanel:CreateTexture(nil,"OVERLAY");pixel:SetSize(4,4);pixel:SetPoint("TOPLEFT",12+(i-1)*46+30,-32);tile.healWindow=pixel end
         pixel:SetColorTexture(1,.65,0,1)
         if healMs>0 then pcall(function()
-            local rate=(S.updateRateMs or 100)/1000
-            local threshold=healMs/1000+.35+rate+math.max(.25,math.min(1.5,3*rate))
+            -- Fixed user policy: both damage cooldowns must have at least
+            -- 2.5 seconds remaining, independent of update rate/cast rank.
+            local threshold=2.5
             if tile.windowThreshold~=threshold then
                 local curve=C_CurveUtil.CreateColorCurve();curve:SetType(Enum.LuaCurveType.Step)
                 curve:AddPoint(0,CreateColor(1,0,0,1));curve:AddPoint(threshold,CreateColor(0,1,0,1))
@@ -134,7 +138,7 @@ function paladin.renderHealWindows(readings,healMs,S)
         end) end
     end
 end
-local auraSlots={[3]=true,[4]=true,[5]=true,[7]=true,[10]=true,[11]=true,[12]=true,[14]=true}
+local auraSlots={[3]=true,[4]=true,[5]=true,[7]=true,[10]=true,[11]=true,[12]=true,[14]=true,[17]=true}
 
 -- Static weapon tooltip speed is the base delay. UnitAttackSpeed includes haste.
 -- Missing, secret, localized or conflicting tooltip lines remain unknown.
@@ -182,7 +186,7 @@ local function initializeNative(S)
     for i=1,4 do
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",626+(i-1)*6,0);paladin.nativeStamp[i]=dot
     end
-    for i=1,16 do
+    for i=1,18 do
         local tile={};local x=12+(i-1)*46
         -- The reset uses the remaining right-hand strip; existing tile geometry
         -- stays intact for recorded frames and legacy readers.
@@ -198,12 +202,20 @@ local function initializeNative(S)
             tile.dial:ClearAllPoints();tile.dial:SetPoint("TOPLEFT",x,-16)
             tile.aura:Hide()
         end
+        if i>=17 then
+            local bx=i==18 and 230 or 160
+            tile.icon:ClearAllPoints();tile.icon:SetPoint("TOPLEFT",bx,-23)
+            tile.dial:ClearAllPoints();tile.dial:SetPoint("TOPLEFT",bx+10,-23)
+            tile.aura:ClearAllPoints();tile.aura:SetPoint("TOPLEFT",bx+54,-23);if i==17 then tile.aura:Show() end
+        end
         tile.visualSignals={}
         for j=1,4 do
             local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+(j-1)*6,-32);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot
             if small then dot:ClearAllPoints();dot:SetPoint("TOPLEFT",x+((j-1)%2)*6,-26-math.floor((j-1)/2)*6) end
+            if i>=17 then dot:ClearAllPoints();dot:SetPoint("TOPLEFT",(i==18 and 252 or 182)+(j-1)*6,-25) end
         end
-        tile.manaCost=ns.features.SpellBridge.createManaCost(panel,30+(i-1)*36,0,28)
+        if i<=16 then tile.manaCost=ns.features.SpellBridge.createManaCost(panel,30+(i-1)*36,0,28)
+        elseif i==18 then tile.manaCost=ns.features.SpellBridge.createManaCost(panel,284,24,28) end
         paladin.nativeTiles[i]=tile
         local useButton=S.attachSpellUse(panel,tile.icon,"paladin."..paladin.packetKeys[i])
         -- Keep the switch marker inside the compact icon. The shared outside
@@ -251,6 +263,8 @@ local function refreshNativeAuras(readings,S)
         return
     end
     paladin.auraSignature=signature;paladin.auraMask=0;paladin.auraAbsenceMask=0;paladin.auraSettledAt=GetTime()+0.6
+    paladin.signalAuraRevision=((paladin.signalAuraRevision or 0)+1)%4294967296
+    if ns.retireNativeSignalAuras then pcall(ns.retireNativeSignalAuras,paladin) end
     if paladin.nativeAuras then
         pcall(paladin.nativeAuras.SetEnabled,paladin.nativeAuras,false);pcall(paladin.nativeAuras.SetUnit,paladin.nativeAuras,nil);pcall(paladin.nativeAuras.Hide,paladin.nativeAuras)
         paladin.nativeAuras=nil
@@ -267,11 +281,14 @@ local function refreshNativeAuras(readings,S)
                 -- which can differ from the cast ID. Include it in the native
                 -- filter before certifying its blue background as absence.
                 if reading.auraID then ids[reading.auraID]=true;absence=absence+2^(i-1) end
-                local slotX=12+(i-1)*46+36
+                local slotX=i==17 and 214 or 12+(i-1)*46+36
+                local signalIndex
+                if ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,paladin,"paladin."..paladin.packetKeys[i],"player",paladin.signalAuraRevision,"HELPFUL",reading.auraID and 2 or 1);if declared then signalIndex=index end end
                 container:AddAuraSlot("paladin."..paladin.packetKeys[i],"HELPFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
-                    button:SetSize(8,8);button:SetPoint("TOPLEFT",container,"TOPLEFT",slotX,-6);button:EnableMouse(false)
+                    button:SetSize(8,8);button:SetPoint("TOPLEFT",container,"TOPLEFT",slotX,i==17 and -23 or -6);button:EnableMouse(false)
                     local icon=button:CreateTexture(nil,"ARTWORK");icon:SetAllPoints(button);button:SetIcon(icon)
                     local signal=button:CreateTexture(nil,"OVERLAY");signal:SetAllPoints(button);signal:SetColorTexture(0,1,0,1)
+                    if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end
                 end})
                 mask=mask+2^(i-1)
             end
@@ -302,7 +319,7 @@ function paladin.initializePreview()
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
         local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
-        local packet="HHPA"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
+        local packet="HHPC"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
         -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
         local auras,auraIDs,complete={},{},false
         if type(C_UnitAuras)=="table" and type(C_UnitAuras.GetAuraDataByIndex)=="function" then
@@ -349,11 +366,11 @@ function paladin.initializePreview()
             for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
             packet=packet..S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
             renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S)
-            ns.features.SpellBridge.renderManaCost(paladin.nativeTiles[index].manaCost,bound,learned.status=="observed" and learned.value==true)
+            if index<=16 or index==18 then ns.features.SpellBridge.renderManaCost(paladin.nativeTiles[index].manaCost,bound,learned.status=="observed" and learned.value==true) end
             paladin.verifiedAuraIDs=paladin.verifiedAuraIDs or {}
             local family=spec.key..":"..bound
             if learned.status=="observed" and learned.value==true and auraIDs[spec.name] and S.readableCall(InCombatLockdown)==false then paladin.verifiedAuraIDs[family]=auraIDs[spec.name] end
-            if index<=14 then nativeReadings[index]={name=spec.name,bound=bound,learned=learned.status=="observed" and learned.value or false,auraID=paladin.verifiedAuraIDs[family]} end
+            nativeReadings[index]={name=spec.name,bound=bound,learned=learned.status=="observed" and learned.value or false,auraID=paladin.verifiedAuraIDs[family]}
             if spec.healing and bound>0 and learned.value==true then paladin.rangeSpecs[#paladin.rangeSpecs+1]={id=bound,name=spec.name} end
         end
         local movement=group.read(GetUnitSpeed,1,"player");movement=movement.status=="observed" and type(movement.value)=="number" and {status="observed",value=movement.value>0} or {}
@@ -365,7 +382,7 @@ function paladin.initializePreview()
         local absenceMask=auraMask~=0 and (paladin.auraAbsenceMask or 0) or 0
         packet=packet..S.bytes(paladin.weaponID or 0,4)..S.bytes(paladin.weaponDelayMs or 0,2)..S.bytes(auraMask,2)..S.bytes(absenceMask,2)
         local usage=0
-        for i,key in ipairs(paladin.packetKeys) do usage=usage+S.spellUseCode("paladin."..key)*4^(i-1) end
+        for i,key in ipairs(paladin.packetKeys) do if i<=16 then usage=usage+S.spellUseCode("paladin."..key)*4^(i-1) end end
         packet=packet..S.bytes(S.auraGeneration,1)..S.bytes(usage,4)..S.executionBytes(2)
         -- Instance type is public context; unavailable/secret values stay unknown.
         local inside=group.read(IsInInstance,1);local kind=group.read(IsInInstance,2)
@@ -395,6 +412,10 @@ function paladin.initializePreview()
         packet=packet..S.bytes(ns.features.SpellBridge.stackCount("player","Unsealed Wrath",3),1)
         local creature=S.readableCall(UnitCreatureType,"target")
         packet=packet..S.bytes(creature=="Undead" and 2 or creature=="Demon" and 3 or type(creature)=="string" and 1 or 0,1)
+        packet=packet..S.bytes(S.spellUseCode("paladin.blessingProtection"),1)..S.bytes(math.floor(auraMask/65536)%2+2*(math.floor(absenceMask/65536)%2),1)
+        local flashInfo=group.read(function() return api.GetSpellInfo(nativeReadings[18].bound).castTime end,1)
+        local flashMs=flashInfo.status=="observed" and type(flashInfo.value)=="number" and flashInfo.value>0 and flashInfo.value<=10000 and math.floor(flashInfo.value)==flashInfo.value and flashInfo.value or 0
+        packet=packet..S.bytes(S.spellUseCode("paladin.flashLight"),1)..S.bytes(flashMs,2)
         local checksum=S.adler32(packet)
         local activeID,activeKind=ns.features.CastTracking.activityIdentity()
         local active=S.bytes(activeID,4)..S.bytes(activeKind,1)

@@ -388,6 +388,12 @@ function S.report()
         local ok=pcall(ns.hudReport,add)
         if not ok then add("HUD inspection", "query failed") end
     end
+    local diagnostic=type(FeuxtonDB)=="table" and not S.isSecret(FeuxtonDB) and S.safeField(FeuxtonDB,"nativeSignalsDiagnostic") or nil
+    if type(diagnostic)=="table" then
+        local count=S.safeField(diagnostic,"count");local lastError=S.safeField(diagnostic,"lastError")
+        if type(count)=="number" and count>=0 and count<=4294967295 and count==math.floor(count) then add("Native signals failure count",S.describe(count)) end
+        if type(lastError)=="string" then add("Native signals last failure",lastError:sub(1,256)) end
+    end
     S.appendCapabilities(lines,snapshot)
     lines[#lines + 1] = "Spell names above assume an English client. nil may mean no aura or uncached spell."
     lines[#lines + 1] = "Run outside and inside combat with Mark/Sting active; this is a snapshot."

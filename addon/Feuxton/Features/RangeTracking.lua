@@ -9,6 +9,7 @@ function R.initialize(dot,r,g,b,a)
     dot:SetColorTexture(1,1,1,1)
     dot:SetVertexColor(r,g,b,a)
 end
+
 function R.paintColor(dot,r,g,b,a) dot:SetVertexColor(r,g,b,a) end
 function R.paintFlag(dot,value)
     if ns.state.isSecret(value) or type(value)~="boolean" then R.paintColor(dot,1,.65,0,1)
@@ -383,5 +384,121 @@ do
             elseif message=="off" then if lab and lab.status==1 then stop(3) end;print("Feuxton read comparison OFF.")
             else print("Feuxton: /feuxtonreadtest run, /feuxtonreadtest report, /feuxtonreadtest off.") end
         end
+    end
+end
+
+-- Shared read-only player-centered census for the production spell-reach link.
+-- This is a lower bound of engaged enemies in one learned spell's reach. It
+-- says nothing about enemy-to-enemy distance or a target-centered AoE radius.
+-- Only public guarded values are sampled; restricted results remain unknown.
+do
+    local C={reasonNames={
+        [0]="matched",[1]="absent",[2]="self",[3]="dead",[4]="notAttackable",
+        [5]="notCombat",[6]="notVisible",[7]="engagementUnknown",[8]="identityUnknown",
+        [9]="probeUnavailable",[10]="rangeUnknown",[11]="outOfRange",
+        [12]="eligibilityUnknown",[13]="duplicate"}}
+    ns.features.RangeCensus=C
+    local candidates={HUNTER={"Serpent Sting","Arcane Shot"},WARLOCK={"Corruption","Shadow Bolt"},
+        PALADIN={"Judgement","Exorcism"},SHAMAN={"Lightning Bolt","Flame Shock"},DRUID={"Wrath","Moonfire"}}
+    local tokens,order={}, {41,42}
+    for i=1,40 do tokens[i]="nameplate"..i;order[#order+1]=i end
+    tokens[41]="target";tokens[42]="mouseover"
+    local cachedProbe
+    local function public(fn,...)
+        if type(fn)~="function" then return nil end
+        return ns.state.readableCall(fn,...)
+    end
+    local function number(value)
+        return not ns.state.isSecret(value) and type(value)=="number" and value==value and value~=math.huge and value~=-math.huge
+    end
+    local function known(id,book)
+        local result=public(book.IsSpellKnown,id)
+        if type(result)~="boolean" then result=public(IsSpellKnown,id) end
+        return result==true
+    end
+    local function classKey()
+        if type(UnitClass)~="function" then return nil end
+        local ok,_,class=pcall(UnitClass,"player")
+        if ok and not ns.state.isSecret(class) and type(class)=="string" and #class<=24 then return class end
+    end
+    function C.invalidate() cachedProbe=nil end
+    local function probe()
+        local S=ns.state;local class=classKey();local api=S.spellAPI or {};local book=S.bookAPI or {}
+        local now=public(GetTime)
+        if cachedProbe and cachedProbe.class==class and cachedProbe.infoAPI==api.GetSpellInfo
+            and cachedProbe.knownAPI==book.IsSpellKnown and number(now) and now>=cachedProbe.at and now-cachedProbe.at<1
+            and (cachedProbe.id==0 or known(cachedProbe.id,book)) then return cachedProbe end
+        local result={class=class,id=0,range=0,name=nil,at=number(now) and now or 0,infoAPI=api.GetSpellInfo,knownAPI=book.IsSpellKnown}
+        for _,name in ipairs(candidates[class] or {}) do
+            local info=public(api.GetSpellInfo,name);local id=S.safeField(info,"spellID")
+            local minimum,maximum=S.safeField(info,"minRange"),S.safeField(info,"maxRange")
+            if number(id) and id>0 and id<2147483648 and id==math.floor(id) and known(id,book)
+                and number(minimum) and number(maximum) and minimum>=0 and maximum>0 and maximum<=100 and minimum<=maximum then
+                result.id=id;result.range=maximum;result.minRangeYards=minimum;result.maxRangeYards=maximum;result.name=name;break
+            end
+        end
+        cachedProbe=number(now) and result or nil
+        return result
+    end
+    local function identity(unit)
+        local guid=public(UnitGUID,unit)
+        -- Keep diagnostics bounded. An unavailable/restricted identity cannot
+        -- become a unique enemy, and no truncated identity is ever compared.
+        if type(guid)=="string" and #guid>0 and #guid<=64 and guid:match("^[%w%-]+$") then return guid end
+    end
+    -- Compact record states: 0 unknown, 1 excluded, 2 confirmed, 3 duplicate.
+    -- Public GUIDs are used only inside this capture, never exported in records.
+    local function sample(unit,index,selected,seen,playerGUID)
+        local exists=public(UnitExists,unit)
+        if exists==false then return 1,1,0,false end
+        if exists~=true then return 0,12,0,false end
+        local guid=identity(unit)
+        if not guid then return 0,8,0,true end
+        local alias=seen[guid]
+        if alias then return 3,13,alias,false end
+        seen[guid]=index
+        if guid==playerGUID or public(UnitIsUnit,unit,"player")==true then return 1,2,0,false end
+        local dead=public(UnitIsDeadOrGhost,unit)
+        if dead==true then return 1,3,0,false end
+        if dead~=false then return 0,12,0,false end
+        local hostile=public(UnitCanAttack,"player",unit)
+        if hostile==false then return 1,4,0,false end
+        if hostile~=true then return 0,12,0,false end
+        local combat=public(UnitAffectingCombat,unit)
+        if combat==false then return 1,5,0,false end
+        if combat~=true then return 0,12,0,false end
+        local visible=public(UnitIsVisible,unit)
+        if visible==false then return 1,6,0,false end
+        if visible~=true then return 0,12,0,false end
+        local support=ns.features.ControlEffects
+        local engaged=public(support and support.engaged,unit)
+        if engaged~=true then return 0,7,0,false end
+        if selected.id==0 then return 0,9,0,false end
+        local api=ns.state.spellAPI or {};local rangeFn=api.IsSpellInRange or IsSpellInRange
+        if type(rangeFn)~="function" then return 0,10,0,false end
+        local ok,inRange=R.range(rangeFn,api.IsSpellInRange and selected.id or selected.name,unit)
+        -- This diagnostic deliberately does not render or inspect a secret
+        -- result. Restricted range observations remain unknown here.
+        if not ok or ns.state.isSecret(inRange) or type(inRange)~="boolean" then return 0,10,0,false end
+        return inRange and 2 or 1,inRange and 0 or 11,0,false
+    end
+    function C.capture(includeRecords)
+        local selected=probe();local result={probeID=selected.id,rangeYards=selected.range,minRangeYards=selected.minRangeYards,maxRangeYards=selected.maxRangeYards,
+            confirmed=0,unknown=0,excluded=0,sampled=42,duplicate=0,identityUnknown=0}
+        local seen,playerGUID={},identity("player")
+        if includeRecords==true then result.records={} end
+        -- Prefer the explicit target/mouseover aliases before nameplates. Each
+        -- public GUID gets at most one range query in this capture, never a
+        -- carried-over observation from a previous capture or another spell.
+        for _,index in ipairs(order) do
+            local state,reason,alias,identityUnknown=sample(tokens[index],index,selected,seen,playerGUID)
+            if state==2 then result.confirmed=result.confirmed+1
+            elseif state==0 then result.unknown=result.unknown+1
+            elseif state==1 then result.excluded=result.excluded+1
+            else result.duplicate=result.duplicate+1 end
+            if identityUnknown then result.identityUnknown=result.identityUnknown+1 end
+            if result.records then result.records[index]={unit=tokens[index],status=state,reason=reason,alias=alias} end
+        end
+        return result
     end
 end

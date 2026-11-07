@@ -178,20 +178,27 @@ do
     settingsButton:SetScript("OnClick",function() ns.rateSettings:Show() end)
     ns.setCompactBridge=function(compact)
         if type(compact)~="boolean" or S.readableCall(InCombatLockdown)~=false then return false end
+        local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
+        if S.hudInitialLayoutPending and class=="" then S.hudPixelSnapPending=true;return false end
+        if class=="SHAMAN" or class=="WARLOCK" or class=="DRUID" then compact=true end
+        local preferences=type(FeuxtonDB)=="table" and FeuxtonDB or nil
+        local profile=compact and ns.bridgeLayouts[class] or nil
+        local dense=compact and ns.denseBridgeLayouts[class] and (class=="SHAMAN" or class=="WARLOCK" or class=="DRUID" or not preferences or preferences.denseBridge~=false)
+        if dense then profile=ns.denseBridgeLayouts[class] end
+        local initial=S.hudInitialLayoutPending
+        if initial then
+            if not S.alignHud() then return false end
+        elseif type(S.snapHudToPixels)=="function" and not S.snapHudToPixels() then return false end
         S.compactBridge=compact
         if type(FeuxtonDB)~="table" then FeuxtonDB={} end
         FeuxtonDB.compactBridge=compact
-        local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
-        if class=="SHAMAN" or class=="WARLOCK" or class=="DRUID" then compact=true;S.compactBridge=true;FeuxtonDB.compactBridge=true end
-        local profile=compact and ns.bridgeLayouts[class] or nil
-        local dense=compact and ns.denseBridgeLayouts[class] and (class=="SHAMAN" or class=="WARLOCK" or class=="DRUID" or FeuxtonDB.denseBridge~=false)
-        if dense then profile=ns.denseBridgeLayouts[class] end
         if S.denseBridge then S.denseBridge.setEnabled(false) end
         S.compactBridgeLayout=profile and profile.key or (compact and "hunter-v1" or "diagnostic")
         S.hud:SetSize(668,profile and profile.height or (compact and 348 or 114))
         local paladin=class=="PALADIN"
         S.hud:SetClampRectInsets(0,0,0,compact and (paladin and -154 or -114) or (paladin and -552 or -512))
         if profile then S.hud:SetClampRectInsets(0,0,0,0) end
+        if initial then S.hudInitialLayoutApplied=true;S.alignHud() end
         S.hudDragHandle:SetSize(compact and 548 or 610,compact and 14 or 25)
         for _,dot in ipairs(signature) do if compact then dot:Show() else dot:Hide() end end
         local version=dense and {{1,0.5,0},{0,0.5,1},{1,1,1},{0,1,1}} or profile and {{1,0.5,0},{0,0.5,1},{1,0,1},{0,1,1}} or {{1,0.5,0},{0,0.5,1},{0.5,1,0},{0.25,0.5,0.75}}
@@ -281,6 +288,14 @@ do
         ns.configureCompactGauges(dense and profile or nil)
         ns.configureHeaderActivity(dense and profile or nil)
         ns.configureHeaderTargetAuras(dense and profile or nil)
+        if type(ns.configureProductionVitals)=="function" then
+            local ok,err=pcall(ns.configureProductionVitals,dense and profile or nil)
+            if not ok and type(ns.clearProductionVitals)=="function" then pcall(ns.clearProductionVitals,S.describe(err)) end
+        end
+        if type(ns.configureNativeSignals)=="function" then
+            local ok,err=pcall(ns.configureNativeSignals,dense and profile or nil)
+            if not ok and type(ns.clearNativeSignals)=="function" then pcall(ns.clearNativeSignals,S.describe(err)) end
+        end
         -- Transparent public producers remain visible so their OnUpdate runs.
         for _,panel in ipairs({S.metadataFrame,S.fastFrame,S.guidePanel,S.paladinPanel}) do panel:SetAlpha(dense and 0 or 1) end
         for i,display in ipairs(S.groupDisplays) do
@@ -300,9 +315,14 @@ do
         if type(enabled)~="boolean" or S.readableCall(InCombatLockdown)~=false then return false end
         local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
         if enabled and not ns.denseBridgeLayouts[class] then return false end
+        local previous=FeuxtonDB
+        local previousDense
+        if type(previous)=="table" then previousDense=previous.denseBridge end
         if type(FeuxtonDB)~="table" then FeuxtonDB={} end
         FeuxtonDB.denseBridge=enabled
-        return ns.setCompactBridge(true)
+        if ns.setCompactBridge(true) then return true end
+        if type(previous)=="table" then previous.denseBridge=previousDense else FeuxtonDB=previous end
+        return false
     end
     local previous=S.handlers.PLAYER_LOGIN
     S.handlers.PLAYER_LOGIN=function(...)
@@ -356,6 +376,7 @@ do
     register(S.groupPanel,"group")
     register(S.fastFrame,"core")
     local update=S.profileFunction(function(delta)
+        if ns.beginNativeCooldownBatch then pcall(ns.beginNativeCooldownBatch) end
         S.beginPacketUpdate()
         local ok,err=true,nil
         for _,entry in ipairs(coordinator.entries) do
@@ -366,6 +387,7 @@ do
         end
         coordinator.updates=coordinator.updates+1;coordinator.lastError=not ok and err or nil
         S.endPacketUpdate(ok,err)
+        if ns.endNativeCooldownBatch then pcall(ns.endNativeCooldownBatch) end
     end,"coordinated total (includes producers)")
     local frame=CreateFrame("Frame",nil,S.hud);coordinator.frame=frame
     frame:SetScript("OnUpdate",function(_,elapsed)

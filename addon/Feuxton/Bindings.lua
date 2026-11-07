@@ -75,7 +75,7 @@ function M.catalog()
             if type(current)=="number" and current>0 and known(current) then id=current end
         end
         if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.startAttack=startAttack;existing.petAttack=petAttack end;return end
-        local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and (name=="Healing Touch" or spec and spec.healing==true))
+        local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Flash of Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and (name=="Healing Touch" or spec and spec.healing==true))
         local entry={id=id,name=name,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom",healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
     end
     if class=="DRUID" then

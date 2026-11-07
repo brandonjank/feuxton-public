@@ -71,10 +71,13 @@ do
         for _,spec in ipairs(specs) do
             local ids={}; for _,id in ipairs(spec.ids) do ids[id]=true end
             local slotX=spec.x+28
+            local signalIndex
+            if ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,specs,spec.key,"player",nonce,"HELPFUL",1);if declared then signalIndex=index end end
             filtered:AddAuraSlot(spec.key,"HELPFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
                 button:SetSize(12,12); button:SetPoint("TOPLEFT",filtered,"TOPLEFT",slotX,-12); button:EnableMouse(false)
                 local icon=button:CreateTexture(nil,"ARTWORK"); icon:SetAllPoints(button); button:SetIcon(icon)
                 local signal=button:CreateTexture(nil,"OVERLAY"); signal:SetAllPoints(button); signal:SetColorTexture(0,1,0,1)
+                if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end
             end})
         end
         filtered:SetUnit("player"); filtered:SetEnabled(true); ready=true

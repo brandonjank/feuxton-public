@@ -200,7 +200,7 @@ function feature.initialize()
                     ranges=ranges+feature.code(range)*4^(i-1)
                 end
                 if not friendly or not (friendly.shaman or friendly.druid) then for _,dot in ipairs(display.healRanges) do dot:Hide() end end
-                local packet=(friendly and (friendly.druid and "HHR7" or friendly.shaman and "HHR4" or "HHR5") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
+                local packet=(friendly and (friendly.druid and "HHR7" or friendly.shaman and "HHR4" or "HHR8") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
                 if friendly then packet=packet..friendly.memberBytes(index,unit,guid,class,role,now,spells) end
                 packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(friendly and friendly.druid and 256 or 198));feature.paint(display.cells,packet)
                 S.publishTransportPacket(15+index,packet,true)

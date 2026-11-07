@@ -1,6 +1,6 @@
 -- Druid observations. Shared app policies own decisions, forms and delivery.
 local _,ns=...
-local H={coreSlotCount=2,denseBridgeLayout={key="druid-dense-v2",height=252,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=216,grid=216,roster=216,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
+local H={coreSlotCount=2,denseBridgeLayout={key="druid-dense-v6",height=397,nativeVitalsTop=252,nativeVitalsHeight=87,nativeSignalsTop=339,nativeSignalsHeight=58,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=216,grid=216,roster=216,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
 ns.classes.DRUID=H
 H.specs={
  {key="druid.wrath",name="Wrath",aura="player",auraName="Eclipse (Lunar)",nativeAuraCandidates={48518}},

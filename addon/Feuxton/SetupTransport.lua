@@ -100,6 +100,11 @@ function S.denseStatePacket(now,tick,unified)
         S.transportPackets[10]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=10
     end
+    if unified and ns.features.CastTracking and type(ns.features.CastTracking.activityPacket)=="function" then
+        local ok,packet=pcall(ns.features.CastTracking.activityPacket)
+        S.transportPackets[13]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=13
+    end
     local chunks,count={},0;local setupChunk;local liveBytes=23
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
@@ -256,6 +261,7 @@ function S.collectSetup()
         end
     end
     local knownSpells,seen,nativeSpells={},{},{}
+    local directHeals={['paladin.holyLight']=true,['paladin.flashLight']=true,['shaman.healingWave']=true,['shaman.lesserHealingWave']=true,['druid.healingTouch']=true,['druid.healingTouchEfficient']=true}
     local function addSpell(id,name,key)
         id=S.setupNumber(id)
         if not id or id<=0 or seen[id] then return end
@@ -276,7 +282,20 @@ function S.collectSetup()
                 if spellName==aspect.name then key=aspect.key; break end
             end
         end
-        knownSpells[#knownSpells+1]=S.jsonObject({id=id,name=S.setupString(name) or S.setupString(S.safeField(info,"name")),abilityKey=key or ("spell."..id),castTimeMs=S.setupNumber(S.safeField(info,"castTime"))})
+        -- Optional routine-heal estimates. Descriptions are public setup data;
+        -- they never delay the fast/native unit observations or emergency heals.
+        local description,locale,cost
+        if directHeals[key] then
+            description=S.setupString(S.readableCall(S.spellAPI.GetSpellDescription or GetSpellDescription,id))
+            if description and #description>512 then description=nil end
+            if description then
+                locale=S.setupString(S.readableCall(GetLocale))
+                local tracker=ns.features.CastTracking
+                local fraction=tracker and tracker.manaFraction and S.setupNumber(S.readableCall(tracker.manaFraction,id,true))
+                if fraction and fraction>=0 and fraction<=200 then cost=fraction/200 end
+            end
+        end
+        knownSpells[#knownSpells+1]=S.jsonObject({id=id,name=S.setupString(name) or S.setupString(S.safeField(info,"name")),abilityKey=key or ("spell."..id),castTimeMs=S.setupNumber(S.safeField(info,"castTime")),description=description,descriptionLocale=locale,manaCostFraction=cost})
         nativeSpells[#nativeSpells+1]={id=id,name=S.setupString(name) or S.setupString(S.safeField(info,"name"))}
     end
     if class=="HUNTER" then
@@ -416,10 +435,15 @@ function S.renderSetupPage()
     if published then S.setupPage=(S.setupPage+1)%count end
 end
 S.setupEvents=CreateFrame("Frame")
-for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP","ZONE_CHANGED","ZONE_CHANGED_INDOORS","ZONE_CHANGED_NEW_AREA","REALM_LIST_UPDATED","SPELLS_CHANGED","UPDATE_BINDINGS","UPDATE_MACROS","ACTIONBAR_SLOT_CHANGED","ACTIONBAR_PAGE_CHANGED","PLAYER_TALENT_UPDATE","TRAIT_CONFIG_UPDATED","ACTIVE_TALENT_GROUP_CHANGED","PLAYER_REGEN_ENABLED","PET_BAR_UPDATE","PET_BAR_UPDATE_USABLE","UNIT_PET"}) do
+for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP","ZONE_CHANGED","ZONE_CHANGED_INDOORS","ZONE_CHANGED_NEW_AREA","REALM_LIST_UPDATED","SPELLS_CHANGED","UPDATE_BINDINGS","UPDATE_MACROS","ACTIONBAR_SLOT_CHANGED","ACTIONBAR_PAGE_CHANGED","PLAYER_TALENT_UPDATE","TRAIT_CONFIG_UPDATED","ACTIVE_TALENT_GROUP_CHANGED","PLAYER_REGEN_ENABLED","PET_BAR_UPDATE","PET_BAR_UPDATE_USABLE","UNIT_PET","PLAYER_EQUIPMENT_CHANGED","SPELL_POWER_CHANGED","UNIT_STATS","UNIT_AURA","UNIT_SPELL_HASTE"}) do
     pcall(S.setupEvents.RegisterEvent,S.setupEvents,event)
 end
-S.setupEvents:SetScript("OnEvent",ns.markSetupDirty)
+S.setupEvents:SetScript("OnEvent",function(_,event,unit)
+    if event=="UNIT_STATS" or event=="UNIT_AURA" or event=="UNIT_SPELL_HASTE" then
+        if S.isSecret(unit) or unit~="player" then return end
+    end
+    ns.markSetupDirty()
+end)
 S.metadataFrame:SetScript("OnUpdate",function(self,elapsed)
     S.setupElapsed=S.setupElapsed+elapsed
     S.setupDelay=S.setupDelay+elapsed

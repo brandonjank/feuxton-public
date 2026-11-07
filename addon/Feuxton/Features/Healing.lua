@@ -5,10 +5,11 @@ local F={cache={},revision=0}
 ns.features.Healing=F
 F.actions={{key="paladin.blessingMight",name="Blessing of Might"},{key="paladin.blessingWisdom",name="Blessing of Wisdom"},{key="paladin.blessingKings",name="Blessing of Kings"}}
 F.heal={key="paladin.holyLight",name="Holy Light",healing=true}
+F.flashHeal={key="paladin.flashLight",name="Flash of Light",healing=true}
 function F.deliverySpecs()
     if F.druid then return ns.classes.DRUID.healingSpecs end
     local specs={F.actions[1],F.actions[2],F.heal}
-    if not F.shaman then specs[4]=F.actions[3] end
+    if not F.shaman then specs[4]=F.actions[3];specs[5]=F.flashHeal end
     return specs
 end
 F.layHands={key="paladin.layHands",name="Lay on Hands",healing=true}
@@ -91,13 +92,16 @@ function F.track(button,spec,down)
     local G=ns.features.GroupContext
     local selected=spec.directSelf and "player" or "target"
     local guid=G.text(G.read(UnitGUID,1,selected),40)
-    for member,unit in ipairs(G.tokens) do
+    local tokens=G.tokens
+    if spec.support then tokens={};for _,unit in ipairs(G.tokens) do tokens[#tokens+1]=unit end;tokens[#tokens+1]="target";tokens[#tokens+1]="mouseover" end
+    for member,unit in ipairs(tokens) do
         if G.read(UnitIsUnit,1,selected,unit).value==true and G.text(G.read(UnitGUID,1,unit),40)~="" and G.read(UnitCanAssist,1,"player",unit).value==true and G.read(UnitIsDeadOrGhost,1,unit).value==false then
             guid=G.text(G.read(UnitGUID,1,unit),40)
             local name,now=G.fullName(unit,64),timeNow()
             if name~="" and now and button.hhSpellID then
                 F.sequence=((F.sequence or 0)+1)%4294967296
-                F.attempt={sequence=F.sequence,revision=F.revision,index=member,unit=unit,identity=guid,name=name,id=button.hhSpellID,at=now,kind=0}
+                local attempt={sequence=F.sequence,revision=F.revision,index=member,unit=unit,identity=guid,name=name,id=button.hhSpellID,at=now,kind=0}
+                if spec.support then F.supportAttempt=attempt else F.attempt=attempt end
                 trace("MANAGED_CLICK",unit,guid,name,button.hhSpellID)
             end
             return
@@ -118,8 +122,8 @@ function F.initialize()
     for _,event in ipairs({"UNIT_SPELLCAST_SENT","UNIT_SPELLCAST_START","UNIT_SPELLCAST_SUCCEEDED","UNIT_SPELLCAST_FAILED","UNIT_SPELLCAST_INTERRUPTED"}) do
         if not pcall(F.events.RegisterEvent,F.events,event) then F.receiptsAvailable=false end
     end
-    F.events:SetScript("OnEvent",function(self,event,unit,a,b,c)
-        local G=ns.features.GroupContext;local now=timeNow();local r=F.attempt
+    local function observe(r,event,unit,a,b,c)
+        local G=ns.features.GroupContext;local now=timeNow()
         if r then trace(event,unit,a,b,c) end
         if not r or not now or now-r.at<0 or now-r.at>10 or ns.state.isSecret(unit) or unit~="player" then return end
         if event=="UNIT_SPELLCAST_SENT" then
@@ -133,6 +137,10 @@ function F.initialize()
         elseif (event=="UNIT_SPELLCAST_SUCCEEDED" or event=="UNIT_SPELLCAST_FAILED" or event=="UNIT_SPELLCAST_INTERRUPTED") and not ns.state.isSecret(a) and not ns.state.isSecret(b) and r.cast and a==r.cast and b==r.id then
             r.kind=event=="UNIT_SPELLCAST_SUCCEEDED" and 2 or event=="UNIT_SPELLCAST_FAILED" and 3 or 4;r.eventAt=now
         end
+    end
+    F.events:SetScript("OnEvent",function(self,event,unit,a,b,c)
+        observe(F.attempt,event,unit,a,b,c)
+        observe(F.supportAttempt,event,unit,a,b,c)
     end)
 end
 function F.refresh(now)
@@ -142,7 +150,7 @@ function F.refresh(now)
     if class~="PALADIN" and class~="SHAMAN" and class~="DRUID" then return end
     if F.classKey~=class then
         F.classKey=class;F.shaman=class=="SHAMAN";F.druid=class=="DRUID"
-        F.signature=nil;F.attempt=nil;F.cache={}
+        F.signature=nil;F.attempt=nil;F.supportAttempt=nil;F.cache={}
         if F.druid then
             F.actions={};F.heal=ns.classes.DRUID.healingSpecs[1]
         elseif F.shaman then

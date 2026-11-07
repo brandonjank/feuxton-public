@@ -79,12 +79,15 @@ S.filteredOK,S.filteredSetupError=pcall(function()
         spec.label=label
         label:SetPoint("TOPLEFT",spec.x-34,-2); label:SetText(spec.key=="mark" and "Mark" or "Sting")
         local slotX=spec.x
+        local signalIndex
+        if ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,S.filteredSpecs,spec.key=="mark" and "hunter.huntersMark" or "hunter.serpentSting","target",S.filteredNonce,"HARMFUL",1);if declared then signalIndex=index end end
         S.filteredAuras:AddAuraSlot(spec.key,"HARMFUL",{
             candidateFilters={includeSpellIDs=ids},
             initializeFrame=function(button)
                 button:SetSize(12,12); button:SetPoint("TOPLEFT",S.filteredAuras,"TOPLEFT",slotX,-2)
                 local icon=button:CreateTexture(nil,"ARTWORK"); icon:SetAllPoints(button); button:SetIcon(icon)
                 local signal=button:CreateTexture(nil,"OVERLAY"); signal:SetAllPoints(button); signal:SetColorTexture(0,1,0,1)
+                if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end
             end,
         })
     end

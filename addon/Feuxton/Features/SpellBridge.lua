@@ -182,6 +182,7 @@ function B.auras(bridge,specs,readings)
     bridge.auraSignature=signature;bridge.absence={};bridge.configured={};bridge.auraRevision=((bridge.auraRevision or 0)+1)%4294967296;bridge.settledAt=GetTime()+.6
     for _,container in ipairs(bridge.containers or {}) do pcall(container.SetEnabled,container,false);pcall(container.Hide,container) end
     bridge.containers={}
+    if ns.retireNativeSignalAuras then pcall(ns.retireNativeSignalAuras,bridge) end
     for _,unit in ipairs(units) do
         local container;local certified,configured={},{}
         local ok=pcall(function()
@@ -194,10 +195,13 @@ function B.auras(bridge,specs,readings)
                 local x,y=spec.auraX or 12+(i-1)%14*46+36,spec.auraY or 6+math.floor((i-1)/14)*40
                 -- An unresolved alias must not create an empty filter that
                 -- the client could interpret as matching every aura.
+                local signalIndex
+                if next(ids) and ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,bridge,spec.key,unit,bridge.auraRevision,filters[unit] or "HARMFUL|PLAYER",actual and 2 or 1);if declared then signalIndex=index end end
                 if next(ids) then container:AddAuraSlot(spec.key,filters[unit] or "HARMFUL|PLAYER",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
                     button:SetSize(spec.auraSize or 8,spec.auraSize or 8);button:SetPoint("TOPLEFT",container,"TOPLEFT",x,-y);button:EnableMouse(false)
                     local icon=button:CreateTexture(nil,"ARTWORK");icon:SetAllPoints();button:SetIcon(icon)
                     local signal=button:CreateTexture(nil,"OVERLAY");signal:SetAllPoints();signal:SetColorTexture(0,1,0,1)
+                    if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end
                 end});configured[i]=true end
             end end
             container:SetUnit(unit);container:SetEnabled(true)

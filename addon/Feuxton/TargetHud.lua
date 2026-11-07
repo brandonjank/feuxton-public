@@ -63,9 +63,6 @@ for index,token in ipairs({"target","targettarget"}) do
     local label=S.unitHud:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
     S.bridgeLabel(label)
     label:SetPoint("TOPLEFT",x+279,-20); label:SetText("C")
-    display.status=S.unitHud:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    display.status:SetPoint("TOPLEFT",x,-43)
-    display.status:Hide()
     S.unitDisplays[index]=display
 end
 -- Compare readable health directly; restricted health goes only to a native bar.
@@ -123,7 +120,6 @@ function S.refreshUnitDisplays()
         if exists~=true then
             display.name:SetText(display.token=="target" and "TARGET: --" or "TARGET OF TARGET: --")
             display.health:SetMinMaxValues(0,1); display.health:SetValue(0)
-            display.status:SetText(exists==false and "No unit" or "Unit unavailable")
             S.drawFlag(display.combat,nil)
             if exists==false then S.drawFlag(display.available,false) else S.drawFlag(display.available,nil) end
         else
@@ -132,7 +128,6 @@ function S.refreshUnitDisplays()
                 display.health:SetMinMaxValues(0,UnitHealthMax(display.token))
                 display.health:SetValue(UnitHealth(display.token))
             end)
-            display.status:SetText(rendered and (display.token=="target" and "Target health" or "Target-of-target health") or "Health unavailable")
             display.error=not rendered and S.describe(err) or nil
             S.drawFlag(display.available,rendered and true or nil)
             if not rendered then display.health:SetMinMaxValues(0,1); display.health:SetValue(0) end

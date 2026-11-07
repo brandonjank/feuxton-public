@@ -1,6 +1,6 @@
 -- Warlock leveling catalog and WLS4 class packet. No rotation or input here.
 local _,ns=...
-local H={denseBridgeLayout={key="warlock-dense-v1",height=232,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=196,grid=196,roster=196,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
+local H={denseBridgeLayout={key="warlock-dense-v5",height=377,nativeVitalsTop=232,nativeVitalsHeight=87,nativeSignalsTop=319,nativeSignalsHeight=58,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=196,grid=196,roster=196,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
 ns.classes.WARLOCK=H
 H.specs={
  -- Native green slots in the retained October 12 build-70338 game frames

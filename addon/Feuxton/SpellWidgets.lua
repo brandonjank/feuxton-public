@@ -132,6 +132,9 @@ local function cooldownColor(tile,rendered)
     end
 end
 function S.renderCooldown(tile)
+    -- The shared diagnostic registry observes only public identity; duration
+    -- objects continue through this renderer without being retained or decoded.
+    if ns.observeNativeCooldown then pcall(ns.observeNativeCooldown,tile) end
     if type(tile.spellID) ~= "number" or tile.known == false then
         tile.cooldown:Clear()
         cooldownColor(tile,false)

@@ -33,7 +33,8 @@ P.manaFraction=fraction
 
 -- Public cast events can include failed attempts at OTHER spells while a cast
 -- is still active. Keep identity so those failures cannot erase its activity.
-function P.newActivityState() return {} end
+function P.newActivityState() return {serial=0} end
+local function advanceActivity(state) state.serial=((state.serial or 0)+1)%4294967296 end
 local function publicValue(value,kind)
     if ns.state.isSecret(value) or type(value)~=kind then return nil end
     if kind=="string" and value=="" then return nil end
@@ -43,15 +44,20 @@ end
 function P.activityEvent(state,event,guid,id)
     guid=publicValue(guid,"string");id=publicValue(id,"number")
     if event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_DEAD" then
+        advanceActivity(state)
         state.cast=nil;state.channel=nil;state.mode=nil;state.guid=nil;state.id=nil;return true
     end
     if event=="UNIT_SPELLCAST_START" or event=="UNIT_SPELLCAST_CHANNEL_START" then
+        advanceActivity(state)
         state.mode=event=="UNIT_SPELLCAST_START" and "cast" or "channel"
         state.cast=state.mode=="cast";state.channel=state.mode=="channel"
         state.guid=guid;state.id=id;return true
     end
     if not state.mode then
-        if event=="UNIT_SPELLCAST_STOP" or event=="UNIT_SPELLCAST_CHANNEL_STOP" then state.cast=nil;state.channel=nil;return true end
+        if event=="UNIT_SPELLCAST_STOP" or event=="UNIT_SPELLCAST_CHANNEL_STOP" then
+            if state.cast~=nil or state.channel~=nil then advanceActivity(state) end
+            state.cast=nil;state.channel=nil;return true
+        end
         return false
     end
     if event=="UNIT_SPELLCAST_SUCCEEDED" and state.mode=="channel" then return false end
@@ -61,11 +67,13 @@ function P.activityEvent(state,event,guid,id)
     if guid and state.guid then matches=guid==state.guid and (not id or not state.id or id==state.id)
     elseif id and state.id then matches=id==state.id end
     if matches==true then
+        advanceActivity(state)
         state.cast=false;state.channel=false;state.mode=nil;state.guid=nil;state.id=nil;return true
     end
     -- Unidentified failure is not an end-of-cast observation. An unidentified
     -- STOP becomes unknown until a readable API poll resolves it.
     if matches==nil and (event=="UNIT_SPELLCAST_STOP" or event=="UNIT_SPELLCAST_CHANNEL_STOP") then
+        advanceActivity(state)
         state[state.mode]=nil;state.mode=nil;state.guid=nil;state.id=nil;return true
     end
     return false
@@ -85,4 +93,15 @@ function P.activityIdentity()
     if state.mode=="channel" and state.channel==true then return state.id or 0,3 end
     if state.cast==false and state.channel==false then return 0,1 end
     return 0,0
+end
+-- A small independent lifecycle source joins diagnostic native timers to the
+-- same completed main frame. It never supplies cast activity to execution.
+function P.activityRecord()
+    local id,kind=P.activityIdentity();local state=P.currentActivity
+    return state and state.serial or 0,kind,id
+end
+function P.activityPacket()
+    local S=ns.state;local serial,kind,id=P.activityRecord()
+    local packet="PCS1"..S.bytes(S.setupSession,4)..S.bytes(serial,4)..S.bytes(kind,1)..S.bytes(id,4)
+    return packet..S.bytes(S.adler32(packet),4)
 end

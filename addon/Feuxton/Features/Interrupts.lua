@@ -5,6 +5,8 @@ local I={};ns.features.Interrupts=I
 local active,channel,sequence=nil,nil,0
 local eventID,eventName
 local castActivity
+-- Public lifecycle ownership only; no restricted cast fields are exposed.
+function I.activitySequence() return sequence end
 function I.initialize()
     local S=ns.state
     castActivity=ns.features.CastTracking.newActivityState()

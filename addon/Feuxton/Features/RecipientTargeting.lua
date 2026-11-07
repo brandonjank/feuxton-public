@@ -67,7 +67,7 @@ function T.packet(now,tick)
  local flags=G.code(G.read(UnitExists,1,"target"))
  for i=1,7 do flags=flags+G.code(G.read(UnitIsUnit,1,"target",T.units[i]))*4^i end
  local identity=G.text(G.read(UnitGUID,1,"target"),40)
- local packet=(F.druid and "HHT3" or F.shaman and "HHT1" or "HHT2")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(F.revision,4)..S.bytes(flags,2)..S.bytes(#identity,1)..identity
+ local packet=(F.druid and "HHT3" or F.shaman and "HHT1" or "HHT4")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(F.revision,4)..S.bytes(flags,2)..S.bytes(#identity,1)..identity
  local existing=0
  for i=1,9 do local e=T.entries[i];local valid=T.current(e)
   packet=packet..S.bytes(valid and S.compactBindingCode(e.key) or 0,2)
