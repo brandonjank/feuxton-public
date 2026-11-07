@@ -8,6 +8,55 @@ X.units={"player","party1","party2","party3","party4","target","mouseover"}
 -- Stable capability indexes shared with windows/Cleansing.cs. Add learned
 -- class removers here without giving unsupported classes an assumed spell.
 X.cleanseSpecs={{index=1,class="PALADIN",key="paladin.purify",name="Purify",unit="player"}}
+-- Verified Forever aura mechanics, independent of the player's learned rank.
+-- Do not infer a mechanic from an icon, tooltip wording or a shared spell name.
+-- Sources/rank limits: docs/control-aura-catalog-0.263.md.
+X.controlAuraGroups={
+ {kind="root",name="Entangling Roots",ids={339,1062,5195,9853}},
+ {kind="root",name="Frost Nova",ids={122,865,10230}},
+ {kind="root",name="Net",ids={6533}},
+ {kind="snare",name="Frostbolt",ids={116,205,837,7322,8406,8407,10179,10180,10181}},
+ {kind="snare",name="Hamstring",ids={1715,7372,7373}},
+ {kind="snare",name="Wing Clip",ids={2974,14268}},
+ {kind="snare",name="Concussive Shot",ids={5116}},
+ {kind="snare",name="Frost Shock",ids={8056,8058,10472,10473}},
+ {kind="snare",name="Crippling Poison",ids={3409}},
+ {kind="snare",name="Frost Trap",ids={13810}},
+ {kind="snare",name="Earthbind",ids={3600}},
+ {kind="snare",name="Curse of Exhaustion",ids={18223}},
+ {kind="stun",name="Hammer of Justice",ids={853,5589,10308}},
+ {kind="stun",name="Bash",ids={5211,8983}},
+ {kind="stun",name="Cheap Shot",ids={1833}},
+ {kind="stun",name="Kidney Shot",ids={408,8643}},
+ {kind="stun",name="War Stomp",ids={20549}},
+ {kind="stun",name="Concussion Blow",ids={12809}},
+ {kind="stun",name="Pounce",ids={9005,9823,9827}},
+ {kind="stun",name="Psychic Scream (stun variant)",ids={15398}},
+ {kind="fear",name="Fear",ids={5782,6213,6215}},
+ {kind="fear",name="Psychic Scream",ids={8122,8124,10888,10890,437928}},
+ {kind="fear",name="Howl of Terror",ids={5484,17928}},
+ {kind="fear",name="Intimidating Shout",ids={5246}},
+ {kind="fear",name="Panic",ids={19408}},
+ {kind="charm",name="Seduction",ids={6358}},
+ {kind="charm",name="Mind Control",ids={605,10911,10912}},
+ {kind="sleep",name="Sleep",ids={700,8399}},
+ {kind="sleep",name="Hibernate",ids={2637,18657,18658}},
+}
+local controlByID={}
+for _,group in ipairs(X.controlAuraGroups) do for _,id in ipairs(group.ids) do controlByID[id]=group.kind end end
+-- These specific records use other control mechanics. Their effect type or
+-- movement-speed text alone must not activate Freedom or Will of the Forsaken.
+X.controlAuraExclusions={[6789]="horror",[2094]="disorient",[1776]="incapacitate",[6770]="sap",[20066]="incapacitate",[118]="polymorph",[1604]="daze"}
+local function controlKind(id)
+ if type(id)=="number" and id>0 and id<=2147483647 and id==math.floor(id) then
+  return controlByID[id],X.controlAuraExclusions[id]~=nil
+ end
+end
+local function applyControl(result,kind)
+ if kind=="root" or kind=="snare" then result.movement=true
+ elseif kind=="stun" then result.stun=true
+ elseif kind=="charm" or kind=="fear" or kind=="sleep" then result.forsaken=true end
+end
 local movementNames={['Frostbolt']=true,['Frost Shock']=true,['Hamstring']=true,['Wing Clip']=true,['Concussive Shot']=true,['Crippling Poison']=true,['Entangling Roots']=true,['Frost Nova']=true,['Frost Trap Aura']=true,['Ensnare']=true,['Net']=true,['Web']=true,['Tendon Rip']=true}
 -- Exact known stun names supplement clients whose unit LoC API omits allies.
 -- Unknown names and secret aura fields never acquire a guessed mechanic.
@@ -155,7 +204,10 @@ function X.effects(unit)
    local event
    if unit=="player" then event=value(api.GetActiveLossOfControlData,i) else event=value(api.GetActiveLossOfControlDataByUnit,unit,i) end
    local kind=S.safeField(event,"locType")
-   if type(kind)~="string" then complete=false
+   local auraKind,excluded=controlKind(S.safeField(event,"spellID") or S.safeField(event,"spellId"))
+   if type(kind)~="string" then complete=false end
+   if auraKind then applyControl(result,auraKind)
+   elseif excluded then -- known different mechanic; do not infer from a generic LoC type
    elseif kind=="ROOT" or kind=="SNARE" then result.movement=true
    elseif kind=="CHARM" or kind=="FEAR" or kind=="FEAR_MECHANIC" or kind=="SLEEP" then result.forsaken=true
    elseif kind=="STUN" or kind=="STUN_MECHANIC" then result.stun=true end
@@ -169,9 +221,9 @@ function X.effects(unit)
   if not ok or S.isSecret(aura) then break end
   if aura==nil then scanned=true;break end
   local name=S.safeField(aura,"name");local dispel=S.safeField(aura,"dispelName")
+  local id=S.safeField(aura,"spellId") or S.safeField(aura,"spellID")
   local kind=debuffTypes[dispel]
   if kind then
-   local id=S.safeField(aura,"spellId") or S.safeField(aura,"spellID")
    if type(id)~="number" or id<=0 or id>2147483647 or id~=math.floor(id) then idsComplete=false
    elseif seenIDs[id] then
     local old=seenIDs[id];if math.floor(old.types/kind)%2==0 then old.types=old.types+kind end
@@ -181,9 +233,15 @@ function X.effects(unit)
   if type(name)~="string" or S.isSecret(aura.dispelName) then classified=false end
   if S.isSecret(aura.dispelName) then dispelClassified=false end
   local impairment=S.safeField(aura,"isMovementImpairing")
-  if movementNames[name] or impairment==true then result.movement=true elseif impairment~=false then unclassified=true end
-  if stunNames[name] then result.stun=true end
-  if name=="Sleep" or name=="Deep Sleep" or name=="Charm" or name=="Mind Control" then result.forsaken=true end
+  local auraKind,excluded=controlKind(id)
+  if auraKind then applyControl(result,auraKind) end
+  if not auraKind and not excluded then
+   -- Retained exact-name support covers older known ranks and NPC effects;
+   -- new fear families use verified IDs, not broad name matching.
+   if movementNames[name] or impairment==true then result.movement=true elseif impairment~=false then unclassified=true end
+   if stunNames[name] then result.stun=true end
+   if name=="Sleep" or name=="Deep Sleep" or name=="Charm" or name=="Mind Control" then result.forsaken=true end
+  end
   if dispel=="Curse" then result.curse=true end
   if dispel=="Poison" or dispel=="Disease" or dispel=="Bleed" then result.stoneform=true end
   if dispel=="Poison" then result.poison=true end

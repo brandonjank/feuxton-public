@@ -1,4 +1,4 @@
--- Warlock leveling catalog and WLS4 class packet. No rotation or input here.
+-- Warlock leveling catalog and WLS5 class packet. No rotation or input here.
 local _,ns=...
 local H={denseBridgeLayout={key="warlock-dense-v5",height=377,nativeVitalsTop=232,nativeVitalsHeight=87,nativeSignalsTop=319,nativeSignalsHeight=58,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=196,grid=196,roster=196,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
 ns.classes.WARLOCK=H
@@ -38,7 +38,8 @@ H.specs={
  {key="warlock.incinerate",name="Incinerate",petAttack=true},
  {key="warlock.havoc",name="Bane of Havoc",petAttack=true,aura="target"},
  {key="warlock.mouseoverHavoc",name="Bane of Havoc",managedName="Feuxton Mouseover Bane of Havoc",unit="mouseover",aura="mouseover",usageKey="warlock.havoc"},
- {key="warlock.hellfire",name="Hellfire",unit="player"}
+ {key="warlock.hellfire",name="Hellfire",unit="player"},
+ {key="warlock.sacrifice",name="Sacrifice",unit="player",petAbility=true,offGlobalCooldown=true,aura="player"}
 }
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext
@@ -126,8 +127,23 @@ function H.initializePreview()
   local F=ns.features.Healing;F.spellStatus={};tick=(tick+1)%4294967296
   local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local hover=mouseover();local readings={}
-  for i,spec in ipairs(H.specs) do local r=F.spell(spec,spec.unit or "target");readings[i]=r;B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec);B.renderManaCost(bridge.tiles[i].manaCost,r.id,r.learned.status=="observed" and r.learned.value==true) end
-  B.auras(bridge,H.specs,readings)
+  for i,spec in ipairs(H.specs) do
+   local r=spec.petAbility and ns.features.PetSupport.readSacrifice() or F.spell(spec,spec.unit or "target");readings[i]=r
+   if spec.petAbility then ns.features.PetSupport.renderSacrifice(bridge.tiles[i],r)
+   else B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec);B.renderManaCost(bridge.tiles[i].manaCost,r.id,r.learned.status=="observed" and r.learned.value==true) end
+  end
+  -- The shield outlives the sacrificed demon. Retain only its verified aura
+  -- lookup ID; current pet learned state, action and binding remain untouched.
+  if H.sacrificeAuraSession~=S.setupSession then H.sacrificeAuraSession=S.setupSession;H.sacrificeAuraID=nil end
+  local sacrificeReading=readings[34]
+  if sacrificeReading.learned.value==true then H.sacrificeAuraID=sacrificeReading.id end
+  local auraReadings=readings
+  if H.sacrificeAuraID then
+   auraReadings={};for i,r in ipairs(readings)do auraReadings[i]=r end
+   auraReadings[34]={id=H.sacrificeAuraID,learned={status="observed",value=true}}
+  end
+  B.auras(bridge,H.specs,auraReadings)
+  if auraReadings~=readings then sacrificeReading.aura=auraReadings[34].aura end
   local auraSettled=GetTime()>=(bridge.settledAt or math.huge)
   local healthOK=false
   if hover.identity~="" and hover.flags%4==2 then
@@ -138,14 +154,15 @@ function H.initializePreview()
    end)
   end
   if healthOK then hoverHealthValid:SetColorTexture(0,1,0,1) else hoverHealth:SetMinMaxValues(0,1);hoverHealth:SetValue(0);hoverHealthValid:SetColorTexture(1,.65,0,1) end
-  local hellfire=readings[#H.specs];renderChannelCosts(hellfire.id,hellfire.learned.status=="observed" and hellfire.learned.value==true)
-  local packet="WLS4"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local hellfire=readings[33];renderChannelCosts(hellfire.id,hellfire.learned.status=="observed" and hellfire.learned.value==true)
+  local packet="WLS5"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
    local r=readings[i];local entry=S.managedSpells and S.managedSpells.entries["WARLOCK:"..(spec.managedName or spec.name)]
-   local key=S.bindingsValid and S.managedSpells.current(entry) and S.compactBindingCode(entry.key) or 0
+   local compatible=not spec.petAbility or entry and entry.id==r.id and entry.petActionSlot==r.petActionSlot and entry.petIdentity==r.petIdentity
+   local key=S.bindingsValid and compatible and S.managedSpells.current(entry) and S.compactBindingCode(entry.key) or 0
    local ready=r.ready
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
-   local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end
+   local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=spec.petAbility and r.castMs or S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end
    local absent=bridge.absence and bridge.absence[i] and auraSettled
    local configured=bridge.configured and bridge.configured[i] and auraSettled
    packet=packet..S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(S.spellUseCode(spec.usageKey or spec.key)+(absent and 4 or 0)+(configured and 8 or 0),1)..S.bytes(ms,2)
@@ -169,6 +186,10 @@ function H.initializePreview()
   packet=packet..S.bytes(S.bindingsValid and S.managedSpells.current(stop) and S.compactBindingCode(stop.key) or 0,2)
   local activeID,activeKind=ns.features.CastTracking.activityIdentity()
   packet=packet..S.bytes(activeID,4)..S.bytes(activeKind,1)
+  local sacrifice=readings[34];local petIdentity=sacrifice.petIdentity or ""
+  local petAction=ns.features.PetSupport.sacrificeAction()
+  if sacrifice.petIdentity~=ns.features.PetSupport.identity() or sacrifice.petActionSlot>0 and (not petAction or petAction.id~=sacrifice.id or petAction.slot~=sacrifice.petActionSlot) then error("Pet action changed during Warlock update") end
+  packet=packet..S.bytes(sacrifice.petActionSlot,1)..S.bytes(#petIdentity,1)..petIdentity
   local sum=S.adler32(packet);for i,dot in ipairs(bridge.stamp) do local v=math.floor(sum/256^(i-1))%256/255;dot:SetColorTexture(v,v,v,1) end
   S.publishTransportPacket(11,packet..S.bytes(sum,4))
  end

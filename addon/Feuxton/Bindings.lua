@@ -16,8 +16,8 @@ end
 for _,key in ipairs({"-","=","[","]",";","'",",",".","/"}) do M.keys[#M.keys+1]="ALT-CTRL-SHIFT-"..key end
 for code=0,9 do M.keys[#M.keys+1]="ALT-CTRL-NUMPAD"..code end
 -- Preserve the global 36-key vocabulary and its 16-byte legacy wire limit.
--- Druid's counted compact protocol can additionally carry longer numpad
--- chords, disjoint from courtesy's plain digits and +/- quarantine banks.
+-- Druid and Warlock counted compact protocols can additionally carry longer
+-- numpad chords, disjoint from courtesy's plain digits and +/- quarantine banks.
 M.extendedKeys={}
 for code=0,9 do
     local key="ALT-CTRL-SHIFT-NUMPAD"..code
@@ -25,7 +25,7 @@ for code=0,9 do
 end
 local druidKeys={};for _,key in ipairs(M.keys)do druidKeys[#druidKeys+1]=key end
 for _,key in ipairs(M.extendedKeys)do druidKeys[#druidKeys+1]=key end
-function M.keysForClass(class)return class=="DRUID"and druidKeys or M.keys end
+function M.keysForClass(class)return (class=="DRUID" or class=="WARLOCK")and druidKeys or M.keys end
 local function bindingAction(key,overrides)
     return S.readableCall(GetBindingAction,key,overrides)
 end
@@ -36,6 +36,7 @@ function M.current(entry)
     return entry and entry.managed and entry.active and not entry.invalidated and entry.key
         and not ns.keyPolicy.reason(entry.key)
         and bindingAction(entry.key,false)=="" and bindingAction(entry.key,true)==entry.action
+        and (not entry.petAbility or ns.features.PetSupport and ns.features.PetSupport.current(entry))
 end
 function S.mappingCurrent(mapping)
     if not mapping or mapping.invalidated then return false end
@@ -75,8 +76,9 @@ function M.catalog()
             if type(current)=="number" and current>0 and known(current) then id=current end
         end
         if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.startAttack=startAttack;existing.petAttack=petAttack end;return end
-        local friendly=(class=="PALADIN" and (name=="Holy Light" or name=="Flash of Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and (name=="Healing Touch" or spec and spec.healing==true))
-        local entry={id=id,name=name,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom",healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
+        local declaredHelpful=spec and (spec.healing==true or spec.support==true or spec.friendly==true) and spec.directSelf~=true and unit~="pet"
+        local friendly=declaredHelpful or (class=="PALADIN" and (name=="Holy Light" or name=="Flash of Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and name=="Healing Touch")
+        local entry={id=id,name=name,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom" or spec and spec.support==true,healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
     end
     if class=="DRUID" then
         candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true}
@@ -85,10 +87,17 @@ function M.catalog()
     end
     local catalog=ns.classes[class]
     local specs=class=="HUNTER" and S.hunterSpecs or catalog and catalog.specs or {}
+    -- Reserve an emergency pet key before optional spellbook utilities. Pet
+    -- ranks belong to the current demon, not IsSpellKnown's player bank.
+    if class=="WARLOCK" and ns.features.PetSupport and ns.features.PetSupport.abilityCandidate then
+        local candidate=ns.features.PetSupport.abilityCandidate();if candidate then candidates[#candidates+1]=candidate;byName[candidate.name]=candidate end
+    end
     for _,spec in ipairs(specs) do
-        local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.pinnedSpellID or spec.name)
-        local unit=spec.unit or "target"
-        add(spec.pinnedSpellID or S.safeField(info,"spellID"),spec.name,unit,true,spec.startAttack,spec.petAttack,spec.managedName,spec)
+        if not spec.petAbility then
+            local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.pinnedSpellID or spec.name)
+            local unit=spec.unit or "target"
+            add(spec.pinnedSpellID or S.safeField(info,"spellID"),spec.name,unit,true,spec.startAttack,spec.petAttack,spec.managedName,spec)
+        end
     end
     if ns.features.PetSupport and ns.features.PetSupport.candidate then
         local candidate=ns.features.PetSupport.candidate(class);if candidate then candidates[#candidates+1]=candidate end
@@ -100,7 +109,11 @@ function M.catalog()
         if ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
     end
     if class=="HUNTER" then for _,spec in ipairs(ns.playerBuffSpecs or {}) do add(spec.spellID,spec.name,"player",true) end end
-    if class=="DRUID" and ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
+    if ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do
+        -- Reserve the control break before optional spellbook utilities can
+        -- exhaust the key pool. Druid already reserves all learned racials.
+        if class=="DRUID" or spec.key=="racial.forsaken" then add(spec.id,spec.name,"player",true) end
+    end end
     local lines=S.readableCall(S.bookAPI.GetNumSpellBookSkillLines)
     local bank=type(Enum)=="table" and S.safeField(S.safeField(Enum,"SpellBookSpellBank"),"Player")
     if type(lines)=="number" and lines>=0 and lines<=64 and type(bank)=="number" then
@@ -138,7 +151,7 @@ function M.refresh()
     local candidates,class=M.catalog()
     local keys=M.keysForClass(class)
     local signature={class or ""}
-    for _,candidate in ipairs(candidates) do signature[#signature+1]=(candidate.managedName or candidate.name)..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.startAttack==true)..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.petCommand==true)..":"..tostring(candidate.itemID or 0)..":"..tostring(candidate.cancelForm==true)..":"..tostring(candidate.noToggle==true)..":"..tostring(candidate.groundAtCursor==true) end
+    for _,candidate in ipairs(candidates) do signature[#signature+1]=(candidate.managedName or candidate.name)..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.startAttack==true)..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.petCommand==true)..":"..tostring(candidate.itemID or 0)..":"..tostring(candidate.cancelForm==true)..":"..tostring(candidate.noToggle==true)..":"..tostring(candidate.groundAtCursor==true)..":"..tostring(candidate.petActionSlot or 0)..":"..(candidate.petIdentity or "") end
     signature=table.concat(signature,"|")
     local changed=signature~=M.signature or M.retry
     M.retry=false
@@ -166,6 +179,7 @@ function M.refresh()
                     end
                 end
                 entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelForm=candidate.cancelForm;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID;entry.skull=candidate.skull;entry.petCommand=candidate.petCommand
+                entry.petAbility=candidate.petAbility;entry.petActionSlot=candidate.petActionSlot;entry.petIdentity=candidate.petIdentity
                 entry.button:SetAttribute("item",candidate.itemID and candidate.itemID>0 and "item:"..candidate.itemID or nil)
                 entry.button:SetAttribute("spell",candidate.cancelFury and "Righteous Fury" or candidate.id>0 and candidate.id or nil);entry.button:SetAttribute("unit",candidate.unit)
                 -- One secure click commands the pet before the attack. This
@@ -185,9 +199,10 @@ function M.refresh()
                     entry.active=ok and bindingAction(entry.key,false)=="" and bindingAction(entry.key,true)==entry.action
                 end
                 entry.button:SetAttribute("marker",candidate.skull and 8 or nil)
-                entry.button:SetAttribute("action",candidate.skull and "set" or nil)
-                entry.button:SetAttribute("type",entry.active and (candidate.skull and "raidtarget" or candidate.itemID and "item" or candidate.cancelFury and "cancelaura" or macro and "macro" or "spell") or nil)
+                entry.button:SetAttribute("action",candidate.skull and "set" or candidate.petAbility and candidate.petActionSlot or nil)
+                entry.button:SetAttribute("type",entry.active and (candidate.petAbility and "pet" or candidate.skull and "raidtarget" or candidate.itemID and "item" or candidate.cancelFury and "cancelaura" or macro and "macro" or "spell") or nil)
                 entry.button.hhSpellID=candidate.id
+                entry.button.hhSelfFallback=candidate.friendly==true
                 if candidate.skull and not entry.tankMarkHook then
                     entry.button:HookScript("PreClick",function(button,mouse,down)
                         local threat=ns.features.Threat
@@ -201,8 +216,10 @@ function M.refresh()
                     if candidate.friendly then
                         entry.button:SetAttribute("hh-heal",candidate.healing==true or candidate.support==true)
                         SecureHandlerWrapScript(entry.button,"OnClick",entry.button,[[
-                            local allowed = SecureCmdOptionParse("[@target,help,nodead]1;0") == "1"
+                            local recipient = SecureCmdOptionParse("[@target,help,nodead]target;[@target,harm][noexists]player")
+                            local allowed = recipient == "target" or recipient == "player"
                             if not self:GetAttribute("hh-heal") then allowed = allowed and SecureCmdOptionParse("[nocombat]1;0") == "1" end
+                            self:SetAttribute("unit",allowed and recipient or "target")
                             self:SetAttribute("type",allowed and "spell" or nil)
                         ]])
                     end

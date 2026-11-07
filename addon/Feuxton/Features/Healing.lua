@@ -87,10 +87,22 @@ function F.scan(unit,identity,now)
     end
     F.cache[unit]={identity=identity,at=now,values=values};return values,now
 end
+function F.recipientUnit(button,spec)
+    if spec.directSelf then return "player" end
+    if button.hhSelfFallback then
+        local G=ns.features.GroupContext
+        local exists=G.read(UnitExists,1,"target").value
+        if exists==true and G.read(UnitCanAssist,1,"player","target").value==true and G.read(UnitIsDeadOrGhost,1,"target").value==false then return "target" end
+        if exists==false or exists==true and G.read(UnitCanAttack,1,"player","target").value==true then return "player" end
+    end
+    return "target"
+end
 function F.track(button,spec,down)
     if not (spec.healing or spec.support) or down~=true or not F.receiptsAvailable then return end
     local G=ns.features.GroupContext
-    local selected=spec.directSelf and "player" or "target"
+    -- Match the secure button's recipient before the click. The later SENT
+    -- name/cast GUID still has to confirm this exact player or friendly unit.
+    local selected=F.recipientUnit(button,spec)
     local guid=G.text(G.read(UnitGUID,1,selected),40)
     local tokens=G.tokens
     if spec.support then tokens={};for _,unit in ipairs(G.tokens) do tokens[#tokens+1]=unit end;tokens[#tokens+1]="target";tokens[#tokens+1]="mouseover" end

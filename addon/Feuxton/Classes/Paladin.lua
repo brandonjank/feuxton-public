@@ -170,6 +170,45 @@ function paladin.refreshWeapon()
     paladin.weaponDelayMs=found or 0
 end
 
+-- PLAYER_SWING is a native clock anchor, not proof that damage landed or that
+-- a seal was consumed. Preserve that distinction in the read-only transport.
+local function publicNumber(S,value,minimum,maximum)
+    return not S.isSecret(value) and type(value)=="number" and value==value and value>=minimum and value<=maximum
+end
+function paladin.resetSwingClock()
+    local previous=paladin.swingClock
+    paladin.swingClock={sequence=previous and previous.sequence or 0}
+end
+function paladin.observeSwingClock(duration,hand)
+    local S=ns.state;local group=ns.features.GroupContext
+    if not publicNumber(S,hand,0,2) or hand~=math.floor(hand) then paladin.resetSwingClock();return end
+    if hand~=0 then return end
+    local previous=paladin.swingClock or {sequence=0}
+    local clock={sequence=(previous.sequence+1)%4294967296}
+    local now=S.readableCall(GetTime)
+    if publicNumber(S,now,0,math.huge) and now~=math.huge then clock.at=now end
+    if publicNumber(S,duration,0.001,60) then clock.durationMs=math.floor(duration*1000+0.5) end
+    local generation=S.auraGeneration
+    local exists=group.read(UnitExists,1,"target")
+    local dead=group.read(UnitIsDeadOrGhost,1,"target")
+    local attackable=group.read(UnitCanAttack,1,"player","target")
+    if publicNumber(S,generation,0,255) and generation==math.floor(generation)
+        and exists.status=="observed" and exists.value==true and dead.status=="observed" and dead.value==false
+        and attackable.status=="observed" and attackable.value==true then clock.targetGeneration=generation end
+    paladin.swingClock=clock
+end
+function paladin.swingClockBytes()
+    local S=ns.state;local clock=paladin.swingClock or {sequence=0};local flags=paladin.swingClockRegistered and 1 or 0
+    local age,duration,generation=65535,65535,0
+    local now=S.readableCall(GetTime)
+    if flags==1 and publicNumber(S,now,0,math.huge) and now~=math.huge and clock.at and now>=clock.at then
+        flags=flags+2;age=math.min(65534,math.floor((now-clock.at)*1000))
+        if clock.durationMs then flags=flags+4;duration=clock.durationMs end
+        if clock.targetGeneration then flags=flags+8;generation=clock.targetGeneration end
+    end
+    return S.bytes(flags,1)..S.bytes(clock.sequence,4)..S.bytes(age,2)..S.bytes(duration,2)..S.bytes(generation,1)
+end
+
 local function initializeNative(S)
     local panel=CreateFrame("Frame",nil,S.hud);S.paladinNativePanel=panel
     panel:SetSize(668,40);panel:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-626);panel:Hide()
@@ -307,7 +346,16 @@ function paladin.initializePreview()
     initializeNative(S)
     local tick,total,weaponRetry=0,0,0
     panel:RegisterEvent("PLAYER_LOGIN");panel:RegisterEvent("PLAYER_EQUIPMENT_CHANGED");panel:RegisterEvent("PLAYER_REGEN_ENABLED")
-    panel:SetScript("OnEvent",function(self,event,slot)
+    for _,event in ipairs({"PLAYER_ENTERING_WORLD","PLAYER_DEAD","PLAYER_LEAVE_COMBAT","PLAYER_SWING"}) do pcall(panel.RegisterEvent,panel,event) end
+    paladin.swingClockRegistered=S.readableCall(panel.IsEventRegistered,panel,"PLAYER_SWING")==true
+    paladin.resetSwingClock()
+    panel:SetScript("OnEvent",function(self,event,slot,hand)
+        if event=="PLAYER_SWING" then
+            if group.text(group.read(UnitClass,2,"player"),16)=="PALADIN" then paladin.observeSwingClock(slot,hand) end
+            return
+        end
+        if event=="PLAYER_LOGIN" or event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_DEAD" or event=="PLAYER_LEAVE_COMBAT" or event=="PLAYER_EQUIPMENT_CHANGED" then paladin.resetSwingClock() end
+        if event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_DEAD" or event=="PLAYER_LEAVE_COMBAT" then return end
         if event=="PLAYER_EQUIPMENT_CHANGED" and (S.isSecret(slot) or slot~=16) then return end
         if event=="PLAYER_REGEN_ENABLED" and (paladin.weaponDelayMs or 0)>0 then return end
         if group.text(group.read(UnitClass,2,"player"),16)=="PALADIN" then pcall(paladin.refreshWeapon) end
@@ -319,7 +367,7 @@ function paladin.initializePreview()
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
         local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
-        local packet="HHPC"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
+        local packet="HHPD"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
         -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
         local auras,auraIDs,complete={},{},false
         if type(C_UnitAuras)=="table" and type(C_UnitAuras.GetAuraDataByIndex)=="function" then
@@ -416,6 +464,11 @@ function paladin.initializePreview()
         local flashInfo=group.read(function() return api.GetSpellInfo(nativeReadings[18].bound).castTime end,1)
         local flashMs=flashInfo.status=="observed" and type(flashInfo.value)=="number" and flashInfo.value>0 and flashInfo.value<=10000 and math.floor(flashInfo.value)==flashInfo.value and flashInfo.value or 0
         packet=packet..S.bytes(S.spellUseCode("paladin.flashLight"),1)..S.bytes(flashMs,2)
+        local targetLevel=S.readableCall(UnitLevel,"target")
+        targetLevel=publicNumber(S,targetLevel,-1,100) and targetLevel==math.floor(targetLevel) and targetLevel or nil
+        local classification=group.text(group.read(UnitClassification,1,"target"),20)
+        local classifications={normal=1,elite=2,rareelite=3,rare=4,worldboss=5,trivial=6,minus=7}
+        packet=packet..S.bytes(targetLevel==-1 and 65534 or targetLevel or 65535,2)..S.bytes(classifications[classification] or 0,1)..paladin.swingClockBytes()
         local checksum=S.adler32(packet)
         local activeID,activeKind=ns.features.CastTracking.activityIdentity()
         local active=S.bytes(activeID,4)..S.bytes(activeKind,1)
