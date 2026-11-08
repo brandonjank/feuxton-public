@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.43",
+    "addonVersion":  "0.81.44",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v41",
-    "sourceRevision":  "60015d839d5cca024f6887407765d07720f3c82f",
+    "contract":  "feuxton-dense-v42",
+    "sourceRevision":  "cc194f6cb6f3b52aee0eddcff4f5d9decd533523",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -77,8 +77,8 @@
                   },
                   {
                       "path":  "Features/Consumables.lua",
-                      "sha256":  "B5CF2B15E7E8FDD1A9C55EC7C30C39525F07AFE064678C8016B344E5A322BD43",
-                      "size":  6516
+                      "sha256":  "311A6407D33EE5681901F31322AA80B18C17A7537FF151C35A5FC0EA1C43DC9C",
+                      "size":  6740
                   },
                   {
                       "path":  "Features/ControlEffects.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "EB1927BC4B67375F6C1BB1F19D416A4235E2C0910942D9B1F4B800C2376B2B2D",
+                      "sha256":  "736BE4AAC3A28620EFF4C31CA5C3D83B137E3C800BAD9726BCCC43BD3B9D0873",
                       "size":  5293
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "79BC3C87C1208B0FEAD091682C159775C1520AD62B7588A6ACE000764BA2E4B7",
+                      "sha256":  "7D941D074E084678EDDC3A1902655B3CDFA8A0E4E12311ACAE142A84D55E8695",
                       "size":  914
                   },
                   {
