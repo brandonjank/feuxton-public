@@ -6,7 +6,7 @@ local S = ns.state
 do
     local settings=CreateFrame("Frame",nil,UIParent)
     ns.rateSettings=settings
-    settings:SetSize(360,370); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
+    settings:SetSize(360,290); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
     settings:EnableMouse(true); settings:SetMovable(true); settings:RegisterForDrag("LeftButton")
     settings:SetScript("OnDragStart",function(self) self:StartMoving() end)
     settings:SetScript("OnDragStop",function(self) self:StopMovingOrSizing() end)
@@ -41,21 +41,13 @@ do
     button("Close",220,90,function() settings:Hide() end)
     input:SetScript("OnEnterPressed",apply)
     input:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
-    local layout=button("Compact bridge",16,294,function()
-        if ns.setCompactBridge and ns.setCompactBridge(not S.compactBridge) then status:SetText("Layout saved. Reader detects either layout automatically.")
-        else status:SetText("Change the layout outside combat.") end
-    end,164)
-    button("Toggle dense bridge",16,294,function()
-        if ns.setDenseBridge and ns.setDenseBridge(not S.denseBridgeActive) then status:SetText("Layout saved. Standard/diagnostic remain available.")
-        else status:SetText("Use a supported class outside combat.") end
-    end,200)
     local blessings={}
     for i,key in ipairs({"paladin.blessingMight","paladin.blessingWisdom","paladin.blessingKings","paladin.retributionAura"}) do
         local label=i==1 and "Might" or i==2 and "Wisdom" or i==3 and "Kings" or "Retribution"
         local b=button(label,16+((i-1)%2)*152,142,function(_,mouse)
             if mouse=="RightButton" then S.setSpellUse(key,nil) else S.setSpellUse(key,S.spellUseCode(key)==1) end
             ns.refreshRateSettings()
-        end,240+math.floor((i-1)/2)*36)
+        end,164+math.floor((i-1)/2)*36)
         -- Right click restores app control; left click toggles addon ON/OFF.
         b:RegisterForClicks("LeftButtonUp","RightButtonUp")
         blessings[i]={button=b,key=key,label=label}
@@ -64,13 +56,13 @@ do
     local itemButton=button("Healthstone",16,294,function(_,mouse)
         if mouse=="RightButton" then S.setSpellUse("shared.healthstone",nil) else S.setSpellUse("shared.healthstone",S.spellUseCode("shared.healthstone")==1) end
         ns.refreshRateSettings()
-    end,312)
+    end,236)
     itemButton:RegisterForClicks("LeftButtonUp","RightButtonUp")
-    hint:SetPoint("TOPLEFT",16,-350);hint:SetText("Spells/items: left click toggles; right click follows app.")
+    hint:SetPoint("TOPLEFT",16,-274);hint:SetText("Spells/items: left click toggles; right click follows app.")
     ns.refreshRateSettings=function()
         local itemCode=S.spellUseCode("shared.healthstone")
         itemButton.hhText:SetText("Healthstone: "..(itemCode==1 and "OFF" or itemCode==2 and "ON" or "Follow app"))
-        input:SetText(tostring(S.updateRateMs)); layout.hhText:SetText(S.compactBridge and "Switch to diagnostic HUD" or "Switch to compact bridge")
+        input:SetText(tostring(S.updateRateMs))
         local paladin=S.readableCall(function() local _,class=UnitClass("player");return class end)=="PALADIN"
         for _,entry in ipairs(blessings) do
             if paladin then entry.button:Show() else entry.button:Hide() end

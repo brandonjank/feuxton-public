@@ -2,7 +2,6 @@
 local _, ns = ...
 local paladin={}
 ns.classes.PALADIN=paladin
-paladin.bridgeLayout={key="paladin-v2",height=300,native=28,units=68,activity=90,resources=102,setup=138,core=150,guide=162,roster=178,classPacket=280}
 paladin.denseBridgeLayout={key="paladin-dense-v8",height=277,nativeVitalsTop=132,nativeVitalsHeight=87,nativeSignalsTop=219,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=28,activity=14,headerActivity=true,resources=68,setup=96,grid=96,roster=96,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
 paladin.specs={
  {key="paladin.holyStrike",name="Holy Strike"},
@@ -342,7 +341,6 @@ function paladin.initializePreview()
     local S=ns.state;local group=ns.features.GroupContext
     local panel=CreateFrame("Frame",nil,S.hud);S.paladinPanel=panel;panel:SetSize(668,12);panel:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-614)
     local background=panel:CreateTexture(nil,"BACKGROUND");background:SetAllPoints();background:SetColorTexture(0,0,0,1)
-    local cells=group.cells(panel,24,0,160,3)
     initializeNative(S)
     local tick,total,weaponRetry=0,0,0
     panel:RegisterEvent("PLAYER_LOGIN");panel:RegisterEvent("PLAYER_EQUIPMENT_CHANGED");panel:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -361,7 +359,7 @@ function paladin.initializePreview()
         if group.text(group.read(UnitClass,2,"player"),16)=="PALADIN" then pcall(paladin.refreshWeapon) end
     end)
     local function render()
-        if group.text(group.read(UnitClass,2,"player"),16)~="PALADIN" then group.paint(cells,"");S.publishTransportPacket(3,nil);S.paladinNativePanel:Hide();return end
+        if group.text(group.read(UnitClass,2,"player"),16)~="PALADIN" then S.publishTransportPacket(3,nil);S.paladinNativePanel:Hide();return end
         S.paladinNativePanel:Show()
         if GetTime()>=weaponRetry and (paladin.weaponDelayMs or 0)==0 and S.readableCall(InCombatLockdown)==false then paladin.refreshWeapon();weaponRetry=GetTime()+1 end
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
@@ -476,13 +474,13 @@ function paladin.initializePreview()
         active=active..S.bytes(S.adler32(active..S.bytes(checksum,4)),4)
         for i,dot in ipairs(paladin.castIdentityCells) do dot:SetColorTexture(string.byte(active,(i-1)*3+1)/255,string.byte(active,(i-1)*3+2)/255,string.byte(active,(i-1)*3+3)/255,1) end
         for i,dot in ipairs(paladin.nativeStamp) do local value=math.floor(checksum/256^(i-1))%256/255;dot:SetColorTexture(value,value,value,1) end
-        packet=packet..S.bytes(checksum,4);assert(#packet<=357);group.paint(cells,packet)
+        packet=packet..S.bytes(checksum,4);assert(#packet<=357)
         S.publishTransportPacket(3,packet)
     end
     panel:SetScript("OnUpdate",function(self,elapsed)
         total=total+elapsed;if total<S.updateInterval() then return end;total=0
         local ok,err=pcall(render);paladin.lastPreviewError=not ok and S.describe(err) or nil
-        if not ok then group.paint(cells,"");S.publishTransportPacket(3,nil);S.paladinNativePanel:Hide() end
+        if not ok then S.publishTransportPacket(3,nil);S.paladinNativePanel:Hide() end
     end)
     S.profileScript(panel,"OnUpdate","paladin preview")
 end

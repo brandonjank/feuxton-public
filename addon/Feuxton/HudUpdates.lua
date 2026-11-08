@@ -112,8 +112,8 @@ function S.alignHud()
 end
 S.handlers = {}
 function S.retryHudInitialLayout()
-    if S.hudLoginSeen and S.hudInitialLayoutPending and type(ns.setCompactBridge)=="function" then
-        return ns.setCompactBridge(type(FeuxtonDB)~="table" or FeuxtonDB.compactBridge~=false)
+    if S.hudLoginSeen and S.hudInitialLayoutPending and type(ns.applyCurrentBridge)=="function" then
+        return ns.applyCurrentBridge()
     end
 end
 S.handlers.PLAYER_LOGIN = function()
@@ -134,7 +134,7 @@ S.handlers.UNIT_FLAGS = S.refreshFlags
 S.handlers.UNIT_PET = S.refreshFlags
 S.handlers.PLAYER_REGEN_DISABLED = function() S.refreshFlags(); S.refreshCooldowns() end
 S.handlers.PLAYER_REGEN_ENABLED = function()
-    if S.hudInitialLayoutPending and not S.hudInitialLayoutApplied and type(ns.setCompactBridge)=="function" then
+    if S.hudInitialLayoutPending and type(ns.applyCurrentBridge)=="function" then
         S.retryHudInitialLayout()
     elseif S.hudPixelSnapPending then S.alignHud() end
     S.resolveSpells(); S.discoverBindings(); S.refreshFlags(); S.refreshCooldowns()
@@ -162,7 +162,7 @@ end
 -- change must not invalidate direct spell bindings on unrelated fixed bars.
 S.handlers.ACTIONBAR_PAGE_CHANGED = S.discoverBindings
 local function hudGeometryChanged()
-    if S.hudLoginSeen and S.hudInitialLayoutPending and not S.hudInitialLayoutApplied then return S.retryHudInitialLayout() end
+    if S.hudLoginSeen and S.hudInitialLayoutPending then return S.retryHudInitialLayout() end
     return S.alignHud()
 end
 S.handlers.UI_SCALE_CHANGED = hudGeometryChanged
@@ -192,7 +192,7 @@ ns.hudReport = function(add)
         add(probe.name.." learned",S.describe(probe.known))
         add(probe.name.." target in range",S.describe(probe.range))
     end
-    add("Hunter panel schema", "HUNTER 02 / 0.2.0 / 668x142 physical pixels")
+    add("Current bridge profile",S.compactBridgeLayout)
     add("Panel effective scale", S.query(S.hud.GetEffectiveScale, S.hud))
     add("Auto repeat event state", S.describe(S.autoActive))
     add("Auto state source",S.autoStateSource)
@@ -214,10 +214,10 @@ SlashCmdList.FEUXTONPANEL = function(message)
     if message:match("^%s*[Kk][Ee][Yy][Ss]%s*$") then shortcut="" end
     if shortcut~=nil and S.shortcutCommand then S.shortcutCommand(shortcut);return end
     local rate=message:match("^rate%s+(.+)$")
-    if message=="dense" or message=="standard" then
-        if not ns.setDenseBridge(message=="dense") then print("Feuxton: dense layout requires Paladin and being outside combat.") end
-    elseif message=="compact" or message=="legacy" then
-        if not ns.setCompactBridge(message=="compact") then print("Feuxton: change layout outside combat.") end
+    if message=="dense" or message=="compact" then
+        if not ns.applyCurrentBridge() then print("Feuxton: current layout requires a supported class outside combat.") end
+    elseif message=="standard" or message=="legacy" then
+        print("Feuxton: retired layout. Use /feuxton dense for the current bridge.")
     elseif rate then
         if ns.setUpdateRate(rate) then print("Feuxton: live update rate "..S.updateRateMs.." ms.")
         else print("Feuxton: use /feuxton rate 50 to 1000 (milliseconds).") end

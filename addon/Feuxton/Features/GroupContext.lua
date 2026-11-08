@@ -102,42 +102,17 @@ function feature.fullName(unit,limit)
     local _,name=feature.names(unit,limit)
     return name
 end
-function feature.paint(cells,packet)
-    local S=ns.state
-    if S.denseBridgeActive and cells.hhLegacyWire then return end
-    local buffer,bits,cursor=0,0,1
-    for _,pixel in ipairs(cells) do
-        while bits<6 do buffer=buffer*256+(string.byte(packet,cursor) or 0);cursor=cursor+1;bits=bits+8 end
-        local factor=2^(bits-6);local value=math.floor(buffer/factor);buffer=buffer%factor;bits=bits-6
-        S.setTransportColor(pixel,value)
-    end
-end
-function feature.cells(panel,x,y,columns,rows)
-    local result={all={},hhLegacyWire=true}
-    for row=0,rows-1 do for col=0,columns-1 do
-        local pixel=panel:CreateTexture(nil,"ARTWORK");pixel:SetSize(4,4);pixel:SetPoint("TOPLEFT",x+col*4,-y-row*4)
-        result.all[#result.all+1]=pixel
-        if row==0 and col<4 then local shade=col/3;pixel:SetColorTexture(shade,shade,shade,1)
-        else result[#result+1]=pixel end
-    end end
-    return result
-end
 function feature.initialize()
     local S=ns.state
     local panel=CreateFrame("Frame",nil,S.hud);S.groupPanel=panel;panel:SetSize(668,102)
     panel:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-512)
-    local bg=panel:CreateTexture(nil,"BACKGROUND");S.groupBackground=bg;bg:SetAllPoints();bg:SetColorTexture(0,0,0,1)
-    S.groupMarkers={}
-    for i,color in ipairs({{1,0.5,0},{1,0,1},{0,1,1}}) do
-        local marker=panel:CreateTexture(nil,"OVERLAY");marker:SetSize(4,4);marker:SetPoint("TOPLEFT",4+(i-1)*6,0);marker:SetColorTexture(unpack(color));S.groupMarkers[i]=marker
-    end
     local displays={};S.groupDisplays=displays
     for index,unit in ipairs(feature.tokens) do
         local y=6+(index-1)*16
         local bar=CreateFrame("StatusBar",nil,panel);bar:SetPoint("TOPLEFT",12,-y-4);bar:SetSize(96,8)
         bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8");bar:SetStatusBarColor(0,1,0,1)
         local back=bar:CreateTexture(nil,"BACKGROUND");back:SetAllPoints();back:SetColorTexture(0.18,0.18,0.18,1)
-        displays[index]={unit=unit,bar=bar,cells=feature.cells(panel,128,y,134,2)}
+        displays[index]={unit=unit,bar=bar}
         displays[index].healRanges={}
         for action=1,3 do local dot=bar:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",bar,"TOPLEFT",108+(action-1)*6,0);ns.features.RangeTracking.initialize(dot,1,.65,0,1);displays[index].healRanges[action]=dot end
     end
@@ -202,11 +177,11 @@ function feature.initialize()
                 if not friendly or not (friendly.shaman or friendly.druid) then for _,dot in ipairs(display.healRanges) do dot:Hide() end end
                 local packet=(friendly and (friendly.druid and "HHR7" or friendly.shaman and "HHR4" or "HHR8") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
                 if friendly then packet=packet..friendly.memberBytes(index,unit,guid,class,role,now,spells) end
-                packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(friendly and friendly.druid and 256 or 198));feature.paint(display.cells,packet)
+                packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(friendly and friendly.druid and 256 or 198))
                 S.publishTransportPacket(15+index,packet,true)
             end)
             S.groupRowErrors=S.groupRowErrors or {};S.groupRowErrors[index]=not ok and S.describe(rowError) or nil
-            if not ok then feature.paint(display.cells,"");S.publishTransportPacket(15+index,nil,true) end -- bad rows never retain old identity/health
+            if not ok then S.publishTransportPacket(15+index,nil,true) end -- bad rows never retain old identity/health
         end
         -- Publish after all six rows, avoiding transient mixed roster sequences.
         local courtesy

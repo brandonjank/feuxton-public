@@ -5,21 +5,6 @@ local S = ns.state
 -- One-frame core link: never waits for the spellbook/talent page cycle.
 S.fastFrame=CreateFrame("Frame",nil,S.hud)
 S.fastFrame:SetPoint("TOPLEFT",S.metadataFrame,"BOTTOMLEFT",0,-4); S.fastFrame:SetSize(668,12)
-S.fastBackground=S.fastFrame:CreateTexture(nil,"BACKGROUND")
-S.fastBackground:SetAllPoints(); S.fastBackground:SetColorTexture(0,0,0,1)
-S.fastMarkers={}
-for index,color in ipairs({{1,0,1},{0,1,1},{1,0.5,0}}) do
-    local dot=S.fastFrame:CreateTexture(nil,"OVERLAY")
-    dot:SetSize(4,4); dot:SetPoint("TOPLEFT",4+(index-1)*6,0); dot:SetColorTexture(color[1],color[2],color[3],1)
-    S.fastMarkers[index]=dot
-end
-S.fastCells={}
-for row=0,2 do for column=0,159 do
-    local pixel=S.fastFrame:CreateTexture(nil,"ARTWORK")
-    pixel:SetSize(4,4); pixel:SetPoint("TOPLEFT",24+column*4,-row*4)
-    if row==0 and column<4 then local shade=column/3; pixel:SetColorTexture(shade,shade,shade,1)
-    else S.fastCells[#S.fastCells+1]=pixel end
-end end
 function S.renderFastSetup()
     local class=S.setupString(S.setupValue(UnitClass,2,"player"))
     local classes={"HUNTER","SHAMAN","WARRIOR","WARLOCK","DRUID","ROGUE","PALADIN","PRIEST","MAGE"}
@@ -47,13 +32,6 @@ function S.renderFastSetup()
     end
     packet=packet..S.bytes(classID==1 and (S.spellUseCode("hunter.aspectHawk")+S.spellUseCode("hunter.aspectCheetah")*4+S.spellUseCode("hunter.aspectMonkey")*16) or 0,1)
     packet=packet..S.bytes(S.adler32(packet),4)
-    local buffer,bits,cursor=0,0,1
-    for _,pixel in ipairs(S.denseBridgeActive and {} or S.fastCells) do
-        while bits<6 do buffer=buffer*256+(string.byte(packet,cursor) or 0); cursor=cursor+1; bits=bits+8 end
-        local factor=2^(bits-6)
-        local value=math.floor(buffer/factor); buffer=buffer%factor; bits=bits-6
-        S.setTransportColor(pixel,value)
-    end
     S.publishTransportPacket(1,packet)
 end
 S.fastElapsed=0
@@ -63,11 +41,9 @@ S.fastFrame:SetScript("OnUpdate",function(self,elapsed)
         S.fastElapsed=0
         local ok=pcall(S.renderFastSetup)
         if not ok then S.publishTransportPacket(1,nil) end
-        S.fastMarkers[1]:SetColorTexture(ok and 1 or 0,0,ok and 1 or 0,1)
     end
 end)
 S.fastInitialOK=pcall(S.renderFastSetup)
-S.fastMarkers[1]:SetColorTexture(S.fastInitialOK and 1 or 0,0,S.fastInitialOK and 1 or 0,1)
 S.previousSetupReport=ns.hudReport
 ns.hudReport=function(add)
     S.previousSetupReport(add)

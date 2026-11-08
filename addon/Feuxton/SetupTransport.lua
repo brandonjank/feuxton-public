@@ -8,23 +8,6 @@ local S = ns.state
 S.metadataFrame=CreateFrame("Frame",nil,S.hud)
 S.metadataFrame:SetPoint("TOPLEFT",S.unitHud,"BOTTOMLEFT",0,-4)
 S.metadataFrame:SetSize(668,12)
-S.metadataBackground=S.metadataFrame:CreateTexture(nil,"BACKGROUND")
-S.metadataBackground:SetAllPoints(); S.metadataBackground:SetColorTexture(0,0,0,1)
-for index,color in ipairs({{1,0.5,0},{0,0.5,1},{0.5,1,0}}) do
-    local dot=S.metadataFrame:CreateTexture(nil,"OVERLAY")
-    dot:SetSize(4,4); dot:SetPoint("TOPLEFT",4+(index-1)*6,0)
-    dot:SetColorTexture(color[1],color[2],color[3],1)
-end
-S.metadataCells={}
-for row=0,2 do
-    for column=0,159 do
-        local pixel=S.metadataFrame:CreateTexture(nil,"ARTWORK")
-        pixel:SetSize(4,4); pixel:SetPoint("TOPLEFT",24+column*4,-row*4)
-        if row==0 and column<4 then
-            local shade=column/3; pixel:SetColorTexture(shade,shade,shade,1)
-        else S.metadataCells[#S.metadataCells+1]=pixel end
-    end
-end
 function S.setupValue(fn,index,...)
     if type(fn)~="function" then return nil end
     local values={pcall(fn,...)}
@@ -100,31 +83,30 @@ function S.loadedAddonPacket(tick)
     local packet="HHV1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..loadedAddonBytes
     return packet..S.bytes(S.adler32(packet),4)
 end
--- Read-only dense transport experiments reuse completed, guarded packets.
--- Producers do not query additional game state or cache data when disabled.
+-- Completed guarded producer packets feed one current HHD2 envelope.
 S.transportPackets={}
-function S.denseStatePacket(now,tick,unified)
+function S.denseStatePacket(now,tick)
     local core=S.transportPackets[1];local classID=core and string.byte(core.packet,11) or 0
-    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 and unified then ids[#ids+1]=11 elseif classID==5 and unified then ids[#ids+1]=12 end
+    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 then ids[#ids+1]=11 elseif classID==5 then ids[#ids+1]=12 end
     for id=16,21 do ids[#ids+1]=id end
     if classID==7 then ids[#ids+1]=4 end -- optional public courtesy recipients
-    if unified then ids[#ids+1]=5;if classID==7 or classID==2 or classID==5 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 or classID==4 or classID==5 then ids[#ids+1]=8 end end -- setup, recipients and shared enemy cast
-    if unified and ns.features.Consumables then
+    ids[#ids+1]=5;if classID==7 or classID==2 or classID==5 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 or classID==4 or classID==5 then ids[#ids+1]=8 end -- setup, recipients and shared enemy cast
+    if ns.features.Consumables then
         local ok,packet=pcall(ns.features.Consumables.packet,tick)
         S.transportPackets[9]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=9
     end
-    if unified and ns.features.ControlEffects then
+    if ns.features.ControlEffects then
         local ok,packet=pcall(ns.features.ControlEffects.packet,tick)
         S.transportPackets[10]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=10
     end
-    if unified and ns.features.CastTracking and type(ns.features.CastTracking.activityPacket)=="function" then
+    if ns.features.CastTracking and type(ns.features.CastTracking.activityPacket)=="function" then
         local ok,packet=pcall(ns.features.CastTracking.activityPacket)
         S.transportPackets[13]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=13
     end
-    if unified then
+    do
         local packet=S.loadedAddonPacket(tick)
         S.transportPackets[14]=packet and {packet=packet,at=now} or nil
         ids[#ids+1]=14
@@ -135,8 +117,8 @@ function S.denseStatePacket(now,tick,unified)
         local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
         if age and age>=0 and age<=maxAge then
             local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#entry.packet,2)..entry.packet
-            if unified and id==5 then setupChunk=chunk
-            elseif unified and id==4 then courtesyChunk=chunk
+            if id==5 then setupChunk=chunk
+            elseif id==4 then courtesyChunk=chunk
             else chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk end
         end
     end
@@ -150,23 +132,22 @@ function S.denseStatePacket(now,tick,unified)
     if setupChunk and liveBytes+#setupChunk<=2304 then chunks[#chunks+1]=setupChunk;count=count+1 end
     S.setupPageDeferred=setupChunk~=nil and liveBytes+#setupChunk>2304
     local payload=table.concat(chunks)
-    local packet=(unified and "HHD2" or "HHD1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
-    packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(unified and 2304 or 1536),"dense packet capacity exceeded: "..#packet)
+    local packet="HHD2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
+    packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=2304,"dense packet capacity exceeded: "..#packet)
     return packet
 end
 function S.refreshTransportPacketState(now)
     if S.packetUpdateActive then return end
     now=now or S.setupNumber(S.readableCall(GetTime))
-    for _,bridge in ipairs({ns.pixelExperiment or false,S.denseBridge or false}) do
-        if bridge and bridge.enabled and bridge.publishState then
-            local ok,err=pcall(bridge.publishState,now)
-            if not ok then bridge.errors.state=S.describe(err);bridge.lastStatePacket=nil;bridge.paint(bridge.stateCells,"",24) end
-        end
+    local bridge=S.denseBridge
+    if bridge and bridge.enabled and bridge.publishState then
+        local ok,err=pcall(bridge.publishState,now)
+        if not ok then bridge.errors.state=S.describe(err);bridge.lastStatePacket=nil;bridge.paint(bridge.stateCells,"") end
     end
 end
 function S.publishTransportPacket(id,packet,defer)
-    local lab=ns.pixelExperiment;local bridge=S.denseBridge
-    local enabled=(lab and lab.enabled) or (bridge and bridge.enabled)
+    local bridge=S.denseBridge
+    local enabled=bridge and bridge.enabled
     if not packet then S.transportPackets[id]=nil
     elseif not enabled then return
     else
@@ -196,11 +177,9 @@ function S.endPacketUpdate(ok,reason)
     local bridge=S.denseBridge
     if not ok then
         S.transportPackets={}
-        for _,target in ipairs({ns.pixelExperiment or false,bridge or false}) do
-            if target and target.enabled then
-                target.errors.state=reason or "Coordinated update failed";target.lastStatePacket=nil
-                target.paint(target.stateCells,"",24)
-            end
+        if bridge and bridge.enabled then
+            bridge.errors.state=reason or "Coordinated update failed";bridge.lastStatePacket=nil
+            bridge.paint(bridge.stateCells,"")
         end
         return
     end
@@ -439,11 +418,6 @@ function S.refreshSetup()
     if #S.setupPages==0 then S.setupPages[1]="" end
     S.setupDirty=false; S.setupError=nil; S.setupPage=0
 end
-function S.setTransportColor(pixel,value)
-    if pixel.hhTransportValue==value then return end
-    pixel.hhTransportValue=value
-    pixel:SetColorTexture(math.floor(value/16)/3,(math.floor(value/4)%4)/3,(value%4)/3,1)
-end
 function S.renderSetupPage()
     local published=#S.setupPayload>0
     local payload=published and (S.setupPages[S.setupPage+1] or "") or ""
@@ -453,15 +427,6 @@ function S.renderSetupPage()
     local packet=header..payload
     packet=packet..S.bytes(S.adler32(packet),4)
     S.publishTransportPacket(5,packet)
-    if not S.denseBridgeActive then
-    local buffer,bits,cursor=0,0,1
-    for _,pixel in ipairs(S.metadataCells) do
-        while bits<6 do buffer=buffer*256+(string.byte(packet,cursor) or 0); cursor=cursor+1; bits=bits+8 end
-        local factor=2^(bits-6)
-        local value=math.floor(buffer/factor); buffer=buffer%factor; bits=bits-6
-        S.setTransportColor(pixel,value)
-    end
-    end
     if published then S.setupPage=(S.setupPage+1)%count end
 end
 S.setupEvents=CreateFrame("Frame")

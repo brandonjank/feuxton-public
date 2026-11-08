@@ -3,12 +3,11 @@ local _, ns = ...
 local S = ns.state
 
 -- Shared packet/gauge sections plus one active-class widget section.
--- Geometry changes here are mirrored by the desktop atlas. A class contributes
+-- Geometry changes here are mirrored by the desktop reader. A class contributes
 -- native widgets; framing, setup, RGB transport and roster rows stay shared.
-ns.bridgeLayouts,ns.denseBridgeLayouts={},{}
+ns.bridgeLayouts={}
 for class,module in pairs(ns.classes) do
-    if module.bridgeLayout then ns.bridgeLayouts[class]=module.bridgeLayout end
-    if module.denseBridgeLayout then ns.denseBridgeLayouts[class]=module.denseBridgeLayout end
+    if module.denseBridgeLayout then ns.bridgeLayouts[class]=module.denseBridgeLayout end
 end
 
 S.hud = CreateFrame("Frame", "FeuxtonHud", UIParent)
