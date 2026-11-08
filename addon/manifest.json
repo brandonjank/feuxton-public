@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.45",
+    "addonVersion":  "0.81.46",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v43",
-    "sourceRevision":  "65910e543aa3d0fcbe2b763420a970643e310b58",
+    "sourceRevision":  "8382f97ecee4dfa4b5f7539c957c10c848d3ae35",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -32,8 +32,8 @@
                   },
                   {
                       "path":  "Classes/Paladin.lua",
-                      "sha256":  "C58807335ACDB606F6A7B1E9266F8A3FD6E05D50B3C9E1C606D761382A63433D",
-                      "size":  37045
+                      "sha256":  "9E5E6624E64E7D3D8D19451096AF4F5F19B827B432ACFAB91C32DC162F3677F6",
+                      "size":  36289
                   },
                   {
                       "path":  "Classes/Priest.lua",
@@ -62,8 +62,8 @@
                   },
                   {
                       "path":  "CoreTransport.lua",
-                      "sha256":  "3A3A9DA394E1D1A4135E65318A59A6482096BBD0092B5457C29FE22A21DD9BBD",
-                      "size":  4285
+                      "sha256":  "BCCDD7E303262C84D601454D31BCF0D61FBEF2DE413E42C712EE0CD6C92E19AC",
+                      "size":  2920
                   },
                   {
                       "path":  "Diagnostics.lua",
@@ -87,8 +87,8 @@
                   },
                   {
                       "path":  "Features/GroupContext.lua",
-                      "sha256":  "920B2909A06E64C1EC65D2949D5F6E0A4CC04D6F2089111EE93728289C9B77F4",
-                      "size":  15581
+                      "sha256":  "C37BD807DF8B510D8EDA275675A2E381628240884B9BD85BD32C8D189B768BBA",
+                      "size":  13943
                   },
                   {
                       "path":  "Features/Healing.lua",
@@ -137,28 +137,28 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "E1C1936782F5BB7C125BD89CD6E24FD92BD39DE1264518831D193ADA0CEC1C5B",
-                      "size":  5318
+                      "sha256":  "2D0D6927447D61B9F56E5C75B2C76AF82E4719183DC13192D3F0D85F032B0DBC",
+                      "size":  5419
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "FCF1A6428AAADB57A659F15DA2830979377695D99ADF2C2D2B240BF63880C99C",
-                      "size":  914
+                      "sha256":  "1A2EBD2DA6E98349F4DC05DF242F27F20BD8B1162CC6B2DA15FEA7EEAD0FE62B",
+                      "size":  960
                   },
                   {
                       "path":  "GuideTransport.lua",
-                      "sha256":  "5FF5B8F391111DD2C77316883C58C147C2018CD8785F4BBFF48F5A32258AD01E",
-                      "size":  25990
+                      "sha256":  "EF77FB5DCE3ADEF75D293609AECC86B2901EB1837A0E6B9D82D3091879220583",
+                      "size":  19001
                   },
                   {
                       "path":  "Hud.lua",
-                      "sha256":  "5B28ED1DFEF8A5079A575434031150FC99D1AD37B5868DE8A962AB115611B451",
-                      "size":  8216
+                      "sha256":  "57067A883E400FE83597E525565E1CD35CE0D96D872B73024F24881EEC020FC0",
+                      "size":  8106
                   },
                   {
                       "path":  "HudUpdates.lua",
-                      "sha256":  "4AC09ECC9F1832A448E38069547518FE5AA4356410995D4DC3AA917347D3EB43",
-                      "size":  13255
+                      "sha256":  "51C90B8A3F45391D619AFB4640B93F6583F5E5172ED5E8EA201DAE6DD6600019",
+                      "size":  13076
                   },
                   {
                       "path":  "HunterSpells.lua",
@@ -177,23 +177,23 @@
                   },
                   {
                       "path":  "ProbeWindow.lua",
-                      "sha256":  "C60974F025A9B7E9C4B3342C3A655C9F0C402BBF6FCE1D9AAFBA1F1230FDDAFA",
-                      "size":  72737
+                      "sha256":  "0F2F81EA8626C1595FE55E41E386FBD0F0C520C04E7A72A502F73024007A9D20",
+                      "size":  49592
                   },
                   {
                       "path":  "ResourceGauges.lua",
-                      "sha256":  "F748B7AE2BB6D7515EA2479AEFE027E9A66CEA768C4A8997DD3AA4474F9CA41F",
-                      "size":  15581
+                      "sha256":  "E5CC52C2C81DD531CBCD9ACCF92B8F9809A6A3B6EDAEE2CB9D403954AD74FDBD",
+                      "size":  6110
                   },
                   {
                       "path":  "Settings.lua",
-                      "sha256":  "C2B9431ED2D3DFF77CA2C65B5C537B732176D215D70BEC3695192BF26A779F2B",
-                      "size":  5393
+                      "sha256":  "CAF71524837F80AD26DEBB82129D3944C4799A20C4A50AE73C7619F1173ED67E",
+                      "size":  4622
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "6F711FD6B43A17E48161D7A0DD7947F92D58E8EE81213267B12DC59F1B1863AF",
-                      "size":  27796
+                      "sha256":  "38A94C1E4C44D4622752EAD62FB7D1FA400FB93FB3444CE287BBAB0658F7A827",
+                      "size":  25420
                   },
                   {
                       "path":  "SpellWidgets.lua",
