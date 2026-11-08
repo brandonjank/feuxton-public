@@ -81,6 +81,25 @@ function S.bytes(value,count)
     return table.concat(result)
 end
 S.setupSession=math.random(0,65535)*65536+math.random(0,65535)
+-- Runtime identity belongs to this Lua load, not the files currently on disk.
+-- Parse static metadata once. Publication uses only the existing batch counter;
+-- inventory, targets, combat and the slower paged setup cannot hold it up.
+local loadedAddonBytes
+do
+    local major,minor,patch
+    if type(ns.version)=="string" and #ns.version<=17 then major,minor,patch=ns.version:match("^(%d+)%.(%d+)%.(%d+)$") end
+    major,minor,patch=tonumber(major),tonumber(minor),tonumber(patch)
+    local contract=ns.contractRevision
+    local function uint16(v)return type(v)=="number" and v>=0 and v<=65535 and v==math.floor(v) end
+    if uint16(major) and uint16(minor) and uint16(patch) and uint16(contract) and contract>0 then
+        loadedAddonBytes=S.bytes(major,2)..S.bytes(minor,2)..S.bytes(patch,2)..S.bytes(contract,2)
+    end
+end
+function S.loadedAddonPacket(tick)
+    if not loadedAddonBytes or type(tick)~="number" or tick<0 or tick>4294967295 or tick~=math.floor(tick) then return nil end
+    local packet="HHV1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..loadedAddonBytes
+    return packet..S.bytes(S.adler32(packet),4)
+end
 -- Read-only dense transport experiments reuse completed, guarded packets.
 -- Producers do not query additional game state or cache data when disabled.
 S.transportPackets={}
@@ -105,16 +124,27 @@ function S.denseStatePacket(now,tick,unified)
         S.transportPackets[13]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=13
     end
-    local chunks,count={},0;local setupChunk;local liveBytes=23
+    if unified then
+        local packet=S.loadedAddonPacket(tick)
+        S.transportPackets[14]=packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=14
+    end
+    local chunks,count={},0;local setupChunk,courtesyChunk;local liveBytes=23
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
         local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
         if age and age>=0 and age<=maxAge then
             local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#entry.packet,2)..entry.packet
             if unified and id==5 then setupChunk=chunk
+            elseif unified and id==4 then courtesyChunk=chunk
             else chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk end
         end
     end
+    -- Core, party and shared runtime data always retain their budget. Optional
+    -- courtesy recipients take priority over paged setup, but also yield when
+    -- maximum party identities would otherwise invalidate the whole frame.
+    S.courtesyDeferred=courtesyChunk~=nil and liveBytes+#courtesyChunk>2304
+    if courtesyChunk and not S.courtesyDeferred then chunks[#chunks+1]=courtesyChunk;count=count+1;liveBytes=liveBytes+#courtesyChunk end
     -- Setup is already a cached, optional paged stream. Keep combat/recipient
     -- observations intact when unusually long identities or racials fill it.
     if setupChunk and liveBytes+#setupChunk<=2304 then chunks[#chunks+1]=setupChunk;count=count+1 end
