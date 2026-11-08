@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.42",
+    "addonVersion":  "0.81.43",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v40",
-    "sourceRevision":  "337cec9d62c444b99a6b5add33ba797da5dca5de",
+    "contract":  "feuxton-dense-v41",
+    "sourceRevision":  "60015d839d5cca024f6887407765d07720f3c82f",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -77,13 +77,13 @@
                   },
                   {
                       "path":  "Features/Consumables.lua",
-                      "sha256":  "959904F2DA7D0E8085CECD3C5469106B868944742E8CB1A9BFC33D5F5B0DAE42",
-                      "size":  5431
+                      "sha256":  "B5CF2B15E7E8FDD1A9C55EC7C30C39525F07AFE064678C8016B344E5A322BD43",
+                      "size":  6516
                   },
                   {
                       "path":  "Features/ControlEffects.lua",
-                      "sha256":  "43689B78B7963FB241E84D457DEDD4C637AD9312C491A1C4B9C93696C1438379",
-                      "size":  28570
+                      "sha256":  "C23C5E320ACD5EF6C62CB3989DE9261F5050FAB3FFD17F47E1DF4AC7A608EE21",
+                      "size":  28923
                   },
                   {
                       "path":  "Features/GroupContext.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "DE547F49C20D03374363204712ECBB622C44CCD3BE6655B372FD6A5CE9677121",
+                      "sha256":  "EB1927BC4B67375F6C1BB1F19D416A4235E2C0910942D9B1F4B800C2376B2B2D",
                       "size":  5293
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "96DB11A82EBF4FFD2D5FBEF0A496B30C08BB089D8B83561B4E34D39EEA02D4AB",
+                      "sha256":  "79BC3C87C1208B0FEAD091682C159775C1520AD62B7588A6ACE000764BA2E4B7",
                       "size":  914
                   },
                   {
