@@ -370,7 +370,14 @@ function X.packet(tick)
  end
  -- Freedom can happen during a heal. Its click/result must not replace the
  -- ordinary managed healing attempt or consume its eventual terminal event.
- local receipt=F.supportAttempt;local identity=receipt and receipt.identity or "";local now=value(GetTime)
+ local receipt=F.supportAttempt
+ -- A binding refresh does not make an older click/result current. Retire its
+ -- receipt without touching the independent heal attempt or losing the rest
+ -- of this support packet after a spell/binding revision changes.
+ if receipt and (receipt.revision~=revision or receipt.id~=(freedom.id or 0)) then
+  F.supportAttempt=nil;receipt=nil
+ end
+ local identity=receipt and receipt.identity or "";local now=value(GetTime)
  local age=receipt and type(now)=="number" and math.floor(math.max(0,now-(receipt.eventAt or receipt.at))*1000) or 65535
  packet=packet..S.bytes(receipt and receipt.sequence or 0,4)..S.bytes(receipt and receipt.revision or 0,4)..S.bytes(receipt and receipt.id or 0,4)..S.bytes(receipt and receipt.kind or 0,1)..S.bytes(math.min(65535,age),2)..S.bytes(#identity,1)..identity
  local nearby,probe,reach=X.nearby();packet=packet..nearby

@@ -2,6 +2,21 @@
 local _,ns=...
 local C={};ns.features.Consumables=C
 C.ids={19013,19012,9421,19011,19010,5510,19009,19008,5509,19007,19006,5511,19005,19004,5512}
+-- This is explicit local pause intent, not an observed player posture. The
+-- stock /sit and /stand emotes pass these tokens to C_ChatInfo.PerformEmote.
+-- A post-hook preserves the game's command and return values unchanged.
+C.restPauseRequested=false
+function C.observeRestRequest(token)
+    if ns.state.isSecret(token) or type(token)~="string" then return end
+    token=string.upper(token)
+    if token=="SIT" then C.restPauseRequested=true
+    elseif token=="STAND" then C.restPauseRequested=false end
+end
+function C.installRestHook()
+    if C.restHookInstalled or type(hooksecurefunc)~="function" or type(C_ChatInfo)~="table" or type(C_ChatInfo.PerformEmote)~="function" then return end
+    C.restHookInstalled=pcall(hooksecurefunc,C_ChatInfo,"PerformEmote",C.observeRestRequest)
+end
+C.installRestHook()
 local function api(name,legacy) return type(C_Item)=="table" and C_Item[name] or _G[legacy] end
 local function number(value)
     local S=ns.state
@@ -83,15 +98,19 @@ function C.packet(tick)
     local key=M and M.current(entry) and entry.itemID==id and S.compactBindingCode(entry.key) or 0
     local function flag(v)return v==true and 2 or v==false and 1 or 0 end
     local eating,drinking,campfire=C.recovery()
-    if C.campfireSession~=S.setupSession then C.campfireSession=S.setupSession;C.campfireHeld=false end
-    if campfire==true then C.campfireHeld=true elseif campfire==false then C.campfireHeld=false end
-    local campfireState=campfire==nil and C.campfireHeld and 3 or flag(campfire)
-    local packet="HHI3"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(campfireState,1)
+    -- HHI4 never carries a previous campfire presence into an unknown read.
+    -- Bits 2..3 reserve a tri-state sitting observation. It remains unknown
+    -- until a real client query is verified; bit 4 is separate local intent.
+    local recoveryState=flag(campfire)+(C.restPauseRequested and 16 or 0)
+    local packet="HHI4"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(recoveryState,1)
     return packet..S.bytes(S.adler32(packet),4)
 end
 local events=CreateFrame("Frame")
 events:RegisterEvent("BAG_UPDATE_DELAYED");events:RegisterEvent("PLAYER_REGEN_ENABLED")
-events:SetScript("OnEvent",function()
+events:RegisterEvent("PLAYER_STARTED_MOVING");events:RegisterEvent("PLAYER_ENTERING_WORLD")
+events:SetScript("OnEvent",function(_,event)
+    if event=="PLAYER_STARTED_MOVING" then C.restPauseRequested=false;return end
+    if event=="PLAYER_ENTERING_WORLD" then C.installRestHook();return end
     C.scannedAt=nil
     local S=ns.state
     if S.discoverBindings and S.readableCall(InCombatLockdown)==false then S.discoverBindings() end
