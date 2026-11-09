@@ -2,11 +2,32 @@
 local _, ns = ...
 local S = ns.state
 
+-- This changes ordinary layout configuration only, outside combat. Native
+-- widgets keep their qualified physical sizes; Paladin keeps its heal clock.
+ns.extendedHudDiagnostics=function()
+    if S.isSecret(FeuxtonDB) or type(FeuxtonDB)~="table" then return false end
+    local value=FeuxtonDB.extendedHudDiagnostics
+    return not S.isSecret(value) and value==true
+end
+ns.setExtendedHudDiagnostics=function(enabled)
+    if type(enabled)~="boolean" or S.readableCall(InCombatLockdown)~=false then return false end
+    if S.isSecret(FeuxtonDB) then return false end
+    if type(FeuxtonDB)~="table" then FeuxtonDB={} end
+    local previous=FeuxtonDB.extendedHudDiagnostics
+    FeuxtonDB.extendedHudDiagnostics=enabled
+    local ok,applied=false,false
+    if type(ns.applyCurrentBridge)=="function" then ok,applied=pcall(ns.applyCurrentBridge) end
+    if not ok or not applied then
+        FeuxtonDB.extendedHudDiagnostics=previous;return false
+    end
+    return true
+end
+
 -- Ordinary configuration widgets; they do not inspect combat state.
 do
     local settings=CreateFrame("Frame",nil,UIParent)
     ns.rateSettings=settings
-    settings:SetSize(360,290); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
+    settings:SetSize(360,340); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
     settings:EnableMouse(true); settings:SetMovable(true); settings:RegisterForDrag("LeftButton")
     settings:SetScript("OnDragStart",function(self) self:StartMoving() end)
     settings:SetScript("OnDragStop",function(self) self:StopMovingOrSizing() end)
@@ -41,13 +62,24 @@ do
     button("Close",220,90,function() settings:Hide() end)
     input:SetScript("OnEnterPressed",apply)
     input:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
+    local extended=CreateFrame("CheckButton",nil,settings,"UICheckButtonTemplate")
+    extended:SetSize(24,24);extended:SetPoint("TOPLEFT",16,-154)
+    local extendedLabel=settings:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    extendedLabel:SetPoint("TOPLEFT",44,-160);extendedLabel:SetWidth(294);extendedLabel:SetJustifyH("LEFT")
+    extendedLabel:SetText("Extended HUD diagnostics (larger HUD)")
+    extended:SetScript("OnClick",function(self)
+        if ns.setExtendedHudDiagnostics(self:GetChecked()==true) then
+            status:SetText("Layout updated. Paladin's essential heal timer stays enabled.")
+        else status:SetText("Change HUD diagnostics outside combat.") end
+        self:SetChecked(ns.extendedHudDiagnostics())
+    end)
     local blessings={}
     for i,key in ipairs({"paladin.blessingMight","paladin.blessingWisdom","paladin.blessingKings","paladin.retributionAura"}) do
         local label=i==1 and "Might" or i==2 and "Wisdom" or i==3 and "Kings" or "Retribution"
         local b=button(label,16+((i-1)%2)*152,142,function(_,mouse)
             if mouse=="RightButton" then S.setSpellUse(key,nil) else S.setSpellUse(key,S.spellUseCode(key)==1) end
             ns.refreshRateSettings()
-        end,164+math.floor((i-1)/2)*36)
+        end,190+math.floor((i-1)/2)*36)
         -- Right click restores app control; left click toggles addon ON/OFF.
         b:RegisterForClicks("LeftButtonUp","RightButtonUp")
         blessings[i]={button=b,key=key,label=label}
@@ -56,13 +88,14 @@ do
     local itemButton=button("Healthstone",16,294,function(_,mouse)
         if mouse=="RightButton" then S.setSpellUse("shared.healthstone",nil) else S.setSpellUse("shared.healthstone",S.spellUseCode("shared.healthstone")==1) end
         ns.refreshRateSettings()
-    end,236)
+    end,266)
     itemButton:RegisterForClicks("LeftButtonUp","RightButtonUp")
-    hint:SetPoint("TOPLEFT",16,-274);hint:SetText("Spells/items: left click toggles; right click follows app.")
+    hint:SetPoint("TOPLEFT",16,-304);hint:SetText("Spells/items: left click toggles; right click follows app.")
     ns.refreshRateSettings=function()
         local itemCode=S.spellUseCode("shared.healthstone")
         itemButton.hhText:SetText("Healthstone: "..(itemCode==1 and "OFF" or itemCode==2 and "ON" or "Follow app"))
         input:SetText(tostring(S.updateRateMs))
+        extended:SetChecked(ns.extendedHudDiagnostics())
         local paladin=S.readableCall(function() local _,class=UnitClass("player");return class end)=="PALADIN"
         for _,entry in ipairs(blessings) do
             if paladin then entry.button:Show() else entry.button:Hide() end

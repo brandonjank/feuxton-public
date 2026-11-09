@@ -63,7 +63,7 @@ for index, spec in ipairs(S.hunterSpecs) do
         if screenTop - top >= tooltipHeight + 8 then
             GameTooltip:SetPoint("BOTTOMLEFT", S.hud, "TOPLEFT", 0, 8)
         else
-            GameTooltip:SetPoint("TOPLEFT", S.hud, "TOPLEFT", 0, -(S.compactBridge and 356 or 512))
+            GameTooltip:SetPoint("TOPLEFT", S.hud, "TOPLEFT", 0, -(S.hud:GetHeight()+8))
         end
     end)
     tile:SetScript("OnLeave", function() GameTooltip:Hide() end)

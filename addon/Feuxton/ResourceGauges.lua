@@ -66,7 +66,8 @@ do
     ns.configureCompactGauges=function(profile)
         local enabled=profile and profile.gauges~=nil
         local function point(widget,x,y) widget:ClearAllPoints();widget:SetPoint("TOPLEFT",S.hud,"TOPLEFT",x,-y) end
-        for _,label in ipairs(labels) do if enabled then label:Show() else label:Hide() end end
+        -- This row is a data link; captions belong in the app and options.
+        for _,label in ipairs(labels) do label:Hide() end
         if enabled then S.unitBackground:Hide();S.resourceBackground:Hide() else S.unitBackground:Show();S.resourceBackground:Show() end
         for _,display in ipairs(S.unitDisplays) do
             display.health:SetSize(enabled and 128 or 250,enabled and 4 or 16)
@@ -78,20 +79,22 @@ do
             return
         end
         local top=profile.gauges
-        for i,dot in ipairs(ns.features.Interrupts.stamp or {}) do point(dot,316+(i-1)*6,top+20) end
+        if ns.features.Interrupts.dot then point(ns.features.Interrupts.dot,152,top+4) end
+        for i,dot in ipairs(ns.features.Interrupts.stamp or {}) do point(dot,316+(i-1)*6,top+12) end
         for i,display in ipairs(S.resourceDisplays) do
-            local x=i<=2 and 12 or 176;local y=top+12+((i-1)%2)*8
+            local x=i<=2 and 12 or 176;local y=top+4+((i-1)%2)*8
             point(display.bar,x,y);point(display.dot,x+132,y)
         end
         for i,display in ipairs(S.unitDisplays) do
             local x=340+(i-1)*164
-            point(display.health,x,top+12);point(display.available,x+132,top+12);point(display.combat,x+142,top+12)
+            point(display.health,x,top+4);point(display.available,x+132,top+4);point(display.combat,x+142,top+4)
             display.name:Hide()
         end
-        point(S.playerAlive,644,top)
+        -- Separate from target-of-target combat after removing the caption row.
+        point(S.playerAlive,656,top)
         -- Keep the absolute Sting budget at its proven 250-pixel precision.
-        point(S.stingBudget,340,top+20)
-        for i,dot in ipairs({S.stingBudgetReady,S.stingBudgetMarkerA,S.stingBudgetMarkerB,S.stingBudgetDamage,S.stingBudgetID,S.stingBudgetDirect}) do point(dot,596+(i-1)*8,top+20) end
+        point(S.stingBudget,340,top+12)
+        for i,dot in ipairs({S.stingBudgetReady,S.stingBudgetMarkerA,S.stingBudgetMarkerB,S.stingBudgetDamage,S.stingBudgetID,S.stingBudgetDirect}) do point(dot,596+(i-1)*8,top+12) end
         if profile.guideStamp then
             point(S.tiles[21],126,114)
             for i,dot in ipairs(S.tiles[21].visualSignals) do dot:ClearAllPoints();dot:SetPoint("TOPLEFT",S.tiles[21],"TOPLEFT",30+(i-1)*7,-34) end

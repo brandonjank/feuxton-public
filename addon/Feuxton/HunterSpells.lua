@@ -89,7 +89,7 @@ function S.attachSpellUse(parent,icon,key)
         local enter=parent:GetScript("OnEnter")
         if enter then enter(parent) else
             GameTooltip:SetOwner(self,"ANCHOR_NONE");GameTooltip:SetText(key)
-            GameTooltip:ClearAllPoints();GameTooltip:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-(S.compactBridge and 356 or 512))
+            GameTooltip:ClearAllPoints();GameTooltip:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-(S.hud:GetHeight()+8))
         end
         local code=S.spellUseCode(key)
         GameTooltip:AddLine(code==0 and "Default ON; desktop preference controls use." or code==1 and "OFF in addon; overrides desktop." or "ON in addon; overrides desktop.",1,1,1)
@@ -99,7 +99,7 @@ function S.attachSpellUse(parent,icon,key)
         local height=GameTooltip:GetHeight()*GameTooltip:GetEffectiveScale()
         GameTooltip:ClearAllPoints()
         if screenTop-top>=height+8 then GameTooltip:SetPoint("BOTTOMLEFT",S.hud,"TOPLEFT",0,8)
-        else GameTooltip:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-(S.compactBridge and 356 or 512)) end
+        else GameTooltip:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-(S.hud:GetHeight()+8)) end
     end)
     button:SetScript("OnLeave",function() GameTooltip:Hide() end)
     return button

@@ -89,7 +89,7 @@ function B.create(parent,specs)
     local result={panel=panel,tiles={},stamp={},verifiedAuras={}}
     for i=1,4 do local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",626+(i-1)*6,0);result.stamp[i]=dot end
     for i,spec in ipairs(specs) do
-        local tile={};local x,y=12+(i-1)%14*46,6+math.floor((i-1)/14)*40
+        local tile={};local x,y=12+(i-1)%14*46,6+math.floor((i-1)/14)*32
         tile.icon=panel:CreateTexture(nil,"ARTWORK");tile.icon:SetSize(16,16);tile.icon:SetPoint("TOPLEFT",x,-y)
         tile.dial=panel:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(16,16);tile.dial:SetPoint("TOPLEFT",x+18,-y)
         tile.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial);tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
@@ -192,7 +192,7 @@ function B.auras(bridge,specs,readings)
                 for _,known in ipairs(S.setupKnownSpells or {}) do if known.name==(spec.auraName or spec.name) then ids[known.id]=true end end
                 if actual then ids[actual]=true;certified[i]=true end
                 for _,id in ipairs(candidates(spec)) do ids[id]=true end
-                local x,y=spec.auraX or 12+(i-1)%14*46+36,spec.auraY or 6+math.floor((i-1)/14)*40
+                local x,y=spec.auraX or 12+(i-1)%14*46+36,spec.auraY or 6+math.floor((i-1)/14)*32
                 -- An unresolved alias must not create an empty filter that
                 -- the client could interpret as matching every aura.
                 local signalIndex

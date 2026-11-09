@@ -214,7 +214,12 @@ SlashCmdList.FEUXTONPANEL = function(message)
     if message:match("^%s*[Kk][Ee][Yy][Ss]%s*$") then shortcut="" end
     if shortcut~=nil and S.shortcutCommand then S.shortcutCommand(shortcut);return end
     local rate=message:match("^rate%s+(.+)$")
-    if message=="dense" or message=="compact" then
+    local diagnostics=message:match("^%s*hud%s+diagnostics%s+(%a+)%s*$")
+    if diagnostics then
+        if diagnostics~="on" and diagnostics~="off" then print("Feuxton: use /feuxton hud diagnostics on or off.")
+        elseif not ns.setExtendedHudDiagnostics(diagnostics=="on") then print("Feuxton: change HUD diagnostics outside combat on a supported class.")
+        else print("Feuxton: extended HUD diagnostics "..diagnostics..". Required Paladin heal timing stays active.") end
+    elseif message=="dense" or message=="compact" then
         if not ns.applyCurrentBridge() then print("Feuxton: current layout requires a supported class outside combat.") end
     elseif message=="standard" or message=="legacy" then
         print("Feuxton: retired layout. Use /feuxton dense for the current bridge.")

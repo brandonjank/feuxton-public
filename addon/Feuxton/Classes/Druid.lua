@@ -1,6 +1,6 @@
 -- Druid observations. Shared app policies own decisions, forms and delivery.
 local _,ns=...
-local H={coreSlotCount=2,denseBridgeLayout={key="druid-dense-v6",height=397,nativeVitalsTop=252,nativeVitalsHeight=87,nativeSignalsTop=339,nativeSignalsHeight=58,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=216,grid=216,roster=216,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
+local H={coreSlotCount=2,denseBridgeLayout={key="druid-slim-v1",height=309,nativeVitalsTop=214,nativeVitalsHeight=87,nativeSignalsTop=301,nativeSignalsHeight=58,gauges=148,units=148,unitHeight=20,activity=14,headerActivity=true,resources=148,setup=184,grid=184,roster=184,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
 ns.classes.DRUID=H
 H.specs={
  {key="druid.wrath",name="Wrath",aura="player",auraName="Eclipse (Lunar)",nativeAuraCandidates={48518}},
@@ -51,24 +51,24 @@ function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext;local R=ns.features.RangeTracking;local B=ns.features.SpellBridge
  if G.text(G.read(UnitClass,2,"player"),16)~="DRUID" then return end
  local bridge=B.create(S.hud,H.specs);H.bridge=bridge;S.druidNativePanel=bridge.panel;bridge.panel:SetHeight(190)
- for i,tile in ipairs(bridge.tiles) do tile.manaCost=B.createManaCost(bridge.panel,12+(i-1)%14*46+18,24+math.floor((i-1)/14)*40,16) end
+ for i,tile in ipairs(bridge.tiles) do tile.manaCost=B.createManaCost(bridge.panel,12+(i-1)%14*46+18,24+math.floor((i-1)/14)*32,16) end
  local function dot(x,y)local d=bridge.panel:CreateTexture(nil,"OVERLAY");d:SetSize(4,4);d:SetPoint("TOPLEFT",x,-y);R.initialize(d,1,.65,0,1);return d end
- local combatDot=dot(650,132);H.combatDot=combatDot
+ local combatDot=dot(650,116);H.combatDot=combatDot
  local resources={};H.resources=resources
  local function resource(x,y)local widget=B.createManaCost(bridge.panel,x,y,128);R.initialize(widget.valid,1,.65,0,1);return widget end
- for i,power in ipairs({0,1,3})do resources[i]=resource(12+(i-1)*164,122);resources[i].powerType=power end
- local combo=resource(504,122);H.combo=combo
- local stacks=resource(504,128);H.stacks=stacks
- local clearcastingBackground=dot(508,86);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
+ for i,power in ipairs({0,1,3})do resources[i]=resource(12+(i-1)*164,106);resources[i].powerType=power end
+ local combo=resource(504,106);H.combo=combo
+ local stacks=resource(504,112);H.stacks=stacks
+ local clearcastingBackground=dot(508,70);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
  local attackerDots={};H.attackerDots=attackerDots
- for i=1,40 do attackerDots[i]={dot(12+(i-1)*6,170),dot(280+(i-1)*6,170)}end
+ for i=1,40 do attackerDots[i]={dot(12+(i-1)*6,144),dot(280+(i-1)*6,144)}end
  H.recipientDots={};H.recipientBridges={};H.recipientSpecs={}
  for index,unit in ipairs(G.tokens)do
-  local x=12+(index-1)*104;local group={range={},geometry={dot(x+48,178),dot(x+54,178)}};H.recipientDots[index]=group
-  for action=1,6 do group.range[action]=dot(x+(action-1)*6,178)end
-  for _,offset in ipairs({36,42})do local background=dot(x+offset,178);R.paintColor(background,0,.25,1,1)end
+  local x=12+(index-1)*104;local group={range={},geometry={dot(x+48,152),dot(x+54,152)}};H.recipientDots[index]=group
+  for action=1,6 do group.range[action]=dot(x+(action-1)*6,152)end
+  for _,offset in ipairs({36,42})do local background=dot(x+offset,152);R.paintColor(background,0,.25,1,1)end
   H.recipientBridges[unit]={panel=bridge.panel,verifiedAuras={},onlySpecifiedAuras=true}
-  H.recipientSpecs[unit]={{key="druid.rejuvenation",name="Rejuvenation",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+36,auraY=178,auraSize=4},{key="druid.regrowth",name="Regrowth",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+42,auraY=178,auraSize=4}}
+  H.recipientSpecs[unit]={{key="druid.rejuvenation",name="Rejuvenation",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+36,auraY=152,auraSize=4},{key="druid.regrowth",name="Regrowth",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+42,auraY=152,auraSize=4}}
  end
  local function bool(d,value)local ok,painted=pcall(R.paintBoolean,d,value,{0,1,0,1},{1,0,0,1});if not ok or painted~=true then R.paintColor(d,1,.65,0,1)end end
  local function gauge(widget,current,maximum)

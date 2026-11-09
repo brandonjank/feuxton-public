@@ -1,6 +1,6 @@
 -- Warlock leveling catalog and WLS5 class packet. No rotation or input here.
 local _,ns=...
-local H={denseBridgeLayout={key="warlock-dense-v5",height=377,nativeVitalsTop=232,nativeVitalsHeight=87,nativeSignalsTop=319,nativeSignalsHeight=58,gauges=168,units=168,unitHeight=28,activity=14,headerActivity=true,resources=168,setup=196,grid=196,roster=196,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
+local H={denseBridgeLayout={key="warlock-slim-v1",height=285,nativeVitalsTop=190,nativeVitalsHeight=87,nativeSignalsTop=277,nativeSignalsHeight=58,gauges=140,units=140,unitHeight=20,activity=14,headerActivity=true,resources=140,setup=160,grid=160,roster=160,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
 ns.classes.WARLOCK=H
 H.specs={
  -- Native green slots in the retained October 12 build-70338 game frames
@@ -48,20 +48,20 @@ function H.initializePreview()
  -- Costs and the possibly restricted maximum go directly to native bars.
  -- IsSpellUsable can remain true when the client rejects a low-mana cast.
  for i,tile in ipairs(bridge.tiles) do
-  local x,y=12+(i-1)%14*46,6+math.floor((i-1)/14)*40
+  local x,y=12+(i-1)%14*46,6+math.floor((i-1)/14)*32
   tile.manaCost=B.createManaCost(bridge.panel,x+18,y+18,16)
   tile.cost=tile.manaCost.bar;tile.costValid=tile.manaCost.valid
  end
- local petIcon=bridge.panel:CreateTexture(nil,"ARTWORK");petIcon:SetSize(16,16);petIcon:SetPoint("TOPLEFT",610,-86)
+ local petIcon=bridge.panel:CreateTexture(nil,"ARTWORK");petIcon:SetSize(16,16);petIcon:SetPoint("TOPLEFT",610,-70)
  petIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
  pcall(SetPortraitTexture,petIcon,"pet");S.attachSpellUse(bridge.panel,petIcon,"warlock.petAttack")
- local combatDot=bridge.panel:CreateTexture(nil,"OVERLAY");combatDot:SetSize(4,4);combatDot:SetPoint("TOPLEFT",220,-122)
+ local combatDot=bridge.panel:CreateTexture(nil,"OVERLAY");combatDot:SetSize(4,4);combatDot:SetPoint("TOPLEFT",220,-106)
  local hoverHealth=CreateFrame("StatusBar",nil,bridge.panel)
- hoverHealth:SetPoint("TOPLEFT",300,-98);hoverHealth:SetSize(128,4);hoverHealth:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8");hoverHealth:SetStatusBarColor(0,1,0,1)
+ hoverHealth:SetPoint("TOPLEFT",300,-82);hoverHealth:SetSize(128,4);hoverHealth:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8");hoverHealth:SetStatusBarColor(0,1,0,1)
  local hoverBackground=hoverHealth:CreateTexture(nil,"BACKGROUND");hoverBackground:SetAllPoints();hoverBackground:SetColorTexture(.18,.18,.18,1)
- local hoverHealthValid=bridge.panel:CreateTexture(nil,"OVERLAY");hoverHealthValid:SetSize(4,4);hoverHealthValid:SetPoint("TOPLEFT",432,-98)
+ local hoverHealthValid=bridge.panel:CreateTexture(nil,"OVERLAY");hoverHealthValid:SetSize(4,4);hoverHealthValid:SetPoint("TOPLEFT",432,-82)
  H.mouseoverHealth=hoverHealth;H.mouseoverHealthValid=hoverHealthValid
- local channelCosts={B.createManaCost(bridge.panel,300,106,128),B.createManaCost(bridge.panel,300,114,128)}
+ local channelCosts={B.createManaCost(bridge.panel,300,90,128),B.createManaCost(bridge.panel,300,98,128)}
  H.channelCosts=channelCosts
  local function channelCostStatus(widget,valid,zero)
   if not valid then widget.valid:SetColorTexture(1,.65,0,1) else widget.valid:SetColorTexture(0,1,zero and 1 or 0,1) end

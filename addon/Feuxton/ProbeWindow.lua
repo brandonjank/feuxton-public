@@ -412,8 +412,9 @@ do
         state.packet=packet;state.lastError=nil;state.tick=tick;state.session=session
     end
 
-    -- Diagnostic native counters/timers. This uses the same main capture and
-    -- publication batch, but never supplies rotation or execution observations.
+    -- Extended native counters/timers share the main publication batch.
+    -- Most fields are diagnostic; Paladin's qualified player cast countdown
+    -- also inhibits cancelling a nearly completed heal and remains mandatory.
     local signalUnits={player=1,target=2,mouseover=3}
     local signalFilters={HELPFUL=1,HARMFUL=2,["HELPFUL|PLAYER"]=3,["HARMFUL|PLAYER"]=4}
     local function signalState()
@@ -518,7 +519,7 @@ do
         if state.cooldownCollecting then state.cooldownCollecting=false;state.cooldownBatchReady=false;state.cooldownSeen=nil end
     end
     function ns.configureNativeSignals(profile)
-        if not profile or number(profile.nativeSignalsTop,65535)==nil or profile.nativeSignalsHeight~=58 then
+        if not profile or profile.extendedSignals~=true or number(profile.nativeSignalsTop,65535)==nil or profile.nativeSignalsHeight~=58 then
             local state=ns.nativeSignals;if state then state.enabled=false;ns.clearNativeSignals();state.frame:Hide() end;return
         end
         local state=signalState();state.enabled=false;ns.clearNativeSignals()

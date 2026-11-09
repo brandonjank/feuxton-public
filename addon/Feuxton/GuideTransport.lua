@@ -159,14 +159,23 @@ do
     ns.applyCurrentBridge=function()
         if S.readableCall(InCombatLockdown)~=false then return false end
         local class=ns.features.GroupContext.text(ns.features.GroupContext.read(UnitClass,2,"player"),16)
-        local profile=ns.bridgeLayouts[class]
-        if not profile then
+        local base=ns.bridgeLayouts[class]
+        if not base then
             S.hudPixelSnapPending=S.hudInitialLayoutPending or S.hudPixelSnapPending
             -- An unsupported or unavailable class has no physical wire profile.
             -- Do not keep another class's completed packet live.
             if S.denseBridge then S.denseBridge.setEnabled(false) end
             return false
         end
+        -- Both current modes use one native geometry. Optional diagnostic
+        -- signals change only the trailing band, never the health/power grid.
+        -- Paladin's near-finished-heal guard always retains its cast clock.
+        local profile={};for key,value in pairs(base) do profile[key]=value end
+        profile.extendedSignals=class=="PALADIN" or type(ns.extendedHudDiagnostics)=="function" and ns.extendedHudDiagnostics()==true
+        -- Leave a blank discovery-marker tail when the native number grid is
+        -- last; its final full-width UInt32 cell must never share marker ink.
+        profile.height=profile.nativeVitalsTop+profile.nativeVitalsHeight+(profile.extendedSignals and profile.nativeSignalsHeight or 8)
+        if profile.extendedSignals and class~="PALADIN" then profile.key=profile.key.."-diagnostics" end
         local initial=S.hudInitialLayoutPending
         if initial then
             if not S.alignHud() then return false end
@@ -174,6 +183,7 @@ do
         S.denseBridge.setEnabled(false)
         S.compactBridge=true
         S.compactBridgeLayout=profile.key
+        S.currentBridgeProfile=profile
         S.hud:SetSize(668,profile.height)
         S.hud:SetClampRectInsets(0,0,0,0)
         if initial then
@@ -181,7 +191,7 @@ do
             if not S.alignHud() then return false end
         end
         S.hudDragHandle:SetSize(548,14)
-        local colors={{1,0.5,0},{0,0.5,1},profile.marker,{0,1,1}}
+        local colors={{1,0.5,0},{0,0.5,1},profile.marker,profile.extendedSignals and {0,1,1} or {0,1,0}}
         for i,dot in ipairs(signature) do dot:SetColorTexture(unpack(colors[i]));dot:Show() end
         footer:Show();title:Show();settingsButton:Show()
         S.hudTitle:Hide();S.auraTitle:Hide();S.aliveLabel:Hide()
@@ -207,14 +217,14 @@ do
         point(S.unitHud,S.hud,0,profile.units);S.unitHud:SetSize(668,profile.unitHeight)
         for _,display in ipairs(S.unitDisplays) do display.name:Hide() end
         point(S.activityPanel,S.hud,0,profile.activity)
-        point(S.resourcePanel,S.hud,0,profile.resources);S.resourcePanel:SetSize(668,36)
+        point(S.resourcePanel,S.hud,0,profile.resources);S.resourcePanel:SetSize(668,20)
         point(S.metadataFrame,S.hud,0,profile.setup)
         point(S.fastFrame,S.hud,0,316);point(S.guidePanel,S.hud,0,328)
         point(S.groupPanel,S.hud,0,profile.roster);S.groupPanel:SetSize(668,12)
         if S.paladinPanel then point(S.paladinPanel,S.hud,0,450) end
         if class=="PALADIN" then point(S.paladinNativePanel,S.hud,0,profile.native)
         elseif class=="SHAMAN" then
-            point(S.shamanNativePanel,S.hud,0,26);point(ns.features.Totems.panel,S.hud,0,144)
+            point(S.shamanNativePanel,S.hud,0,26);point(ns.features.Totems.panel,S.hud,0,130)
         elseif class=="WARLOCK" then point(S.warlockNativePanel,S.hud,0,26)
         elseif class=="DRUID" then point(S.druidNativePanel,S.hud,0,26) end
         title:SetText("FEUXTON v"..ns.version.." | "..class)
@@ -226,7 +236,7 @@ do
             if not ok and type(ns.clearProductionVitals)=="function" then pcall(ns.clearProductionVitals,S.describe(err)) end
         end
         if type(ns.configureNativeSignals)=="function" then
-            local ok,err=pcall(ns.configureNativeSignals,profile)
+            local ok,err=pcall(ns.configureNativeSignals,profile.extendedSignals and profile or nil)
             if not ok and type(ns.clearNativeSignals)=="function" then pcall(ns.clearNativeSignals,S.describe(err)) end
         end
         -- Keep the producer frames visible for their scheduled callbacks.

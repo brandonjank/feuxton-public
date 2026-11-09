@@ -2,7 +2,7 @@
 local _, ns = ...
 local paladin={}
 ns.classes.PALADIN=paladin
-paladin.denseBridgeLayout={key="paladin-dense-v8",height=277,nativeVitalsTop=132,nativeVitalsHeight=87,nativeSignalsTop=219,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=28,activity=14,headerActivity=true,resources=68,setup=96,grid=96,roster=96,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
+paladin.denseBridgeLayout={key="paladin-slim-v1",height=263,nativeVitalsTop=118,nativeVitalsHeight=87,nativeSignalsTop=205,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=20,activity=14,headerActivity=true,resources=68,setup=88,grid=88,roster=88,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
 paladin.specs={
  {key="paladin.holyStrike",name="Holy Strike"},
  {key="paladin.judgement",name="Judgement"},
