@@ -5,29 +5,9 @@ local S = ns.state
 -- Fixed, read-only hunter display. Icons are independent of action-bar layout.
 -- Native cooldown widgets render timing directly; Lua never derives ready state
 -- from secret cooldown numbers or duration objects.
-S.hunterSpecs = {
-    { name = "Auto Shot", short = "Auto", base = 75, petAttack = true },
-    { name = "Arcane Shot", short = "Arcane", base = 3044, petAttack = true },
-    { name = "Concussive Shot", short = "Concuss", base = 5116, petAttack = true },
-    { name = "Aimed Shot", short = "Aimed", base = 19434, petAttack = true },
-    { name = "Multi-Shot", short = "Multi", base = 2643, petAttack = true },
-    { name = "Hunter's Mark", short = "Mark", base = 1130, petAttack = true },
-    { name = "Serpent Sting", short = "Sting", base = 1978, petAttack = true },
-    { name = "Rapid Fire", short = "Rapid", base = 3045, unit = "player" },
-    { name = "Bestial Wrath", short = "Wrath", base = 19574, unit = "player" },
-    { name = "Volley", short = "Volley", base = 1510 },
-    { name = "Summon Hawk", short = "Summon", base = 0, petAttack = true },
-    { name = "Raptor Strike", short = "Raptor", base = 2973, petAttack = true, startAttack = true, noToggle = true },
-    { name = "Mongoose Bite", short = "Mongoose", base = 1495, petAttack = true },
-    { name = "Wing Clip", short = "Wing", base = 2974 },
-    { name = "Intimidation", short = "Intimid", base = 19577, petAttack = true },
-    { name = "Feign Death", short = "Feign", base = 5384, unit = "player" },
-    { name = "Immolation Trap", short = "Immolate", base = 13795, unit = "player" },
-    { name = "Freezing Trap", short = "Freeze", base = 1499, unit = "player" },
-    { name = "Frost Trap", short = "Frost", base = 13809, unit = "player" },
-    { name = "Mend Pet", short = "Mend", base = 136, unit = "pet" },
-    { name = "Disengage", short = "Disengage", base = 781 },
-}
+S.hunterSpecs=ns.spellCatalog.HUNTER.specs
+-- A queued melee strike must not toggle itself off when its binding is retried.
+for _,spec in ipairs(S.hunterSpecs) do if spec.key=="hunter.raptorStrike" then spec.noToggle=true end end
 S.spellAPI = type(C_Spell) == "table" and C_Spell or {}
 S.bookAPI = type(C_SpellBook) == "table" and C_SpellBook or {}
 function S.isSecret(value)
@@ -60,8 +40,6 @@ end
 function S.updateInterval() return S.updateRateMs/1000 end
 
 -- Public configuration; nil follows the desktop preference (default ON).
-local usageKeys={"hunter.autoShot","hunter.arcaneShot","hunter.concussiveShot","hunter.aimedShot","hunter.multiShot","hunter.huntersMark","hunter.serpentSting","hunter.rapidFire","hunter.bestialWrath","hunter.volley","hunter.summonHawk","hunter.raptorStrike","hunter.mongooseBite","hunter.wingClip","hunter.intimidation","hunter.feignDeath","hunter.immolationTrap","hunter.freezingTrap","hunter.frostTrap","hunter.mendPet","hunter.disengage"}
-for i,key in ipairs(usageKeys) do S.hunterSpecs[i].key=key end
 function S.spellUseCode(key)
     local preferences=type(FeuxtonDB)=="table" and FeuxtonDB.spellUsage
     local value

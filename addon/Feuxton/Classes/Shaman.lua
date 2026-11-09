@@ -2,23 +2,7 @@
 local _,ns=...
 local H={denseBridgeLayout={key="shaman-slim-v1",height=295,nativeVitalsTop=200,nativeVitalsHeight=87,nativeSignalsTop=287,nativeSignalsHeight=58,gauges=150,units=150,unitHeight=20,activity=14,headerActivity=true,resources=150,setup=170,grid=170,roster=170,coreStamp=108,targetStamp=122,marker={.25,.5,1}}}
 ns.classes.SHAMAN=H
-H.specs={
- {key="shaman.lightningBolt",name="Lightning Bolt"},{key="shaman.chainLightning",name="Chain Lightning"},
- {key="shaman.earthShock",name="Earth Shock"},{key="shaman.flameShock",name="Flame Shock",aura="target"},{key="shaman.frostShock",name="Frost Shock"},
- {key="shaman.stormstrike",name="Stormstrike",startAttack=true},{key="shaman.fireNova",name="Fire Nova",unit="player"},
- {key="shaman.lightningShield",name="Lightning Shield",unit="player",aura="player"},{key="shaman.waterShield",name="Water Shield",unit="player",aura="player"},
- {key="shaman.rockbiter",name="Rockbiter Weapon",unit="player"},{key="shaman.flametongue",name="Flametongue Weapon",unit="player"},{key="shaman.windfuryWeapon",name="Windfury Weapon",unit="player"},
- {key="shaman.healingWave",name="Healing Wave",healing=true,unit="player"},{key="shaman.lesserHealingWave",name="Lesser Healing Wave",healing=true,unit="player"},{key="shaman.riptide",name="Riptide",healing=true,unit="player"},
- {key="shaman.naturesSwiftness",name="Nature's Swiftness",unit="player",aura="player"},{key="shaman.manaTide",name="Mana Tide Totem",element=3,unit="player"},
- {key="shaman.searing",name="Searing Totem",element=1,unit="player"},{key="shaman.magma",name="Magma Totem",element=1,unit="player"},
- {key="shaman.strengthEarth",name="Strength of Earth Totem",element=2,unit="player"},{key="shaman.stoneskin",name="Stoneskin Totem",element=2,unit="player"},
- {key="shaman.manaSpring",name="Mana Spring Totem",element=3,unit="player"},{key="shaman.healingStream",name="Healing Stream Totem",element=3,unit="player"},
- {key="shaman.windfuryTotem",name="Windfury Totem",element=4,unit="player"},{key="shaman.graceAir",name="Grace of Air Totem",element=4,unit="player"},
- {key="shaman.tremor",name="Tremor Totem",element=2,unit="player"},{key="shaman.grounding",name="Grounding Totem",element=4,unit="player"},{key="shaman.earthbind",name="Earthbind Totem",element=2,unit="player"},
- {key="shaman.chainHeal",name="Chain Heal",healing=true,unit="player"},{key="shaman.autoAttack",name="Attack",startAttack=true},{key="shaman.earthShockInterrupt",name="Earth Shock"},
- {key="shaman.rageFarseer",name="Rage of the Farseer",unit="player"},
- {key="shaman.flametongueTotem",name="Flametongue Totem",element=1,unit="player"}
-}
+H.specs=ns.spellCatalog.SHAMAN.specs
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext
  if G.text(G.read(UnitClass,2,"player"),16)~="SHAMAN" then return end

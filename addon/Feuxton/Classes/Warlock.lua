@@ -2,45 +2,10 @@
 local _,ns=...
 local H={denseBridgeLayout={key="warlock-slim-v1",height=285,nativeVitalsTop=190,nativeVitalsHeight=87,nativeSignalsTop=277,nativeSignalsHeight=58,gauges=140,units=140,unitHeight=20,activity=14,headerActivity=true,resources=140,setup=160,grid=160,roster=160,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
 ns.classes.WARLOCK=H
-H.specs={
- -- Native green slots in the retained October 12 build-70338 game frames
- -- verified these exact cast/effect IDs. Other ranks/builds are not inferred.
- {key="warlock.agony",name="Bane of Agony",petAttack=true,aura="target",nativeAuraIDs={["70338"]={[6217]=6217}}},
- {key="warlock.corruption",name="Corruption",petAttack=true,aura="target",nativeAuraIDs={["70338"]={[6223]=6223}}},
- {key="warlock.immolate",name="Immolate",petAttack=true,aura="target"},
- {key="warlock.shadowBolt",name="Shadow Bolt",petAttack=true,aura="player",auraName="Shadow Trance"},
- {key="warlock.searingPain",name="Searing Pain",petAttack=true,aura="target",auraName="Demonic Brand",nativeAuraCandidates={1293696}},
- {key="warlock.drainLife",name="Drain Life",petAttack=true},
- {key="warlock.drainSoul",name="Drain Soul",petAttack=true},
- {key="warlock.lifeTap",name="Life Tap",unit="player"},
- {key="warlock.demonArmor",name="Demon Armor",unit="player",aura="player"},
- {key="warlock.demonSkin",name="Demon Skin",unit="player",aura="player"},
- {key="warlock.soulLink",name="Soul Link",unit="player",aura="player"},
- {key="warlock.amplifyCurse",name="Amplify Curse",unit="player",aura="player"},
- {key="warlock.summonImp",name="Summon Imp",unit="player"},
- {key="warlock.summonVoidwalker",name="Summon Voidwalker",unit="player"},
- {key="warlock.summonSuccubus",name="Summon Succubus",unit="player"},
- {key="warlock.summonIncubus",name="Summon Incubus",unit="player"},
- {key="warlock.summonFelhunter",name="Summon Felhunter",unit="player"},
- {key="warlock.healthFunnel",name="Health Funnel",unit="pet"},
- {key="warlock.shoot",name="Shoot",petAttack=true},
- {key="warlock.createHealthstone",name="Create Healthstone",unit="player"},
- {key="warlock.siphonLife",name="Siphon Life",petAttack=true,aura="target"},
- {key="warlock.elements",name="Curse of the Elements",petAttack=true,aura="target"},
- -- Explicit alternate-unit keys never redirect an ordinary target spell.
- {key="warlock.mouseoverAgony",name="Bane of Agony",managedName="Feuxton Mouseover Bane of Agony",unit="mouseover",aura="mouseover",usageKey="warlock.agony",nativeAuraIDs={["70338"]={[6217]=6217}}},
- {key="warlock.mouseoverCorruption",name="Corruption",managedName="Feuxton Mouseover Corruption",unit="mouseover",aura="mouseover",usageKey="warlock.corruption",nativeAuraIDs={["70338"]={[6223]=6223}}},
- {key="warlock.mouseoverImmolate",name="Immolate",managedName="Feuxton Mouseover Immolate",unit="mouseover",aura="mouseover",usageKey="warlock.immolate"},
- {key="warlock.mouseoverSiphonLife",name="Siphon Life",managedName="Feuxton Mouseover Siphon Life",unit="mouseover",aura="mouseover",usageKey="warlock.siphonLife"},
- {key="warlock.mouseoverElements",name="Curse of the Elements",managedName="Feuxton Mouseover Curse of the Elements",unit="mouseover",aura="mouseover",usageKey="warlock.elements"},
- {key="warlock.conflagrate",name="Conflagrate",petAttack=true},
- {key="warlock.shadowburn",name="Shadowburn",petAttack=true},
- {key="warlock.incinerate",name="Incinerate",petAttack=true},
- {key="warlock.havoc",name="Bane of Havoc",petAttack=true,aura="target"},
- {key="warlock.mouseoverHavoc",name="Bane of Havoc",managedName="Feuxton Mouseover Bane of Havoc",unit="mouseover",aura="mouseover",usageKey="warlock.havoc"},
- {key="warlock.hellfire",name="Hellfire",unit="player"},
- {key="warlock.sacrifice",name="Sacrifice",unit="player",petAbility=true,offGlobalCooldown=true,aura="player"}
-}
+H.specs=ns.spellCatalog.WARLOCK.specs
+-- Class-owned native certificates, rank choices and form/queue handling.
+local spellOverrides={["warlock.agony"]={["nativeAuraIDs"]={["70338"]={[6217]=6217}}},["warlock.corruption"]={["nativeAuraIDs"]={["70338"]={[6223]=6223}}},["warlock.shadowBolt"]={["auraName"]="Shadow Trance"},["warlock.searingPain"]={["nativeAuraCandidates"]={1293696},["auraName"]="Demonic Brand"},["warlock.mouseoverAgony"]={["nativeAuraIDs"]={["70338"]={[6217]=6217}}},["warlock.mouseoverCorruption"]={["nativeAuraIDs"]={["70338"]={[6223]=6223}}}}
+for _,spec in ipairs(H.specs) do for field,value in pairs(spellOverrides[spec.key] or {}) do spec[field]=value end end
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext
  if G.text(G.read(UnitClass,2,"player"),16)~="WARLOCK" then return end

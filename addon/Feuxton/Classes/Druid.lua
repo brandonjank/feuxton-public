@@ -2,45 +2,10 @@
 local _,ns=...
 local H={coreSlotCount=2,denseBridgeLayout={key="druid-slim-v1",height=309,nativeVitalsTop=214,nativeVitalsHeight=87,nativeSignalsTop=301,nativeSignalsHeight=58,gauges=148,units=148,unitHeight=20,activity=14,headerActivity=true,resources=148,setup=184,grid=184,roster=184,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
 ns.classes.DRUID=H
-H.specs={
- {key="druid.wrath",name="Wrath",aura="player",auraName="Eclipse (Lunar)",nativeAuraCandidates={48518}},
- {key="druid.healingTouch",name="Healing Touch",healing=true,unit="player"},
- {key="druid.starfire",name="Starfire",aura="player",auraName="Eclipse (Solar)",nativeAuraCandidates={48517}},
- {key="druid.moonfire",name="Moonfire",aura="target"},{key="druid.insectSwarm",name="Insect Swarm",aura="target"},
- {key="druid.moonkinForm",name="Moonkin Form",unit="player",noToggle=true},
- {key="druid.hurricane",name="Hurricane",groundAtCursor=true},
- {key="druid.bearForm",name="Bear Form",unit="player",noToggle=true},
- {key="druid.direBearForm",name="Dire Bear Form",unit="player",noToggle=true},
- {key="druid.catForm",name="Cat Form",unit="player",noToggle=true},
- {key="druid.prowl",name="Prowl",unit="player",aura="player",noToggle=true},
- {key="druid.ravage",name="Ravage",powerType=3,startAttack=true},
- {key="druid.pounce",name="Pounce",powerType=3,startAttack=true},
- {key="druid.rake",name="Rake",powerType=3,aura="target",startAttack=true},
- {key="druid.shred",name="Shred",powerType=3,startAttack=true},
- {key="druid.claw",name="Claw",powerType=3,startAttack=true},
- {key="druid.rip",name="Rip",powerType=3,aura="target",startAttack=true},
- {key="druid.ferociousBite",name="Ferocious Bite",powerType=3,startAttack=true},
- {key="druid.faerieFire",name="Faerie Fire",aura="target"},
- {key="druid.faerieFireFeral",name="Faerie Fire (Feral)",aura="target",auraName="Faerie Fire",startAttack=true},
- {key="druid.primalBite",name="Primal Bite",powerType=1,startAttack=true},
- {key="druid.lacerate",name="Lacerate",powerType=1,aura="target",startAttack=true},
- {key="druid.maul",name="Maul",powerType=1,startAttack=true},
- {key="druid.swipe",name="Swipe",powerType=1,startAttack=true},
- {key="druid.rejuvenation",name="Rejuvenation",healing=true,unit="player"},
- {key="druid.regrowth",name="Regrowth",healing=true,unit="player"},
- {key="druid.swiftmend",name="Swiftmend",healing=true,unit="player"},
- {key="druid.wildGrowth",name="Wild Growth",healing=true,unit="player"},
- {key="druid.tranquility",name="Tranquility",unit="player"},
- {key="druid.markOfTheWild",name="Mark of the Wild",unit="player",aura="player"},
- {key="druid.thorns",name="Thorns",unit="player",aura="player"},
- {key="druid.barkskin",name="Barkskin",unit="player",aura="player"},
- {key="druid.frenziedRegeneration",name="Frenzied Regeneration",unit="player",powerType=1,aura="player"},
- {key="druid.enrage",name="Enrage",unit="player",aura="player"},
- {key="druid.innervate",name="Innervate",unit="player",aura="player"},
- {key="druid.naturesSwiftness",name="Nature's Swiftness",unit="player",aura="player"},
- {key="druid.attack",name="Attack",startAttack=true},
- {key="druid.healingTouchEfficient",name="Healing Touch",managedName="Feuxton Healing Touch Efficient",pinnedSpellID=5188,healing=true,unit="player"},
-}
+H.specs=ns.spellCatalog.DRUID.specs
+-- Class-owned native certificates, rank choices and form/queue handling.
+local spellOverrides={["druid.wrath"]={["nativeAuraCandidates"]={48518},["auraName"]="Eclipse (Lunar)",["aura"]="player"},["druid.starfire"]={["nativeAuraCandidates"]={48517},["auraName"]="Eclipse (Solar)",["aura"]="player"},["druid.moonkinForm"]={["noToggle"]=true},["druid.bearForm"]={["noToggle"]=true},["druid.direBearForm"]={["noToggle"]=true},["druid.catForm"]={["noToggle"]=true},["druid.prowl"]={["noToggle"]=true,["aura"]="player"},["druid.faerieFireFeral"]={["auraName"]="Faerie Fire"},["druid.markOfTheWild"]={["aura"]="player"},["druid.thorns"]={["aura"]="player"},["druid.barkskin"]={["aura"]="player"},["druid.frenziedRegeneration"]={["aura"]="player"},["druid.enrage"]={["aura"]="player"},["druid.innervate"]={["aura"]="player"},["druid.naturesSwiftness"]={["aura"]="player"},["druid.healingTouchEfficient"]={["pinnedSpellID"]=5188}}
+for _,spec in ipairs(H.specs) do for field,value in pairs(spellOverrides[spec.key] or {}) do spec[field]=value end end
 H.healingSpecs={H.specs[2],H.specs[25],H.specs[26],H.specs[27],H.specs[28],H.specs[38]}
 H.auraSpecs={};for i,spec in ipairs(H.specs)do H.auraSpecs[i]=spec end
 H.auraSpecs[39]={key="druid.clearcasting",name="Clearcasting",auraName="Clearcasting",aura="player",nativeAuraCandidates={16870}}

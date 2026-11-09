@@ -2,10 +2,11 @@
 ## Title: Feuxton
 ## Notes: Modular HUD and pixel data bridge for Feuxton.
 ## Author: Feuxton
-## Version: 0.81.49
+## Version: 0.81.50
 ## SavedVariables: FeuxtonDB
 
 Feuxton.lua
+SpellCatalog.lua
 Classes\Hunter.lua
 Classes\Shaman.lua
 Classes\Warrior.lua
@@ -28,6 +29,7 @@ Features\Consumables.lua
 Features\Racials.lua
 Features\ControlEffects.lua
 Features\CastTracking.lua
+Features\Rendering.lua
 Diagnostics.lua
 ProbeWindow.lua
 HunterSpells.lua

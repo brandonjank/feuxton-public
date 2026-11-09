@@ -1,53 +1,8 @@
--- Diagnostic report window and /feuxtonprobe command.
+-- Current telemetry declarations and atomic publication.
+-- Shared painting/native widgets live in Features/Rendering.lua.
 local _, ns = ...
 local S = ns.state
-
-S.panel = CreateFrame("Frame", nil, UIParent)
-S.panel:SetSize(700, 560)
-S.panel:SetPoint("CENTER")
-S.panel:SetFrameStrata("DIALOG")
-S.panel:Hide()
-S.background = S.panel:CreateTexture(nil, "BACKGROUND")
-S.background:SetAllPoints()
-S.background:SetColorTexture(0.04, 0.04, 0.04, 0.98)
-S.title = S.panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-S.title:SetPoint("TOPLEFT", 16, -16)
-S.title:SetText("Feuxton — select text and press Ctrl+C")
-S.close = CreateFrame("Button", nil, S.panel, "UIPanelCloseButton")
-S.close:SetPoint("TOPRIGHT", -4, -4)
-S.scroll = CreateFrame("ScrollFrame", nil, S.panel, "UIPanelScrollFrameTemplate")
-S.scroll:SetPoint("TOPLEFT", 16, -48)
-S.scroll:SetPoint("BOTTOMRIGHT", -36, 16)
-S.edit = CreateFrame("EditBox", nil, S.scroll)
-S.edit:SetMultiLine(true)
-S.edit:SetAutoFocus(false)
-S.edit:SetFontObject(ChatFontNormal)
-S.edit:SetWidth(630)
-S.edit:SetHeight(1400)
-S.edit:SetScript("OnEscapePressed", function() S.panel:Hide() end)
-S.edit:SetScript("OnTextChanged", function() S.scroll:UpdateScrollChildRect() end)
-S.scroll:SetScrollChild(S.edit)
-
-ns.report = S.report
-SLASH_FEUXTONPROBE1 = "/feuxtonprobe"
-SlashCmdList.FEUXTONPROBE = function(message)
-    message=(message or ""):lower():match("^%s*(.-)%s*$")
-    if message=="capture" then
-        local ok,snapshot=pcall(S.captureCapabilities)
-        if ok then print("Feuxton: saved "..snapshot.mode.." API snapshot ("..S.capabilitySummary(snapshot)..").")
-        else print("Feuxton: API snapshot failed: "..S.describe(snapshot)) end
-        return
-    elseif message~="" and message~="compare" then
-        print("Feuxton: /feuxtonprobe, /feuxtonprobe capture (no popup), /feuxtonprobe compare")
-        return
-    end
-    local ok,text=pcall(message=="compare" and S.compareCapabilities or S.report)
-    if not ok then print("Feuxton: capability report failed: "..S.describe(text)); return end
-    S.edit:SetText(text)
-    S.panel:Show()
-    S.edit:SetFocus()
-    S.edit:HighlightText()
-end
+local R = ns.rendering
 
 -- Production dense cells share the public envelope; private values remain native.
 function ns.initializeDenseBridge()
@@ -70,68 +25,19 @@ function ns.initializeDenseBridge()
         p:SetColorTexture(1,1,1,1);p:SetVertexColor(0,0,0,1)
         bridge.stateCells[#bridge.stateCells+1]=p;initialPaint.colors[i+1]=0
     end
-    -- Production owns its painter; the optional laboratory is not a dependency.
-    -- Compare fixed 48-byte blocks before decoding their 16 RGB cells. Cache
-    -- only public packet bytes/colors, separately for each destination array.
+    -- The publication owns destination state and metrics; rendering owns the
+    -- common block/color algorithm used by the main envelope and both footers.
     function bridge.paint(cells,packet)
-        local used=math.ceil(#packet/3)
-        assert(used<=#cells,"dense paint capacity exceeded")
+        assert(math.ceil(#packet/3)<=#cells,"dense paint capacity exceeded")
         local state=bridge.paintStates[cells]
         if not state then state={colors={},blocks={},extent=0};bridge.paintStates[cells]=state end
-        local limit=math.max(used,state.extent)
-        -- Retain the attempted extent on failure so a later blank packet also
-        -- clears cells written by a partially completed growing publication.
-        state.extent=limit
-        local visits,writes,skipped=0,0,0
         local detail=S.performance and S.performance.enabled and S.performance.detail and S.performance.paintDetail
-        local setterMs,controlMs,setterSamples,controlSamples=0,0,0,0
-        for first=1,limit,16 do
-            local index=math.floor((first-1)/16)+1
-            local chunk=string.sub(packet,(first-1)*3+1,(first+15)*3)
-            if state.blocks[index]==chunk then skipped=skipped+1
-            else
-                -- An interrupted block must be retried, even if the following
-                -- packet equals the block which preceded that failed attempt.
-                state.blocks[index]=nil
-                for i=first,math.min(first+15,limit) do
-                    visits=visits+1
-                    local at=(i-1)*3+1;local r,g,b=string.byte(packet,at,at+2)
-                    r,g,b=r or 0,g or 0,b or 0
-                    local value=r*65536+g*256+b
-                    if state.colors[i]~=value then
-                        -- A setter may fail after touching the widget. Unknown
-                        -- cached color forces the next attempt to repaint it.
-                        state.colors[i]=nil
-                        if detail then
-                            local before=S.profileClock()
-                            cells[i]:SetVertexColor(r/255,g/255,b/255,1)
-                            local after=S.profileClock()
-                            -- Adjacent guarded reads expose clock/control cost
-                            -- under this same workload; never subtract blindly.
-                            local controlBefore=S.profileClock()
-                            local controlAfter=S.profileClock()
-                            if before and after and after>=before then setterMs=setterMs+after-before;setterSamples=setterSamples+1 end
-                            if controlBefore and controlAfter and controlAfter>=controlBefore then controlMs=controlMs+controlAfter-controlBefore;controlSamples=controlSamples+1 end
-                        else cells[i]:SetVertexColor(r/255,g/255,b/255,1) end
-                        state.colors[i]=value;writes=writes+1
-                    end
-                end
-                state.blocks[index]=chunk
-            end
-        end
-        state.extent=used
+        local used,visits,writes,skipped=R.paintRGB(state,cells,packet,detail)
         bridge.paintedCells=used;bridge.paintVisits=visits;bridge.paintWrites=writes;bridge.paintSkippedBlocks=skipped
         local metrics=S.performance and S.performance.enabled and S.performance.paint
         if metrics then
             metrics.updates=metrics.updates+1;metrics.visits=metrics.visits+visits
             metrics.writes=metrics.writes+writes;metrics.skippedBlocks=metrics.skippedBlocks+skipped
-        end
-        -- Publish timing only after the whole paint succeeds. A partial failed
-        -- paint cannot masquerade as a completed low-cost update.
-        if detail then
-            detail.updates=detail.updates+1;detail.writes=detail.writes+writes
-            detail.setterMs=detail.setterMs+setterMs;detail.controlMs=detail.controlMs+controlMs
-            detail.setterSamples=detail.setterSamples+setterSamples;detail.controlSamples=detail.controlSamples+controlSamples
         end
     end
     -- Even-size stamps align with the native widget grid. RGB data cells are
@@ -223,31 +129,9 @@ do
         return type(value)=="number" and value>=0 and value<=maximum and value==math.floor(value) and value or nil
     end
     local function tri(value)return value==true and 2 or value==false and 1 or 0 end
-    local function clearText(text)pcall(text.SetText,text,"")end
-    local function nativeNumber(text,getter,unit,exists,powerType)
-        clearText(text)
-        if not exists or type(getter)~="function" then return {status=0,value=0},false end
-        local ok,value
-        if powerType~=nil then ok,value=pcall(getter,unit,powerType) else ok,value=pcall(getter,unit) end
-        if not ok then return {status=3,value=0},false end
-        local status,numeric
-        if S.isSecret(value) then status=2
-        elseif value==nil then return {status=0,value=0},false
-        else numeric=number(value,4294967295);if numeric==nil then return {status=3,value=0},false end;status=1 end
-        -- No tostring/string.format, arithmetic, comparison or GetText on a
-        -- secret. Setter acceptance is not proof that readable digits appeared.
-        local accepted=pcall(text.SetFormattedText,text,"%d",value)
-        if not accepted then clearText(text) end
-        return {status=status,value=numeric or 0},accepted
-    end
-    local function font(parent,x,y,width,height)
-        local text=parent:CreateFontString(nil,"OVERLAY")
-        text:SetPoint("TOPLEFT",x,-y);text:SetSize(width,height)
-        text:SetFont("Fonts\\ARIALN.TTF",14,"MONOCHROME")
-        text:SetJustifyH("LEFT");text:SetJustifyV("TOP");text:SetTextColor(1,1,1,1)
-        text:SetShadowOffset(0,0);text:SetShadowColor(0,0,0,0)
-        return text
-    end
+    local clearText=R.clearText
+    local nativeNumber=R.nativeNumber
+    local font=R.numberFont
 
     -- Production health/power footer. Public metadata names the completed HHD3
     -- frame; native glyphs are assigned before the metadata/checksum commit.
@@ -295,7 +179,7 @@ do
         for _,row in ipairs(state.rows) do for _,text in ipairs(row.fields) do clearText(text) end end
         -- A native setter can mutate and then fail. Force a complete repaint on
         -- recovery rather than trusting any cached successful color/block.
-        state.colors={};state.blocks={};state.paintedCells=0
+        state.colors={};state.blocks={};state.extent=0;state.paintedCells=0
     end
     function ns.configureProductionVitals(profile)
         if not profile or number(profile.nativeVitalsTop,65535)==nil or profile.nativeVitalsHeight~=87 then
@@ -309,23 +193,8 @@ do
     end
     local function paintProduction(state,packet)
         assert(#packet<=state.maximumPacketBytes,"Native metadata schema maximum exceeded")
-        local used=math.ceil(#packet/3);assert(used<=#state.cells,"Native vitals metadata capacity exceeded")
-        local limit=math.max(used,state.paintedCells);state.paintedCells=limit
-        for first=1,limit,16 do
-            local block=math.floor((first-1)/16)+1;local chunk=string.sub(packet,(first-1)*3+1,(first+15)*3)
-            if state.blocks[block]~=chunk then
-                state.blocks[block]=nil
-                for index=first,math.min(first+15,limit) do
-                    local offset=(index-1)*3+1;local r,g,b=string.byte(packet,offset,offset+2);r,g,b=r or 0,g or 0,b or 0
-                    local color=r*65536+g*256+b
-                    if state.colors[index]~=color then
-                        state.colors[index]=nil;state.cells[index]:SetVertexColor(r/255,g/255,b/255,1);state.colors[index]=color
-                    end
-                end
-                state.blocks[block]=chunk
-            end
-        end
-        state.paintedCells=used
+        assert(math.ceil(#packet/3)<=#state.cells,"Native vitals metadata capacity exceeded")
+        state.paintedCells=R.paintRGB(state,state.cells,packet)
     end
     local function productionMouseoverGeneration(classID)
         if classID~=4 then return 0 end
@@ -450,26 +319,7 @@ do
         end end
         return complete
     end
-    local function recordNativeError(state,reason,visible)
-        local restricted=S.isSecret(reason)
-        if not restricted and reason==nil then if visible then clearText(state.errorText) end;return end
-        local message="Native signals error unavailable"
-        if not restricted and type(reason)=="string" then
-            message=reason:gsub("[%z\1-\31\127]"," ")
-            message=message:match("([^/\\]+%.lua:%d+:.*)") or message
-            message=message:sub(1,256)
-            if message=="" then message="Native signals error unavailable" end
-        end
-        if visible then state.lastError=message;pcall(state.errorText.SetText,state.errorText,"Signals: "..message:sub(1,110))
-        else state.lastAuraError=message end
-        -- Only public bounded error text and a counter persist. No timing,
-        -- spell/aura value, object or secret reason is stored here.
-        if S.isSecret(FeuxtonDB) then return end
-        if type(FeuxtonDB)=="nil" then FeuxtonDB={} elseif type(FeuxtonDB)~="table" then return end
-        local previous=public(FeuxtonDB.nativeSignalsDiagnostic)
-        local count=type(previous)=="table" and number(previous.count,4294967295) or 0
-        FeuxtonDB.nativeSignalsDiagnostic={lastError=message,count=math.min(4294967295,(count or 0)+1)}
-    end
+    local recordNativeError=S.recordNativeSignalError
     function ns.clearNativeSignals(reason)
         local state=ns.nativeSignals;if not state then return end
         state.packet=nil;state.lastError=nil
@@ -481,7 +331,7 @@ do
         for _,text in ipairs(state.cooldownTexts) do clearText(text) end
         state.cooldownCollecting=false;state.cooldownBatchReady=false
         if query(InCombatLockdown)==false then hideSignalWrappers(state,false);state.auraVisibilityCertified=false;state.auraVisiblePage=nil end
-        state.colors={};state.blocks={};state.paintedCells=0
+        state.colors={};state.blocks={};state.extent=0;state.paintedCells=0
         recordNativeError(state,reason,true)
     end
     -- Only the coordinated producer batch may contribute spell identities.
@@ -553,10 +403,7 @@ do
         state.revision=(state.revision+1)%4294967296
         return entry.index
     end
-    local function numberFormatter(format)
-        assert(type(C_StringUtil)=="table" and type(C_StringUtil.CreateNumericRuleFormatter)=="function","Native number formatter unavailable")
-        local formatter=C_StringUtil.CreateNumericRuleFormatter();formatter:SetBreakpoints({{threshold=0,format=format}});return formatter
-    end
+    local numberFormatter=R.numberFormatter
     function ns.attachNativeSignalAura(index,button)
         local state=ns.nativeSignals;local entry=state and state.entries[index or 0]
         if not entry or not entry.active or query(InCombatLockdown)~=false then return false end
@@ -576,24 +423,7 @@ do
         if not ok then entry.assigned=0;entry.error=S.describe(err);if entry.wrapper then pcall(entry.wrapper.SetAlpha,entry.wrapper,0) end;return false end
         entry.error=nil;return true
     end
-    local function nativeTimer(text,fn,unit,allowed)
-        clearText(text)
-        if not allowed or type(fn)~="function" then return {status=0,value=0},false end
-        local ok,duration=pcall(fn,unit)
-        if not ok then return {status=3,value=0},false end
-        if not S.isSecret(duration) and duration==nil then return {status=0,value=0},false end
-        local obtained,value=pcall(function()return duration:GetRemainingDuration()end)
-        if not obtained then return {status=3,value=0},false end
-        local status,numeric
-        if S.isSecret(value) then status=2
-        elseif type(value)=="number" and value>=0 and value<=86400 and value==value then
-            -- Match native %.1f rounding only after the public-value guard.
-            status=1;numeric=math.floor(tonumber(string.format("%.1f",value))*10+.5)
-        elseif value==nil then return {status=0,value=0},false
-        else return {status=3,value=0},false end
-        local accepted=pcall(text.SetFormattedText,text,"%.1f",value);if not accepted then clearText(text) end
-        return {status=status,value=numeric or 0},accepted
-    end
+    local nativeTimer=R.nativeTimer
     local function outerSources(outer)
         local result={};local at=20;local count=string.byte(outer,17)
         for _=1,count do

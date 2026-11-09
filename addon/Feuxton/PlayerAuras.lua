@@ -25,11 +25,8 @@ do
     local nonce=math.random(1,16777215)
     local sessionDot=panel:CreateTexture(nil,"OVERLAY"); sessionDot:SetSize(4,4); sessionDot:SetPoint("TOPLEFT",648,-16)
     sessionDot:SetColorTexture(math.floor(nonce/65536)/255,math.floor(nonce/256)%256/255,nonce%256/255,1)
-    local specs={
-        {key="hunter.aspectHawk",name="Aspect of the Hawk",short="Hawk",base=13165,x=200,ids={13165,14318,14319,14320,14321,14322,25296}},
-        {key="hunter.aspectCheetah",name="Aspect of the Cheetah",short="Cheetah",base=5118,x=340,ids={5118}},
-        {key="hunter.aspectMonkey",name="Aspect of the Monkey",short="Monkey",base=13163,x=480,ids={13163}},
-    }
+    local specs=ns.spellCatalog.HUNTER.aspects
+    for i,spec in ipairs(specs) do spec.x=200+(i-1)*140 end
     ns.playerBuffSpecs=specs
     for _,spec in ipairs(specs) do
         spec.icon=panel:CreateTexture(nil,"ARTWORK"); spec.icon:SetSize(24,24); spec.icon:SetPoint("TOPLEFT",spec.x,-12)

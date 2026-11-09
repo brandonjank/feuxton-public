@@ -3,32 +3,7 @@ local _, ns = ...
 local paladin={}
 ns.classes.PALADIN=paladin
 paladin.denseBridgeLayout={key="paladin-slim-v1",height=263,nativeVitalsTop=118,nativeVitalsHeight=87,nativeSignalsTop=205,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=20,activity=14,headerActivity=true,resources=68,setup=88,grid=88,roster=88,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
-paladin.specs={
- {key="paladin.holyStrike",name="Holy Strike"},
- {key="paladin.judgement",name="Judgement"},
- {key="paladin.swiftJudgement",name="Swift Judgement",unit="player",offGlobalCooldown=true},
- {key="paladin.consecration",name="Consecration"},
- {key="paladin.sealRighteousness",name="Seal of Righteousness",unit="player"},
- {key="paladin.sealCommand",name="Seal of Command",unit="player"},
- {key="paladin.sealCrusader",name="Seal of the Crusader",unit="player"},
- {key="paladin.sealFury",name="Seal of Fury",unit="player"},
- {key="paladin.righteousFury",name="Righteous Fury",unit="player"},
- {key="paladin.holyLight",name="Holy Light",healing=true},
- {key="paladin.flashLight",name="Flash of Light",healing=true},
- {key="paladin.blessingMight",name="Blessing of Might"},
- {key="paladin.blessingWisdom",name="Blessing of Wisdom"},
- {key="paladin.blessingKings",name="Blessing of Kings"},
- {key="paladin.devotionAura",name="Devotion Aura",unit="player"},
- {key="paladin.retributionAura",name="Retribution Aura",unit="player"},
- {key="paladin.hammerJustice",name="Hammer of Justice",offGlobalCooldown=true},
- {key="paladin.exorcism",name="Exorcism"},
- {key="paladin.purify",name="Purify",unit="player"},
- {key="paladin.divineProtection",name="Divine Protection",unit="player"},
- {key="paladin.blessingProtection",name="Blessing of Protection",unit="player"},
- {key="paladin.divineShield",name="Divine Shield",unit="player"},
- {key="paladin.layHands",name="Lay on Hands",unit="player"},
- {key="paladin.autoAttack",name="Attack",startAttack=true},
-}
+paladin.specs=ns.spellCatalog.PALADIN.specs
 function paladin.capture()
     local group=ns.features.GroupContext
     local S=ns.state
@@ -105,15 +80,9 @@ end
 
 
 -- HHP5 observation stream. The desktop owns foreground-only input; Lua sends no casts.
-paladin.previewKeys={"holyStrike","judgement","sealRighteousness","sealCommand","sealCrusader","holyLight","sealFury","consecration","hammerJustice","devotionAura"}
-paladin.packetKeys={}
-for i,key in ipairs(paladin.previewKeys) do paladin.packetKeys[i]=key end
-paladin.packetKeys[11]="retributionAura"
-paladin.packetKeys[12]="righteousFury";paladin.packetKeys[13]="layHands";paladin.packetKeys[14]="divineProtection"
-paladin.packetKeys[15]="swiftJudgement"
-paladin.packetKeys[16]="exorcism"
-paladin.packetKeys[17]="blessingProtection"
-paladin.packetKeys[18]="flashLight"
+paladin.previewKeys={};paladin.packetKeys={}
+for i,key in ipairs(ns.spellCatalog.PALADIN.previewKeys) do paladin.previewKeys[i]=key:match("%.(.+)") end
+for i,key in ipairs(ns.spellCatalog.PALADIN.packetKeys) do paladin.packetKeys[i]=key:match("%.(.+)") end
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
 -- never compares or serializes it. Orange means no supported rendering path.

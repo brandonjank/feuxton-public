@@ -493,3 +493,74 @@ SlashCmdList.FEUXTONPERF=function(message)
     else print("Feuxton: /feuxtonperf on, /feuxtonperf detail, /feuxtonperf report, /feuxtonperf off.") end
 end
 
+
+-- Diagnostic presentation is independent of the telemetry publisher.
+S.panel = CreateFrame("Frame", nil, UIParent)
+S.panel:SetSize(700, 560)
+S.panel:SetPoint("CENTER")
+S.panel:SetFrameStrata("DIALOG")
+S.panel:Hide()
+S.background = S.panel:CreateTexture(nil, "BACKGROUND")
+S.background:SetAllPoints()
+S.background:SetColorTexture(0.04, 0.04, 0.04, 0.98)
+S.title = S.panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+S.title:SetPoint("TOPLEFT", 16, -16)
+S.title:SetText("Feuxton — select text and press Ctrl+C")
+S.close = CreateFrame("Button", nil, S.panel, "UIPanelCloseButton")
+S.close:SetPoint("TOPRIGHT", -4, -4)
+S.scroll = CreateFrame("ScrollFrame", nil, S.panel, "UIPanelScrollFrameTemplate")
+S.scroll:SetPoint("TOPLEFT", 16, -48)
+S.scroll:SetPoint("BOTTOMRIGHT", -36, 16)
+S.edit = CreateFrame("EditBox", nil, S.scroll)
+S.edit:SetMultiLine(true)
+S.edit:SetAutoFocus(false)
+S.edit:SetFontObject(ChatFontNormal)
+S.edit:SetWidth(630)
+S.edit:SetHeight(1400)
+S.edit:SetScript("OnEscapePressed", function() S.panel:Hide() end)
+S.edit:SetScript("OnTextChanged", function() S.scroll:UpdateScrollChildRect() end)
+S.scroll:SetScrollChild(S.edit)
+
+ns.report = S.report
+SLASH_FEUXTONPROBE1 = "/feuxtonprobe"
+SlashCmdList.FEUXTONPROBE = function(message)
+    message=(message or ""):lower():match("^%s*(.-)%s*$")
+    if message=="capture" then
+        local ok,snapshot=pcall(S.captureCapabilities)
+        if ok then print("Feuxton: saved "..snapshot.mode.." API snapshot ("..S.capabilitySummary(snapshot)..").")
+        else print("Feuxton: API snapshot failed: "..S.describe(snapshot)) end
+        return
+    elseif message~="" and message~="compare" then
+        print("Feuxton: /feuxtonprobe, /feuxtonprobe capture (no popup), /feuxtonprobe compare")
+        return
+    end
+    local ok,text=pcall(message=="compare" and S.compareCapabilities or S.report)
+    if not ok then print("Feuxton: capability report failed: "..S.describe(text)); return end
+    S.edit:SetText(text)
+    S.panel:Show()
+    S.edit:SetFocus()
+    S.edit:HighlightText()
+end
+
+
+function S.recordNativeSignalError(state,reason,visible)
+    local restricted=S.isSecret(reason)
+    if not restricted and reason==nil then if visible then ns.rendering.clearText(state.errorText) end;return end
+    local message="Native signals error unavailable"
+    if not restricted and type(reason)=="string" then
+        message=reason:gsub("[%z\1-\31\127]"," ")
+        message=message:match("([^/\\]+%.lua:%d+:.*)") or message
+        message=message:sub(1,256)
+        if message=="" then message="Native signals error unavailable" end
+    end
+    if visible then state.lastError=message;pcall(state.errorText.SetText,state.errorText,"Signals: "..message:sub(1,110))
+    else state.lastAuraError=message end
+    -- Only public bounded error text and a counter persist. No timing,
+    -- spell/aura value, object or secret reason is stored here.
+    if S.isSecret(FeuxtonDB) then return end
+    if type(FeuxtonDB)=="nil" then FeuxtonDB={} elseif type(FeuxtonDB)~="table" then return end
+    local previous=not S.isSecret(FeuxtonDB.nativeSignalsDiagnostic) and FeuxtonDB.nativeSignalsDiagnostic or nil
+    local count=type(previous)=="table" and previous.count or nil
+    if S.isSecret(count) or type(count)~="number" or count<0 or count>4294967295 or count~=math.floor(count) then count=0 end
+    FeuxtonDB.nativeSignalsDiagnostic={lastError=message,count=math.min(4294967295,(count or 0)+1)}
+end
