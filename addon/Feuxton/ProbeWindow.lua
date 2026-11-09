@@ -169,7 +169,7 @@ function ns.initializeDenseBridge()
         local packet=S.denseStatePacket(now,bridge.tick);bridge.lastStatePacket=packet
         bridge.paint(bridge.stateCells,packet,24);bridge.errors.state=nil
         -- Numeric native fields are an independently stamped extension of this
-        -- exact completed envelope. A footer failure cannot blank HHD2.
+        -- exact completed envelope. A footer failure cannot blank HHD3.
         if type(ns.refreshProductionVitals)=="function" then
             local ok,err=pcall(ns.refreshProductionVitals,bridge.tick,packet)
             bridge.errors.vitals=not ok and S.describe(err) or nil
@@ -249,7 +249,7 @@ do
         return text
     end
 
-    -- Production health/power footer. Public metadata names the completed HHD2
+    -- Production health/power footer. Public metadata names the completed HHD3
     -- frame; native glyphs are assigned before the metadata/checksum commit.
     -- No event handler, update callback, cached maximum or lab state is shared.
     local productionUnits={"player","target","pet","focus","party1","party2","party3","party4","mouseover"}
@@ -334,7 +334,7 @@ do
     end
     function ns.refreshProductionVitals(tick,outer)
         local state=ns.productionVitals;if not state or not state.enabled then return end
-        assert(type(outer)=="string" and #outer>=23 and outer:sub(1,4)=="HHD2","Native health envelope unavailable")
+        assert(type(outer)=="string" and #outer>=23 and outer:sub(1,4)=="HHD3","Native health envelope unavailable")
         local session=number(S.setupSession,4294967295);local targetGeneration=number(S.auraGeneration,255)
         local outerChecksum=unsignedLE(outer,#outer-3,4);local classID=string.byte(outer,13)
         assert(session and targetGeneration and number(tick,4294967295) and unsignedLE(outer,5,4)==session
@@ -598,8 +598,19 @@ do
         local result={};local at=20;local count=string.byte(outer,17)
         for _=1,count do
             local id=string.byte(outer,at);local length=unsignedLE(outer,at+3,2)
-            assert(id and length and at+4+length<=#outer-4,"Native signal main source invalid")
-            result[id]=outer:sub(at+5,at+4+length);at=at+5+length
+            assert(id and length and length>=4 and at+4+length<=#outer-4,"Native signal main source invalid")
+            -- HHD3 omits only the redundant schema/session prefix. Restore the
+            -- two sources this footer consumes, preserving their original
+            -- checksums and lifecycle ownership rather than reading packed
+            -- body offsets as if they were full standalone packets.
+            local schema=id==13 and "PCS1" or id==8 and "HHE2" or nil
+            if schema then
+                assert(not result[id],"Native signal main source duplicated")
+                local source=schema..outer:sub(5,8)..outer:sub(at+5,at+4+length)
+                assert(S.adler32(source:sub(1,#source-4))==unsignedLE(source,#source-3,4),"Native signal source checksum changed")
+                result[id]=source
+            end
+            at=at+5+length
         end
         assert(at==#outer-3,"Native signal main framing invalid");return result
     end
@@ -657,7 +668,7 @@ do
         local vitals=ns.productionVitals
         assert(vitals and vitals.packet and vitals.tick==tick and vitals.packet:sub(1,4)=="FHV3","Native signals await current vitals")
         local session=number(S.setupSession,4294967295);local generation=number(S.auraGeneration,255)
-        assert(type(outer)=="string" and outer:sub(1,4)=="HHD2" and unsignedLE(outer,5,4)==session and unsignedLE(outer,9,4)==tick and string.byte(outer,16)==generation,"Native signal envelope context changed")
+        assert(type(outer)=="string" and outer:sub(1,4)=="HHD3" and unsignedLE(outer,5,4)==session and unsignedLE(outer,9,4)==tick and string.byte(outer,16)==generation,"Native signal envelope context changed")
         local sources=outerSources(outer);local lifecycle=sources[13]
         assert(lifecycle and #lifecycle==21 and lifecycle:sub(1,4)=="PCS1" and unsignedLE(lifecycle,5,4)==session,"Native signal lifecycle source unavailable")
         local serial,kind,id=unsignedLE(lifecycle,9,4),string.byte(lifecycle,13),unsignedLE(lifecycle,14,4)

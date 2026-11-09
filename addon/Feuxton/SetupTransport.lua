@@ -83,9 +83,48 @@ function S.loadedAddonPacket(tick)
     local packet="HHV1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..loadedAddonBytes
     return packet..S.bytes(S.adler32(packet),4)
 end
--- Completed guarded producer packets feed one current HHD2 envelope.
+-- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI5",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1"}
+local sourceSession=S.setupSession
+local sourceSessionBytes=S.bytes(sourceSession,4)
+local function packedSource(id,packet,classID)
+    local schema=sourceSchemas[id]
+    if id>=16 and id<=21 then schema=classID==7 and "HHR8" or classID==2 and "HHR4" or classID==5 and "HHR7" or "HHR1" end
+    assert(schema and type(packet)=="string" and #packet>=12 and packet:sub(1,4)==schema and packet:sub(5,8)==sourceSessionBytes,"Invalid current source context")
+    -- Schema and session are determined by this checksummed envelope. Keep
+    -- the original source checksum so the decoder still validates producer
+    -- integrity and native stamp witnesses; never manufacture one on receipt.
+    return packet:sub(9)
+end
+local setupFragmentPayload,setupFragmentTick,setupFragmentOffset,setupFragmentLength=nil,nil,0,0
+local function unsignedAt(packet,offset,size)
+    local value=0;for i=size-1,0,-1 do value=value*256+packet:byte(offset+i) end;return value
+end
+local function setupFragmentChunk(entry,tick,budget)
+    -- A fragment is still one checksummed HHM1 source. It uses the reserved
+    -- flag2/count0 encoding and a byte offset instead of a fixed page index.
+    -- Core/party/native observations never yield their budget to this stream.
+    local original=entry and entry.packet
+    local payload=S.setupPayload
+    if budget<27 or type(payload)~="string" or #payload==0 or #payload>65536 or not original or #original<29
+        or original:sub(1,4)~="HHM1" or original:byte(11)~=0 or unsignedAt(original,18,4)~=#payload then return nil end
+    if payload~=setupFragmentPayload then setupFragmentPayload=payload;setupFragmentTick=nil;setupFragmentOffset=0;setupFragmentLength=0 end
+    if setupFragmentTick~=tick then
+        if setupFragmentTick~=nil then setupFragmentOffset=(setupFragmentOffset+setupFragmentLength)%#payload end
+        setupFragmentTick=tick
+    end
+    local length=math.min(328,budget-26,#payload-setupFragmentOffset)
+    if length<1 then return nil end
+    setupFragmentLength=length
+    local packet="HHM1"..original:sub(5,10)..S.bytes(2,1)..S.bytes(setupFragmentOffset,2)..S.bytes(0,2)
+        ..S.bytes(length,2)..original:sub(18,25)..payload:sub(setupFragmentOffset+1,setupFragmentOffset+length)
+    packet=packet..S.bytes(S.adler32(packet),4)
+    local body=packedSource(5,packet,0)
+    return S.bytes(5,1)..S.bytes(0,2)..S.bytes(#body,2)..body
+end
 function S.denseStatePacket(now,tick)
+    if sourceSession~=S.setupSession then sourceSession=S.setupSession;sourceSessionBytes=S.bytes(sourceSession,4) end
     local core=S.transportPackets[1];local classID=core and string.byte(core.packet,11) or 0
     local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 then ids[#ids+1]=11 elseif classID==5 then ids[#ids+1]=12 end
     for id=16,21 do ids[#ids+1]=id end
@@ -120,8 +159,11 @@ function S.denseStatePacket(now,tick)
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
         local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
-        if age and age>=0 and age<=maxAge then
-            local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#entry.packet,2)..entry.packet
+        -- A session transition cannot relabel a cached old producer packet.
+        -- Wait for that producer's new packet; missing remains unavailable.
+        if age and age>=0 and age<=maxAge and entry.packet:sub(5,8)==sourceSessionBytes then
+            local body=packedSource(id,entry.packet,classID)
+            local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#body,2)..body
             if id==5 then setupChunk=chunk
             elseif id==4 then courtesyChunk=chunk
             else chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk end
@@ -132,12 +174,22 @@ function S.denseStatePacket(now,tick)
     -- maximum party identities would otherwise invalidate the whole frame.
     S.courtesyDeferred=courtesyChunk~=nil and liveBytes+#courtesyChunk>2304
     if courtesyChunk and not S.courtesyDeferred then chunks[#chunks+1]=courtesyChunk;count=count+1;liveBytes=liveBytes+#courtesyChunk end
-    -- Setup is already a cached, optional paged stream. Keep combat/recipient
-    -- observations intact when unusually long identities or racials fill it.
-    if setupChunk and liveBytes+#setupChunk<=2304 then chunks[#chunks+1]=setupChunk;count=count+1 end
-    S.setupPageDeferred=setupChunk~=nil and liveBytes+#setupChunk>2304
+    -- Full pages retain normal throughput. When optional courtesy recipients
+    -- leave too little room, send only the setup bytes that fit. Once every
+    -- four completed batches courtesy may yield for one fragment; its absent
+    -- observation stays unavailable, never inherited as fresh.
+    local selectedSetup=setupChunk
+    if setupChunk and liveBytes+#setupChunk>2304 then
+        if 2304-liveBytes<27 and courtesyChunk and not S.courtesyDeferred and tick%4==0 then
+            chunks[#chunks]=nil;count=count-1;liveBytes=liveBytes-#courtesyChunk;S.courtesyDeferred=true
+        end
+        selectedSetup=setupFragmentChunk(S.transportPackets[5],tick,2304-liveBytes)
+    end
+    if selectedSetup then chunks[#chunks+1]=selectedSetup;count=count+1 end
+    S.setupPageDeferred=setupChunk~=nil and selectedSetup==nil
+    S.setupPageFragmented=selectedSetup~=nil and selectedSetup~=setupChunk
     local payload=table.concat(chunks)
-    local packet="HHD2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
+    local packet="HHD3"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
     packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=2304,"dense packet capacity exceeded: "..#packet)
     return packet
 end
