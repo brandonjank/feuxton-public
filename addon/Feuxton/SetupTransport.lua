@@ -111,6 +111,11 @@ function S.denseStatePacket(now,tick)
         S.transportPackets[14]=packet and {packet=packet,at=now} or nil
         ids[#ids+1]=14
     end
+    do
+        local ok,packet=pcall(ns.features.CastTracking.feedbackPacket,tick,now)
+        S.transportPackets[15]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=15
+    end
     local chunks,count={},0;local setupChunk,courtesyChunk;local liveBytes=23
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)

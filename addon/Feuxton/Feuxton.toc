@@ -2,7 +2,7 @@
 ## Title: Feuxton
 ## Notes: Modular HUD and pixel data bridge for Feuxton.
 ## Author: Feuxton
-## Version: 0.81.46
+## Version: 0.81.47
 ## SavedVariables: FeuxtonDB
 
 Feuxton.lua

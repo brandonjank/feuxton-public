@@ -44,7 +44,10 @@ do
     local tracking=ns.features.CastTracking
     local castActivity=tracking.newActivityState()
     tracking.currentActivity=castActivity
-    panel:SetScript("OnEvent",function(self,event,unit,guid,id)
+    tracking.currentFeedback=tracking.newFeedbackState()
+    panel:SetScript("OnEvent",function(self,event,unit,guid,id,extra)
+        tracking.feedbackEvent(tracking.currentFeedback,event,unit,guid,id,extra)
+        if event=="UI_ERROR_MESSAGE" or event=="UNIT_SPELLCAST_SENT" or event=="PLAYER_TARGET_CHANGED" then return end
         if event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_DEAD" then tracking.activityEvent(castActivity,event);return end
         if S.isSecret(unit) or unit~="player" then return end
         if tracking.activityEvent(castActivity,event,guid,id) then
@@ -52,7 +55,10 @@ do
             S.drawFlag(dots[1],castActivity.cast);S.drawFlag(dots[2],castActivity.channel)
         end
     end)
-    for _,event in ipairs({"UNIT_SPELLCAST_START","UNIT_SPELLCAST_STOP","UNIT_SPELLCAST_FAILED","UNIT_SPELLCAST_INTERRUPTED","UNIT_SPELLCAST_SUCCEEDED","UNIT_SPELLCAST_CHANNEL_START","UNIT_SPELLCAST_CHANNEL_STOP","PLAYER_ENTERING_WORLD","PLAYER_DEAD"}) do pcall(panel.RegisterEvent,panel,event) end
+    for _,event in ipairs({"UNIT_SPELLCAST_START","UNIT_SPELLCAST_STOP","UNIT_SPELLCAST_FAILED","UNIT_SPELLCAST_INTERRUPTED","UNIT_SPELLCAST_SUCCEEDED","UNIT_SPELLCAST_SENT","UNIT_SPELLCAST_CHANNEL_START","UNIT_SPELLCAST_CHANNEL_STOP","PLAYER_ENTERING_WORLD","PLAYER_DEAD","PLAYER_TARGET_CHANGED"}) do pcall(panel.RegisterEvent,panel,event) end
+    local feedbackOK,feedbackRegistered=pcall(panel.RegisterEvent,panel,"UI_ERROR_MESSAGE")
+    tracking.feedbackRegistered=feedbackOK and not S.isSecret(feedbackRegistered) and feedbackRegistered~=false
+    tracking.currentFeedback.registered=tracking.feedbackRegistered
     local elapsedTotal=0
     panel:SetScript("OnUpdate",function(self,elapsed)
         elapsedTotal=elapsedTotal+elapsed; if elapsedTotal<S.updateInterval() then return end; elapsedTotal=0
