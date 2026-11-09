@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.48",
+    "addonVersion":  "0.81.49",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v45",
-    "sourceRevision":  "a6fc7871a0ee469b41d7c5136746ebee0a146b55",
+    "contract":  "feuxton-dense-v46",
+    "sourceRevision":  "a583354b0374b95a62a47a398204d85bdf989d01",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -137,12 +137,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "8C72F2F804A066B7E6A1F4875B7611970A93D60204C78976A3587578D48D2049",
+                      "sha256":  "62AEC1C1E072F0AA7ADE1FB976FC18B42EE92C5BB916FDD494275E739FF6F8F0",
                       "size":  5419
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "D7927373862BD3D18947EBD6313E16F12AB526BAD2254F192EC694D6243748D4",
+                      "sha256":  "32FF54E7E276219ED095C0604B5A258E0D8AFDF9FF0F2A3132CCBFD5625CF54E",
                       "size":  960
                   },
                   {
@@ -177,8 +177,8 @@
                   },
                   {
                       "path":  "ProbeWindow.lua",
-                      "sha256":  "36B61CD5FF7B1AC6616D2EDDA516F88920AECC5C14318A32A4948C724552773B",
-                      "size":  49696
+                      "sha256":  "188B18C6AC6DFB734D84787E539CA46D54F7DE5F010BBA1082EBFA9F6D5D9895",
+                      "size":  50419
                   },
                   {
                       "path":  "ResourceGauges.lua",
@@ -192,8 +192,8 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "7178699635663FAAFDF896F7076B5D2210357EE87806B19381C0961394944F21",
-                      "size":  25606
+                      "sha256":  "7D06426E70A8B7CFE52C3DF3FBBD97368A151A8EC5E413F25DE12E80EA57D815",
+                      "size":  29117
                   },
                   {
                       "path":  "SpellWidgets.lua",
