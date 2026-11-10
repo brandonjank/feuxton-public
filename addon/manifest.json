@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.50",
+    "addonVersion":  "0.81.52",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v46",
-    "sourceRevision":  "f1505b1b1f657068ccdbc4c61bf6c2e45cb42ce8",
+    "contract":  "feuxton-dense-v48",
+    "sourceRevision":  "0c8fdfd39a82dedd93c777f4f9a0388c3cdfe8bf",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,13 +12,13 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "AD8CDA01D402CC07B26686F172F4A785E155BA291A62C40627FF3CE877804D2C",
-                      "size":  29693
+                      "sha256":  "A38E4AE4DA65853FEE3979004B12D72A9D15D43C1B5C2C08355C702CB4625FC7",
+                      "size":  29882
                   },
                   {
                       "path":  "Classes/Druid.lua",
-                      "sha256":  "91CAE2C7E4F6C2C9D5DEEA3EC134027CD0A9421059F7DD4EBC61BC85024790B6",
-                      "size":  12954
+                      "sha256":  "EAD50222D01FB70A32F7B75281F7482C158380E8F7DFBCB1312FA822C85679B5",
+                      "size":  13264
                   },
                   {
                       "path":  "Classes/Hunter.lua",
@@ -71,9 +71,19 @@
                       "size":  30134
                   },
                   {
+                      "path":  "Features/BuffCoordination.lua",
+                      "sha256":  "FE216289452992D73645626CF4A61641193CABB6BFE06D57C01E85A1F3150E61",
+                      "size":  14512
+                  },
+                  {
+                      "path":  "Features/BuffCoverage.lua",
+                      "sha256":  "AB5101DBECA405B4F1E1ECE24D6C047FF8AF181664C566E9C0712082E20D1C93",
+                      "size":  13971
+                  },
+                  {
                       "path":  "Features/CastTracking.lua",
-                      "sha256":  "F718DB6AEF35F427B1E1EA354F1391DA82BF70E031E6A6919DBFDDADDC219F63",
-                      "size":  13022
+                      "sha256":  "0023AE519A709A112643E45433287D16B278D3656CBAA5A26F22B3647BC21207",
+                      "size":  13180
                   },
                   {
                       "path":  "Features/Consumables.lua",
@@ -92,8 +102,8 @@
                   },
                   {
                       "path":  "Features/Healing.lua",
-                      "sha256":  "54EA9AE53CBE3F5A89C27AF66EA365EE707BF676662100E7F408ED6532B0015B",
-                      "size":  21256
+                      "sha256":  "9B412E12D835DB07E17C888C181D87F99CAD42F92AC1CDDB6E904C227B4B2503",
+                      "size":  23505
                   },
                   {
                       "path":  "Features/Interrupts.lua",
@@ -117,8 +127,8 @@
                   },
                   {
                       "path":  "Features/RecipientTargeting.lua",
-                      "sha256":  "4D241CAE53744BEE7E0563F688EC07F7155E5FEA7AAE05814D9C63806F6515B8",
-                      "size":  4683
+                      "sha256":  "6C2230094A157A0C57B60B14470BB5C96C1E90285D3BFB3961A97D797343EE99",
+                      "size":  4685
                   },
                   {
                       "path":  "Features/Rendering.lua",
@@ -142,18 +152,18 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "6C2B2B058D84FE7120A70C5A682085BDCDE5C1CF2C28B1C4BBAEBAFDECF323C2",
+                      "sha256":  "171C4E5262CFDE87FC2A877490CA2F785D6DFF8A5C5D642877D2EF50D5930201",
                       "size":  5419
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "6774434C60D6D1F583ABFA0B519603738E87D999BFD597C398648A8C63A1272A",
-                      "size":  1002
+                      "sha256":  "3DBB8809CB8B1A41A6BEA9DEA8A2D3ABB9D4DE791FF08056EF0E2E91C18FFB5E",
+                      "size":  1060
                   },
                   {
                       "path":  "GuideTransport.lua",
-                      "sha256":  "97621BCC7E526CFBF38EA3D10CC9AD47C860F0F3FDE7A71A1DFFD64BD285FE40",
-                      "size":  19962
+                      "sha256":  "63643C3D62B42F2B87413F46C8F71C96CCF60B2BCBF04E5D7287DE3B04C3E88E",
+                      "size":  20257
                   },
                   {
                       "path":  "Hud.lua",
@@ -192,18 +202,18 @@
                   },
                   {
                       "path":  "Settings.lua",
-                      "sha256":  "F1C5F96AD01A375F51A4356376C53D35AE971E0AAF31E0D82AAC34DBD6FD8F69",
-                      "size":  6410
+                      "sha256":  "7D55FB5640FF33385C66EB0866AA31E21AE3098753434E57944DB92A45E98D94",
+                      "size":  7356
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "7D06426E70A8B7CFE52C3DF3FBBD97368A151A8EC5E413F25DE12E80EA57D815",
-                      "size":  29117
+                      "sha256":  "17FEE81865A49B24F8F07DADDBB05908AADCDF9176619BCF38D708160204C828",
+                      "size":  30577
                   },
                   {
                       "path":  "SpellCatalog.lua",
-                      "sha256":  "9916A0B8224DBA2D79C062A0A4FDB2665D65BE4C50F934B0B1C693819B07640E",
-                      "size":  22023
+                      "sha256":  "B856B17BC504FBE03EF1ECBC2C9B88FED3E92322EBB408055D2CC93656E55624",
+                      "size":  101175
                   },
                   {
                       "path":  "SpellWidgets.lua",
