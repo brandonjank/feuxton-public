@@ -27,7 +27,7 @@ end
 do
     local settings=CreateFrame("Frame",nil,UIParent)
     ns.rateSettings=settings
-    settings:SetSize(360,340); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
+    settings:SetSize(360,376); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
     settings:EnableMouse(true); settings:SetMovable(true); settings:RegisterForDrag("LeftButton")
     settings:SetScript("OnDragStart",function(self) self:StartMoving() end)
     settings:SetScript("OnDragStop",function(self) self:StopMovingOrSizing() end)
@@ -73,13 +73,25 @@ do
         else status:SetText("Change HUD diagnostics outside combat.") end
         self:SetChecked(ns.extendedHudDiagnostics())
     end)
+    local coordination=CreateFrame("CheckButton",nil,settings,"UICheckButtonTemplate")
+    coordination:SetSize(24,24);coordination:SetPoint("TOPLEFT",16,-186)
+    settings.buffCoordination=coordination
+    local coordinationLabel=settings:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    coordinationLabel:SetPoint("TOPLEFT",44,-192);coordinationLabel:SetWidth(294);coordinationLabel:SetJustifyH("LEFT")
+    coordinationLabel:SetText("Coordinate party buffs (optional)")
+    coordination:SetScript("OnClick",function(self)
+        if ns.setBuffCoordinationEnabled(self:GetChecked()==true) then
+            status:SetText(S.buffCoordinationEnabled() and "Party coordination ON. Aura checks still apply." or "Party coordination OFF.")
+        else status:SetText("Change party coordination outside combat.") end
+        self:SetChecked(S.buffCoordinationEnabled())
+    end)
     local blessings={}
     for i,key in ipairs({"paladin.blessingMight","paladin.blessingWisdom","paladin.blessingKings","paladin.retributionAura"}) do
         local label=i==1 and "Might" or i==2 and "Wisdom" or i==3 and "Kings" or "Retribution"
         local b=button(label,16+((i-1)%2)*152,142,function(_,mouse)
             if mouse=="RightButton" then S.setSpellUse(key,nil) else S.setSpellUse(key,S.spellUseCode(key)==1) end
             ns.refreshRateSettings()
-        end,190+math.floor((i-1)/2)*36)
+        end,226+math.floor((i-1)/2)*36)
         -- Right click restores app control; left click toggles addon ON/OFF.
         b:RegisterForClicks("LeftButtonUp","RightButtonUp")
         blessings[i]={button=b,key=key,label=label}
@@ -88,14 +100,15 @@ do
     local itemButton=button("Healthstone",16,294,function(_,mouse)
         if mouse=="RightButton" then S.setSpellUse("shared.healthstone",nil) else S.setSpellUse("shared.healthstone",S.spellUseCode("shared.healthstone")==1) end
         ns.refreshRateSettings()
-    end,266)
+    end,302)
     itemButton:RegisterForClicks("LeftButtonUp","RightButtonUp")
-    hint:SetPoint("TOPLEFT",16,-304);hint:SetText("Spells/items: left click toggles; right click follows app.")
+    hint:SetPoint("TOPLEFT",16,-340);hint:SetText("Spells/items: left click toggles; right click follows app.")
     ns.refreshRateSettings=function()
         local itemCode=S.spellUseCode("shared.healthstone")
         itemButton.hhText:SetText("Healthstone: "..(itemCode==1 and "OFF" or itemCode==2 and "ON" or "Follow app"))
         input:SetText(tostring(S.updateRateMs))
         extended:SetChecked(ns.extendedHudDiagnostics())
+        coordination:SetChecked(S.buffCoordinationEnabled())
         local paladin=S.readableCall(function() local _,class=UnitClass("player");return class end)=="PALADIN"
         for _,entry in ipairs(blessings) do
             if paladin then entry.button:Show() else entry.button:Hide() end

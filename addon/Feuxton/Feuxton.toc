@@ -2,7 +2,7 @@
 ## Title: Feuxton
 ## Notes: Modular HUD and pixel data bridge for Feuxton.
 ## Author: Feuxton
-## Version: 0.81.50
+## Version: 0.81.52
 ## SavedVariables: FeuxtonDB
 
 Feuxton.lua
@@ -18,6 +18,8 @@ Classes\Priest.lua
 Classes\Rogue.lua
 Features\Healing.lua
 Features\GroupContext.lua
+Features\BuffCoordination.lua
+Features\BuffCoverage.lua
 Features\RecipientTargeting.lua
 Features\Interrupts.lua
 Features\PetSupport.lua

@@ -3,9 +3,20 @@
 local _, ns = ...
 local F={cache={},revision=0}
 ns.features.Healing=F
-F.actions={{key="paladin.blessingMight",name="Blessing of Might"},{key="paladin.blessingWisdom",name="Blessing of Wisdom"},{key="paladin.blessingKings",name="Blessing of Kings"}}
+F.actions={{key="paladin.blessingMight",name="Blessing of Might",buff=true},{key="paladin.blessingWisdom",name="Blessing of Wisdom",buff=true},{key="paladin.blessingKings",name="Blessing of Kings",buff=true}}
+if ns.classes.PALADIN then ns.classes.PALADIN.buffAbilityKeys={};for i,spec in ipairs(F.actions)do ns.classes.PALADIN.buffAbilityKeys[i]=spec.key end end
 F.heal={key="paladin.holyLight",name="Holy Light",healing=true}
 F.flashHeal={key="paladin.flashLight",name="Flash of Light",healing=true}
+-- Binding publication can include optional routine benefits without changing
+-- the fixed native/healing roster slots.
+function F.targetingSpecs()
+    if F.druid then return ns.classes.DRUID.targetingSpecs end
+    return F.deliverySpecs()
+end
+function F.buffSpecs()
+    if F.druid then return ns.classes.DRUID.buffSpecs end
+    return F.classKey=="PALADIN" and F.actions or {}
+end
 function F.deliverySpecs()
     if F.druid then return ns.classes.DRUID.healingSpecs end
     local specs={F.actions[1],F.actions[2],F.heal}
@@ -56,6 +67,7 @@ end
 function F.scan(unit,identity,now)
     local G=ns.features.GroupContext;local S=ns.state
     if S.readableCall(InCombatLockdown)~=false then return {{},{},{}} end
+    if ns.features.BuffCoverage then return ns.features.BuffCoverage.scan(unit,identity,now) end
     local cached=F.cache[unit]
     if cached and cached.identity==identity and now-cached.at>=0 and now-cached.at<.25 then return cached.values,cached.at end
     local values={{},{},{}};local complete=false
@@ -98,7 +110,7 @@ function F.recipientUnit(button,spec)
     return "target"
 end
 function F.track(button,spec,down)
-    if not (spec.healing or spec.support) or down~=true or not F.receiptsAvailable then return end
+    if not (spec.healing or spec.support or spec.buff) or down~=true or not F.receiptsAvailable then return end
     local G=ns.features.GroupContext
     -- Match the secure button's recipient before the click. The later SENT
     -- name/cast GUID still has to confirm this exact player or friendly unit.
@@ -112,8 +124,18 @@ function F.track(button,spec,down)
             local name,now=G.fullName(unit,64),timeNow()
             if name~="" and now and button.hhSpellID then
                 F.sequence=((F.sequence or 0)+1)%4294967296
-                local attempt={sequence=F.sequence,revision=F.revision,index=member,unit=unit,identity=guid,name=name,id=button.hhSpellID,at=now,kind=0}
+                local abilityKey=spec.abilityKey
+                if spec.buff and not abilityKey then for _,benefit in ipairs(F.buffSpecs())do if benefit.name==spec.name then abilityKey=benefit.key;break end end end
+                local attempt={sequence=F.sequence,revision=F.revision,index=member,unit=unit,identity=guid,name=name,id=button.hhSpellID,at=now,kind=0,buff=spec.buff==true,abilityKey=abilityKey}
                 if spec.support then F.supportAttempt=attempt else F.attempt=attempt end
+                if spec.buff and abilityKey and type(ns.state.buffPeerIntent)=="function"then
+                    local known=G.read((type(C_SpellBook)=="table"and C_SpellBook.IsSpellKnown)or IsSpellKnown,1,button.hhSpellID).value==true
+                    local legal=known and G.read(UnitIsUnit,1,unit,"player").value==true
+                    local effect=ns.buffCatalog and ns.buffCatalog.byAbility[abilityKey]
+                    local level=G.read(UnitLevel,1,unit)
+                    for _,rank in ipairs(effect and effect.ranks or {})do if rank.spellID==button.hhSpellID and rank.managedDeliveryQualified==true and (rank.recipientUnrestricted==true or rank.recipientMinLevel and level.status=="observed"and type(level.value)=="number"and level.value>=rank.recipientMinLevel)then legal=known;break end end
+                    if legal then ns.state.buffPeerIntent(abilityKey,guid)end
+                end
                 trace("MANAGED_CLICK",unit,guid,name,button.hhSpellID)
             end
             return
@@ -123,7 +145,7 @@ end
 function F.delivery(spec)
     local S=ns.state;local class=S.readableCall(function() local _,key=UnitClass("player");return key end)
     local e=S.managedSpells and S.managedSpells.entries[class..":"..(spec.managedName or spec.name)]
-    return S.bindingsValid and S.managedSpells.current(e) and e.unit=="target" and e.friendly and (not (spec.healing or spec.support) or F.receiptsAvailable) and e or nil
+    return S.bindingsValid and S.managedSpells.current(e) and e.unit=="target" and e.friendly and (not (spec.healing or spec.support or spec.buff) or F.receiptsAvailable) and e or nil
 end
 function F.initialize()
     if F.events then return end
@@ -148,6 +170,7 @@ function F.initialize()
             r.kind=event=="UNIT_SPELLCAST_FAILED" and 3 or 4;r.eventAt=now
         elseif (event=="UNIT_SPELLCAST_SUCCEEDED" or event=="UNIT_SPELLCAST_FAILED" or event=="UNIT_SPELLCAST_INTERRUPTED") and not ns.state.isSecret(a) and not ns.state.isSecret(b) and r.cast and a==r.cast and b==r.id then
             r.kind=event=="UNIT_SPELLCAST_SUCCEEDED" and 2 or event=="UNIT_SPELLCAST_FAILED" and 3 or 4;r.eventAt=now
+            if r.kind==2 and r.buff and r.abilityKey and type(ns.state.buffPeerSuccess)=="function"then ns.state.buffPeerSuccess(r.abilityKey)end
         end
     end
     F.events:SetScript("OnEvent",function(self,event,unit,a,b,c)
@@ -157,7 +180,7 @@ function F.initialize()
 end
 function F.refresh(now)
     local G=ns.features.GroupContext;local S=ns.state
-    if S.readableCall(InCombatLockdown)~=false or type(now)~="number" then return end
+    if type(now)~="number" then return end
     local class=G.text(G.read(UnitClass,2,"player"),16)
     if class~="PALADIN" and class~="SHAMAN" and class~="DRUID" then return end
     if F.classKey~=class then
@@ -169,13 +192,16 @@ function F.refresh(now)
             F.actions={{key="shaman.healingWave",name="Healing Wave",healing=true},{key="shaman.lesserHealingWave",name="Lesser Healing Wave",healing=true}}
             F.heal={key="shaman.riptide",name="Riptide",healing=true}
         else
-            F.actions={{key="paladin.blessingMight",name="Blessing of Might"},{key="paladin.blessingWisdom",name="Blessing of Wisdom"},{key="paladin.blessingKings",name="Blessing of Kings"}}
+            F.actions={{key="paladin.blessingMight",name="Blessing of Might",buff=true},{key="paladin.blessingWisdom",name="Blessing of Wisdom",buff=true},{key="paladin.blessingKings",name="Blessing of Kings",buff=true}}
             F.heal={key="paladin.holyLight",name="Holy Light",healing=true}
         end
     end
+    -- Public class shape must be correct even after a reload during combat.
+    -- Secure button/binding preparation remains entirely outside combat.
+    if S.readableCall(InCombatLockdown)~=false then return end
     F.initialize();ns.features.RecipientTargeting.refresh()
     local signature={tostring(ns.features.RecipientTargeting.revision)}
-    for _,spec in ipairs(F.deliverySpecs()) do local e=F.delivery(spec);signature[#signature+1]=e and e.id..":"..e.key or "" end
+    for _,spec in ipairs(F.targetingSpecs()) do local e=F.delivery(spec);signature[#signature+1]=e and e.id..":"..e.key or "" end
     if class=="PALADIN" and ns.features.ControlEffects then local e=F.delivery(ns.features.ControlEffects.freedom);signature[#signature+1]=e and e.id..":"..e.key or "" end
     local value=table.concat(signature,"|")
     if value~=F.signature then F.signature=value;F.revision=(F.revision+1)%4294967296 end
@@ -214,7 +240,7 @@ function F.spell(spec,unit)
         -- replacement spells. Only one verified fallback is unambiguous.
         if candidate then id=not ambiguous and candidate or nil end
     end
-    if spec.healing and S.bindingsValid then
+    if (spec.healing or spec.buff) and S.bindingsValid then
         local chosen
         local family=F.druid and S.managedSpells and S.managedSpells.entries["DRUID:"..(spec.managedName or spec.name)]
         if family and S.managedSpells.current(family) then chosen=family end

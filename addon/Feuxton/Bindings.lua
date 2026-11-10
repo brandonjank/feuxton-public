@@ -78,7 +78,8 @@ function M.catalog()
         if existing then if explicit then existing.unit=existing.friendly and "target" or unit;existing.id=id;existing.startAttack=startAttack;existing.petAttack=petAttack end;return end
         local declaredHelpful=spec and (spec.healing==true or spec.support==true or spec.friendly==true) and spec.directSelf~=true and unit~="pet"
         local friendly=declaredHelpful or (class=="PALADIN" and (name=="Holy Light" or name=="Flash of Light" or name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings" or name=="Blessing of Freedom")) or (class=="SHAMAN" and (name=="Healing Wave" or name=="Lesser Healing Wave" or name=="Riptide")) or (class=="DRUID" and name=="Healing Touch")
-        local entry={id=id,name=name,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom" or spec and spec.support==true,healing=friendly and name~="Blessing of Freedom" and name~="Blessing of Might" and name~="Blessing of Wisdom" and name~="Blessing of Kings",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
+        local buff=spec and spec.buff==true or class=="PALADIN" and (name=="Blessing of Might" or name=="Blessing of Wisdom" or name=="Blessing of Kings")
+        local entry={id=id,name=name,abilityKey=spec and spec.key,managedName=managedName,unit=friendly and "target" or unit,friendly=friendly,support=name=="Blessing of Freedom" or spec and spec.support==true,buff=buff,healing=friendly and not buff and name~="Blessing of Freedom",startAttack=startAttack,petAttack=petAttack,noToggle=spec and spec.noToggle,groundAtCursor=spec and spec.groundAtCursor};byName[family]=entry;candidates[#candidates+1]=entry
     end
     if class=="DRUID" then
         candidates[#candidates+1]={id=0,name="Feuxton Stop Casting",unit="player",stopCasting=true}
@@ -211,7 +212,7 @@ function M.refresh()
                     entry.tankMarkHook=true
                 end
                 if (candidate.friendly or candidate.name=="Lay on Hands") and not entry.recipientHook then
-                    local spec={healing=candidate.healing or candidate.name=="Lay on Hands",support=candidate.support,directSelf=candidate.name=="Lay on Hands"}
+                    local spec={healing=candidate.healing or candidate.name=="Lay on Hands",support=candidate.support,buff=candidate.buff,abilityKey=candidate.abilityKey,name=candidate.name,directSelf=candidate.name=="Lay on Hands"}
                     entry.button:SetScript("PreClick",function(button,mouse,down) ns.features.Healing.track(button,spec,down) end)
                     if candidate.friendly then
                         entry.button:SetAttribute("hh-heal",candidate.healing==true or candidate.support==true)

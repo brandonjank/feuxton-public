@@ -276,6 +276,8 @@ do
     -- Nested attribution for the final publication work. Wrappers preserve
     -- return values/errors and do not query a clock while profiling is OFF.
     S.denseStatePacket=S.profileFunction(S.denseStatePacket,"packet assembly (includes support)")
+    if ns.features.BuffCoverage then ns.features.BuffCoverage.packet=S.profileFunction(ns.features.BuffCoverage.packet,"buff packet") end
+    if ns.features.BuffCoordination then ns.features.BuffCoordination.packet=S.profileFunction(ns.features.BuffCoordination.packet,"buff peer packet") end
     ns.features.ControlEffects.packet=S.profileFunction(ns.features.ControlEffects.packet,"support packet")
     ns.features.Consumables.packet=S.profileFunction(ns.features.Consumables.packet,"consumable packet")
     S.denseBridge.paint=S.profileFunction(S.denseBridge.paint,"packet paint")

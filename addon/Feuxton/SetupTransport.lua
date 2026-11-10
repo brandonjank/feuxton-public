@@ -85,7 +85,7 @@ function S.loadedAddonPacket(tick)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI5",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1"}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI5",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1"}
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
@@ -98,6 +98,10 @@ local function packedSource(id,packet,classID)
     return packet:sub(9)
 end
 local setupFragmentPayload,setupFragmentTick,setupFragmentOffset,setupFragmentLength=nil,nil,0,0
+-- One completed optional source belongs to one publication. Rebuilding that
+-- exact publication cannot advance its recipient page or retry a nil result.
+-- This never caches native/raw API values or changes their original clocks.
+local buffPublication
 local function unsignedAt(packet,offset,size)
     local value=0;for i=size-1,0,-1 do value=value*256+packet:byte(offset+i) end;return value
 end
@@ -155,7 +159,15 @@ function S.denseStatePacket(now,tick)
         S.transportPackets[15]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=15
     end
-    local chunks,count={},0;local setupChunk,courtesyChunk;local liveBytes=23
+    if ns.features.BuffCoverage and (classID==7 or classID==5) then
+        if not buffPublication or buffPublication.session~=S.setupSession or buffPublication.classID~=classID or buffPublication.tick~=tick or buffPublication.now~=now then
+            local ok,packet=pcall(ns.features.BuffCoverage.packet,now,tick)
+            buffPublication={session=S.setupSession,classID=classID,tick=tick,now=now,entry=ok and packet and {packet=packet,at=now} or nil}
+        end
+        S.transportPackets[22]=buffPublication.entry
+        ids[#ids+1]=22
+    else buffPublication=nil;S.transportPackets[22]=nil end
+    local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk;local liveBytes=23
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
         local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
@@ -166,12 +178,19 @@ function S.denseStatePacket(now,tick)
             local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#body,2)..body
             if id==5 then setupChunk=chunk
             elseif id==4 then courtesyChunk=chunk
+            elseif id==22 then buffChunk=chunk
             else chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk end
         end
     end
     -- Core, party and shared runtime data always retain their budget. Optional
     -- courtesy recipients take priority over paged setup, but also yield when
     -- maximum party identities would otherwise invalidate the whole frame.
+    -- Buffs are optional and bounded. Courtesy keeps precedence, and one
+    -- setup-fragment opportunity per four batches cannot be consumed by them.
+    local courtesyBudget=courtesyChunk and liveBytes+#courtesyChunk<=2304 and #courtesyChunk or 0
+    local setupBudget=setupChunk and tick%4==0 and 27 or 0
+    S.buffPageDeferred=buffChunk~=nil and liveBytes+courtesyBudget+#buffChunk+setupBudget>2304
+    if buffChunk and not S.buffPageDeferred then chunks[#chunks+1]=buffChunk;count=count+1;liveBytes=liveBytes+#buffChunk end
     S.courtesyDeferred=courtesyChunk~=nil and liveBytes+#courtesyChunk>2304
     if courtesyChunk and not S.courtesyDeferred then chunks[#chunks+1]=courtesyChunk;count=count+1;liveBytes=liveBytes+#courtesyChunk end
     -- Full pages retain normal throughput. When optional courtesy recipients

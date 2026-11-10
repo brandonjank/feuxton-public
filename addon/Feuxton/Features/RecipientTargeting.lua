@@ -76,8 +76,8 @@ function T.packet(now,tick)
   if valid and e.existing then existing=existing+2^(i-1) end
  end
  packet=packet..S.bytes(existing,2)
- packet=packet..S.bytes(#F.deliverySpecs(),1)
- for _,spec in ipairs(F.deliverySpecs()) do
+ packet=packet..S.bytes(#F.targetingSpecs(),1)
+ for _,spec in ipairs(F.targetingSpecs()) do
   local e=F.delivery(spec);packet=packet..S.bytes(e and e.id or 0,4)..S.bytes(e and S.compactBindingCode(e.key) or 0,2)
  end
  return packet..S.bytes(S.adler32(packet),4)

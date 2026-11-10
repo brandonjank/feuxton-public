@@ -7,6 +7,10 @@ H.specs=ns.spellCatalog.DRUID.specs
 local spellOverrides={["druid.wrath"]={["nativeAuraCandidates"]={48518},["auraName"]="Eclipse (Lunar)",["aura"]="player"},["druid.starfire"]={["nativeAuraCandidates"]={48517},["auraName"]="Eclipse (Solar)",["aura"]="player"},["druid.moonkinForm"]={["noToggle"]=true},["druid.bearForm"]={["noToggle"]=true},["druid.direBearForm"]={["noToggle"]=true},["druid.catForm"]={["noToggle"]=true},["druid.prowl"]={["noToggle"]=true,["aura"]="player"},["druid.faerieFireFeral"]={["auraName"]="Faerie Fire"},["druid.markOfTheWild"]={["aura"]="player"},["druid.thorns"]={["aura"]="player"},["druid.barkskin"]={["aura"]="player"},["druid.frenziedRegeneration"]={["aura"]="player"},["druid.enrage"]={["aura"]="player"},["druid.innervate"]={["aura"]="player"},["druid.naturesSwiftness"]={["aura"]="player"},["druid.healingTouchEfficient"]={["pinnedSpellID"]=5188}}
 for _,spec in ipairs(H.specs) do for field,value in pairs(spellOverrides[spec.key] or {}) do spec[field]=value end end
 H.healingSpecs={H.specs[2],H.specs[25],H.specs[26],H.specs[27],H.specs[28],H.specs[38]}
+H.buffSpecs={H.specs[30],H.specs[31]}
+H.buffAbilityKeys={};for i,spec in ipairs(H.buffSpecs)do H.buffAbilityKeys[i]=spec.key end
+H.targetingSpecs={};for i,spec in ipairs(H.healingSpecs)do H.targetingSpecs[i]=spec end
+for i,spec in ipairs(H.buffSpecs)do spec.deliverySlot=5+i;H.targetingSpecs[6+i]=spec end
 H.auraSpecs={};for i,spec in ipairs(H.specs)do H.auraSpecs[i]=spec end
 H.auraSpecs[39]={key="druid.clearcasting",name="Clearcasting",auraName="Clearcasting",aura="player",nativeAuraCandidates={16870}}
 local function integer(S,value,low,high)
