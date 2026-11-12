@@ -108,7 +108,7 @@ function H.initializePreview()
   local packet="DRS2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   local settled=GetTime()>=(bridge.settledAt or math.huge)
   for i,spec in ipairs(H.specs)do
-   local r=readings[i];local entry=S.managedSpells and S.managedSpells.entries["DRUID:"..(spec.managedName or spec.name)];local key=S.bindingsValid and S.managedSpells.current(entry)and S.compactBindingCode(entry.key)or 0
+   local r=readings[i];local entry=S.managedSpells and S.managedSpells.delivery("DRUID",spec.managedName or spec.name);local key=S.bindingsValid and S.managedSpells.deliveryCurrent(entry)and S.compactBindingCode(entry.key)or 0
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,r.ready,r.aura or{}})do flags=flags+G.code(value)*4^(j-1)end
    local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=integer(S,S.safeField(info,"castTime"),0,10000)or 65535
    local usage=S.spellUseCode(spec.key)+(settled and bridge.absence and bridge.absence[i]and 4 or 0)+(settled and bridge.configured and bridge.configured[i]and 8 or 0)

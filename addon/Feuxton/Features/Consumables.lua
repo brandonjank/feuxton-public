@@ -42,11 +42,54 @@ end
 -- Rest inventory contains public item facts only. Live ownership, readiness and
 -- keys are read again for each completed envelope; cached metadata cannot use an item.
 C.rest={dirty=true,bindingsDirty=true,wellFedDirty=true,wellFedDescription="",wellFedDescriptionKnown=false,items={},byID={},pending={},present={},reserved={},revision=0,page=0,complete=false}
+C.bagIndex={dirty=true,rows={},facts={}}
 local function restText(value,limit)
     return not ns.state.isSecret(value) and type(value)=="string" and #value<=(limit or 512) and value or nil
 end
 local function restNumber(value,maximum)
     local n=number(value);return n and n<=(maximum or 2147483647) and n or nil
+end
+function C.invalidateBagIndex()C.bagIndex.dirty=true end
+-- Deferred discovery shares only public identity/position and static item
+-- facts. Live ownership/count, locks, cooldown and usability are never cached.
+function C.bagLocations()
+    local S=ns.state;local I=C.bagIndex
+    if not I.dirty or S.readableCall(InCombatLockdown)~=false then return I.rows,I.complete end
+    I.dirty=false;I.rows={};I.facts={};I.complete=true
+    local container=type(C_Container)=="table" and C_Container or {}
+    local slots=container.GetContainerNumSlots or GetContainerNumSlots;local info=container.GetContainerItemInfo
+    local bags=restNumber(NUM_BAG_SLOTS,8)or restNumber(NUM_TOTAL_EQUIPPED_BAG_SLOTS,8)
+    if bags==nil or type(slots)~="function"or type(info)~="function"then I.complete=false;return I.rows,I.complete end
+    local visited=0
+    for bag=0,bags do
+        local count=restNumber(S.readableCall(slots,bag),128)
+        if count==nil then I.complete=false
+        else for slot=1,count do
+            visited=visited+1;if visited>256 then I.complete=false;break end
+            local ok,value=pcall(info,bag,slot)
+            if not ok or S.isSecret(value)then I.complete=false
+            elseif value~=nil then
+                local id=restNumber(S.safeField(value,"itemID"))
+                if not id or id==0 then I.complete=false else I.rows[#I.rows+1]={bag=bag,slot=slot,itemID=id}end
+            end
+        end end
+        if visited>256 then break end
+    end
+    return I.rows,I.complete
+end
+function C.publicItemFacts(id)
+    local S=ns.state;local cached=C.bagIndex.facts[id]
+    if cached~=nil then return cached or nil end
+    local fn=api("GetItemInfo","GetItemInfo");local facts
+    if type(fn)=="function"then
+        local values={pcall(fn,id)}
+        if values[1]==true then
+            local classID,subclassID=restNumber(values[13],255),restNumber(values[14],255)
+            if classID~=nil and subclassID~=nil then facts={classID=classID,subclassID=subclassID,itemLevel=restNumber(values[5],65534),minLevel=restNumber(values[6],65534),name=restText(values[2],128),itemDescription=restText(values[19])}end
+        end
+    end
+    C.bagIndex.facts[id]=facts or false -- unavailable static facts remain unknown to each consumer
+    return facts
 end
 local function restString(value)
     return value==nil and ns.state.bytes(65535,2) or ns.state.bytes(#value,2)..value
@@ -144,21 +187,17 @@ function C.updateWellFedDescription(index)
     C.refreshRestCatalog()
 end
 local function restItemInfo(id,bag,slot)
-    local S=ns.state;local fn=api("GetItemInfo","GetItemInfo")
-    if type(fn)~="function"then return nil end
-    local values={pcall(fn,id)}
-    if values[1]~=true then return nil end
-    local classID,subclassID=restNumber(values[13],255),restNumber(values[14],255)
-    if classID==nil or subclassID==nil then return nil end
-    if classID~=0 or subclassID~=5 then return false end -- actual food/drink subclass only
+    local S=ns.state;local facts=C.publicItemFacts(id)
+    if not facts then return nil end
+    if facts.classID~=0 or facts.subclassID~=5 then return false end -- actual food/drink subclass only
     local useSpellID;local spell=api("GetItemSpell","GetItemSpell")
     if type(spell)=="function"then
         local ok,_,value=pcall(spell,id);if ok then useSpellID=restNumber(value);if useSpellID==0 then useSpellID=nil end end
     end
     local descriptionAPI=S.spellAPI and S.spellAPI.GetSpellDescription or GetSpellDescription
     local useDescription=useSpellID and restText(S.readableCall(descriptionAPI,useSpellID)) or nil
-    return {itemID=id,useSpellID=useSpellID,minLevel=restNumber(values[6],65534),name=restText(values[2],128),
-        itemDescription=restText(values[19]),useDescription=useDescription,tooltipText=restTooltip(bag,slot)}
+    return {itemID=id,useSpellID=useSpellID,minLevel=facts.minLevel,name=facts.name,
+        itemDescription=facts.itemDescription,useDescription=useDescription,tooltipText=restTooltip(bag,slot)}
 end
 function C.scanRestInventory()
     local S=ns.state;local R=C.rest
@@ -166,41 +205,20 @@ function C.scanRestInventory()
     R.dirty=false;R.complete=true;R.locale=restText(S.readableCall(GetLocale),16)
     R.pending={};R.present={}
     for _,item in ipairs(R.items)do item.locations={}end
-    local container=type(C_Container)=="table" and C_Container or {}
-    local slots=container.GetContainerNumSlots or GetContainerNumSlots
-    local info=container.GetContainerItemInfo
-    local bags=restNumber(NUM_BAG_SLOTS,8)or restNumber(NUM_TOTAL_EQUIPPED_BAG_SLOTS,8)
-    if bags==nil or type(slots)~="function"or type(info)~="function"then R.complete=false
-    else
-        local visited=0
-        for bag=0,bags do
-            local count=restNumber(S.readableCall(slots,bag),128)
-            if count==nil then R.complete=false
-            else for slot=1,count do
-                visited=visited+1
-                if visited>256 then R.complete=false;break end
-                local ok,value=pcall(info,bag,slot)
-                if not ok or S.isSecret(value) then R.complete=false
-                elseif value~=nil then
-                    local id=restNumber(S.safeField(value,"itemID"))
-                    if not id or id==0 then R.complete=false
-                    else
-                        R.present[id]=true
-                        local facts=restItemInfo(id,bag,slot)
-                        if facts==nil then R.complete=false;R.pending[id]=true
-                        elseif facts then
-                            local item=R.byID[id]
-                            if not item and #R.items<8 then item={itemID=id};R.byID[id]=item;R.items[#R.items+1]=item;R.bindingsDirty=true end
-                            if not item then R.complete=false
-                            else
-                                if item.useSpellID~=facts.useSpellID then R.bindingsDirty=true end
-                                for _,field in ipairs({"useSpellID","minLevel","name","itemDescription","useDescription","tooltipText"})do item[field]=facts[field]end
-                                item.locations=item.locations or {};item.locations[#item.locations+1]={bag=bag,slot=slot}
-                            end
-                        end
-                    end
-                end
-            end end
+    local locations,complete=C.bagLocations();R.complete=complete==true
+    for _,location in ipairs(locations)do
+        local id=location.itemID;R.present[id]=true
+        local facts=restItemInfo(id,location.bag,location.slot)
+        if facts==nil then R.complete=false;R.pending[id]=true
+        elseif facts then
+            local item=R.byID[id]
+            if not item and #R.items<8 then item={itemID=id};R.byID[id]=item;R.items[#R.items+1]=item;R.bindingsDirty=true end
+            if not item then R.complete=false
+            else
+                if item.useSpellID~=facts.useSpellID then R.bindingsDirty=true end
+                for _,field in ipairs({"useSpellID","minLevel","name","itemDescription","useDescription","tooltipText"})do item[field]=facts[field]end
+                item.locations=item.locations or {};item.locations[#item.locations+1]={bag=location.bag,slot=location.slot}
+            end
         end
     end
     table.sort(R.items,function(a,b)return a.itemID<b.itemID end)
@@ -417,12 +435,13 @@ events:SetScript("OnEvent",function(_,event,unit)
         -- Other addons request item data when opening bags, loot and vendors.
         -- Their unrelated completions must not scan our bags or rebuild keys.
         if not id or not (R.pending[id] or R.byID[id] and R.present[id])then return end
-        R.dirty=true;return
+        C.invalidateBagIndex();R.dirty=true;return
     end
     if event=="UPDATE_BINDINGS"then R.bindingsDirty=true;return end
     if event=="PLAYER_ENTERING_WORLD"then
         C.installRestHook();C.bindingItemID=nil;R.bindingsDirty=true
     end
+    if event=="BAG_UPDATE_DELAYED" or event=="PLAYER_ENTERING_WORLD"then C.invalidateBagIndex()end
     C.scannedAt=nil;R.dirty=true
     if event~="BAG_UPDATE_DELAYED"then R.wellFedDirty=true end
     -- The coordinated consumable producer coalesces pending inventory work.

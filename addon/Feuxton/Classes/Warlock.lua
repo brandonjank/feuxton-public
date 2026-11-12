@@ -125,9 +125,12 @@ function H.initializePreview()
   local hellfire=readings[33];renderChannelCosts(hellfire.id,hellfire.learned.status=="observed" and hellfire.learned.value==true)
   local packet="WLS5"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
-   local r=readings[i];local entry=S.managedSpells and S.managedSpells.entries["WARLOCK:"..(spec.managedName or spec.name)]
+   local r=readings[i];local M=S.managedSpells;local family=spec.managedName or spec.name
+   local entry=M and M.entries["WARLOCK:"..family]
+   if M and not spec.petAbility then entry=M.delivery("WARLOCK",family)end
    local compatible=not spec.petAbility or entry and entry.id==r.id and entry.petActionSlot==r.petActionSlot and entry.petIdentity==r.petIdentity
-   local key=S.bindingsValid and compatible and S.managedSpells.current(entry) and S.compactBindingCode(entry.key) or 0
+   local current=M and(spec.petAbility and M.current(entry)or not spec.petAbility and M.deliveryCurrent(entry))
+   local key=S.bindingsValid and compatible and current and S.compactBindingCode(entry.key) or 0
    local ready=r.ready
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
    local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=spec.petAbility and r.castMs or S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end

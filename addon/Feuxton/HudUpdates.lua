@@ -140,12 +140,14 @@ S.handlers.PLAYER_REGEN_ENABLED = function()
     S.resolveSpells(); S.discoverBindings(); S.refreshFlags(); S.refreshCooldowns()
 end
 function S.bindingsChanged()
+    if S.managedSpells and S.managedSpells.invalidatePlayerMappings then S.managedSpells.invalidatePlayerMappings() end
     S.bindingsValid=false
     S.discoverBindings()
 end
 S.handlers.UPDATE_BINDINGS = S.bindingsChanged
 S.handlers.UPDATE_SHAPESHIFT_FORMS = S.bindingsChanged
 function S.invalidateMappings(kind,slot)
+    if S.managedSpells and S.managedSpells.invalidatePlayerMappings then S.managedSpells.invalidatePlayerMappings(kind,slot) end
     local function invalidate(list)
         for _,tile in ipairs(list) do for _,mapping in ipairs(tile.mappings or {}) do
             if not mapping.managed and (not kind or mapping.kind==kind) and (not slot or slot==0 or mapping.slot==slot) then mapping.invalidated=true end

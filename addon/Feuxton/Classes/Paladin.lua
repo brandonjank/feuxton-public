@@ -4,6 +4,8 @@ local paladin={}
 ns.classes.PALADIN=paladin
 paladin.denseBridgeLayout={key="paladin-slim-v1",height=263,nativeVitalsTop=118,nativeVitalsHeight=87,nativeSignalsTop=205,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=20,activity=14,headerActivity=true,resources=68,setup=88,grid=88,roster=88,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
 paladin.specs=ns.spellCatalog.PALADIN.specs
+-- Stop melee swings before selected-target incapacitation; recovery owns any follow-up.
+for _,spec in ipairs(paladin.specs) do if spec.key=="paladin.repentance" then spec.stopAttack=true end end
 function paladin.capture()
     local group=ns.features.GroupContext
     local S=ns.state
@@ -358,8 +360,8 @@ function paladin.initializePreview()
             local id=ok and group.field(info,"spellID") or {};id=id.status=="observed" and type(id.value)=="number" and id.value>0 and math.floor(id.value)==id.value and id.value or 0
             local chosen
             if S.bindingsValid then for _,mapping in ipairs(S.setupMappings or {}) do
-                if ((mapping.id==id and id>0) or mapping.name==spec.name) and (mapping.managed and S.mappingCurrent(mapping) or not mapping.managed and not mapping.invalidated and S.specialMappingCurrent(mapping)) then
-                    if mapping.key and (not chosen or (chosen.kind~="spell" and mapping.kind=="spell")) then chosen=mapping end
+                if ((mapping.id==id and id>0) or not mapping.playerOwned and mapping.name==spec.name) and S.mappingCurrent(mapping) then
+                    if mapping.key and (not chosen or mapping.playerOwned and not chosen.playerOwned or mapping.playerOwned==chosen.playerOwned and chosen.kind~="spell" and mapping.kind=="spell") then chosen=mapping end
                 end
             end end
             local visualChosen=chosen
@@ -372,7 +374,10 @@ function paladin.initializePreview()
             local range,rangeRead,rangeRaw={};local rangeSource=api.IsSpellInRange
             if bound>0 then range,rangeRead,rangeRaw=ns.features.RangeTracking.observeRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
             local ready={}
-            if bound>0 and type(api.GetSpellCooldown)=="function" then
+            -- The readable API includes the global cooldown. Off-GCD abilities
+            -- leave this field unknown and use the native ignore-GCD widget,
+            -- otherwise an unrelated GCD would override their own readiness.
+            if bound>0 and not spec.offGlobalCooldown and type(api.GetSpellCooldown)=="function" then
                 local cdOK,cd=pcall(api.GetSpellCooldown,bound)
                 local start=cdOK and group.field(cd,"startTime") or {};local duration=cdOK and group.field(cd,"duration") or {};local enabled=cdOK and group.field(cd,"isEnabled") or {}
                 if start.status=="observed" and duration.status=="observed" and type(start.value)=="number" and type(duration.value)=="number" and enabled.status=="observed" and enabled.value==true then

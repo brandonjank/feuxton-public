@@ -85,7 +85,7 @@ function S.loadedAddonPacket(tick)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI6",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1"}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI6",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI2"}
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
@@ -167,7 +167,30 @@ function S.denseStatePacket(now,tick)
         S.transportPackets[22]=buffPublication.entry
         ids[#ids+1]=22
     else buffPublication=nil;S.transportPackets[22]=nil end
-    local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk;local liveBytes=23
+    if classID==7 and ns.features.Interrupts and type(ns.features.Interrupts.extraPacket)=="function" then
+        local ok,packet=pcall(ns.features.Interrupts.extraPacket,tick)
+        S.transportPackets[23]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=23
+    else S.transportPackets[23]=nil end
+    local bandages=ns.features.Bandages
+    if bandages and type(bandages.packet)=="function" then
+        local ok,packet=pcall(bandages.packet,tick)
+        S.transportPackets[24]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=24
+    else S.transportPackets[24]=nil end
+    local potions=ns.features.Potions
+    if potions and type(potions.packet)=="function" then
+        local ok,packet=pcall(potions.packet,now,tick)
+        S.transportPackets[25]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=25
+    else S.transportPackets[25]=nil end
+    local recruitment=ns.features.GuildRecruitment
+    if recruitment and type(recruitment.packet)=="function" then
+        local ok,packet=pcall(recruitment.packet,tick)
+        S.transportPackets[26]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=26
+    else S.transportPackets[26]=nil end
+    local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk,interruptChunk,bandageChunk,potionChunk,guildChunk;local liveBytes=23;local selectedInterruptActive=false
     local restIndex,restBaseChunk,restFullChunk,restOffers
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
@@ -180,8 +203,16 @@ function S.denseStatePacket(now,tick)
             if id==5 then setupChunk=chunk
             elseif id==4 then courtesyChunk=chunk
             elseif id==22 then buffChunk=chunk
+            elseif id==23 then interruptChunk=chunk
+            elseif id==24 then bandageChunk=chunk
+            elseif id==25 then potionChunk=chunk
+            elseif id==26 then guildChunk=chunk
             else
                 chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk
+                if id==8 and age<=S.updateRateMs+50 and entry.packet:byte(13)==S.auraGeneration then
+                    local nameSize=entry.packet:byte(18)
+                    selectedInterruptActive=nameSize~=nil and entry.packet:byte(19+nameSize)==2
+                end
                 if id==9 and #entry.packet>35 then
                     -- Rest offers are optional. The same HHI6 producer can
                     -- retain its complete original recovery prefix alone.
@@ -195,6 +226,9 @@ function S.denseStatePacket(now,tick)
             end
         end
     end
+    local extra=S.transportPackets[23]
+    local hoverCombat=S.readableCall(UnitAffectingCombat,"player")==true
+    S.interruptPageUrgent=interruptChunk~=nil and (selectedInterruptActive or hoverCombat and extra and extra.packet:byte(36)==2) or false
     S.restPageDeferred=false
     if restIndex then
         local saved=#restFullChunk-#restBaseChunk
@@ -212,10 +246,25 @@ function S.denseStatePacket(now,tick)
     -- maximum party identities would otherwise invalidate the whole frame.
     -- Buffs are optional and bounded. Courtesy keeps precedence, and one
     -- setup-fragment opportunity per four batches cannot be consumed by them.
+    -- Idle observations retain courtesy precedence. An actually observed enemy
+    -- cast may temporarily yield courtesy/buff pages to interrupt evidence.
+    -- Both paths preserve core rows and the once-per-four setup opportunity.
     local courtesyBudget=courtesyChunk and liveBytes+#courtesyChunk<=2304 and #courtesyChunk or 0
     local setupBudget=setupChunk and tick%4==0 and 27 or 0
+    local reserveCourtesy=S.interruptPageUrgent and 0 or courtesyBudget
+    S.interruptPageDeferred=interruptChunk~=nil and liveBytes+reserveCourtesy+setupBudget+#interruptChunk>2304
+    S.interruptPageDeferredReason=S.interruptPageDeferred and (S.interruptPageUrgent and "mandatory-and-setup-budget" or "courtesy-and-setup-budget") or nil
+    if interruptChunk and not S.interruptPageDeferred then chunks[#chunks+1]=interruptChunk;count=count+1;liveBytes=liveBytes+#interruptChunk end
+    courtesyBudget=courtesyChunk and liveBytes+#courtesyChunk<=2304 and #courtesyChunk or 0
+    S.potionPageDeferred=potionChunk~=nil and liveBytes+courtesyBudget+setupBudget+#potionChunk>2304
+    if potionChunk and not S.potionPageDeferred then chunks[#chunks+1]=potionChunk;count=count+1;liveBytes=liveBytes+#potionChunk end
+    S.bandagePageDeferred=bandageChunk~=nil and liveBytes+courtesyBudget+setupBudget+#bandageChunk>2304
+    if bandageChunk and not S.bandagePageDeferred then chunks[#chunks+1]=bandageChunk;count=count+1;liveBytes=liveBytes+#bandageChunk end
     S.buffPageDeferred=buffChunk~=nil and liveBytes+courtesyBudget+#buffChunk+setupBudget>2304
     if buffChunk and not S.buffPageDeferred then chunks[#chunks+1]=buffChunk;count=count+1;liveBytes=liveBytes+#buffChunk end
+    -- Social observations never evict core, recovery, courtesy or setup data.
+    S.guildRecruitmentPageDeferred=guildChunk~=nil and liveBytes+courtesyBudget+setupBudget+#guildChunk>2304
+    if guildChunk and not S.guildRecruitmentPageDeferred then chunks[#chunks+1]=guildChunk;count=count+1;liveBytes=liveBytes+#guildChunk end
     S.courtesyDeferred=courtesyChunk~=nil and liveBytes+#courtesyChunk>2304
     if courtesyChunk and not S.courtesyDeferred then chunks[#chunks+1]=courtesyChunk;count=count+1;liveBytes=liveBytes+#courtesyChunk end
     -- Full pages retain normal throughput. When optional courtesy recipients

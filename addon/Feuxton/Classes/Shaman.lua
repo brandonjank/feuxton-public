@@ -21,8 +21,8 @@ function H.initializePreview()
   B.auras(bridge,H.specs,readings)
   local packet="SHS2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
-   local r=readings[i];local entry=S.managedSpells and S.managedSpells.entries["SHAMAN:"..spec.name]
-   local key=S.bindingsValid and S.managedSpells.current(entry) and S.compactBindingCode(entry.key) or 0
+   local r=readings[i];local entry=S.managedSpells and S.managedSpells.delivery("SHAMAN",spec.name)
+   local key=S.bindingsValid and S.managedSpells.deliveryCurrent(entry) and S.compactBindingCode(entry.key) or 0
    local ready=r.ready
    if spec.key=="shaman.autoAttack" then r.learned={status="observed",value=r.id==6603};r.usable={status="observed",value=true};r.mana={status="observed",value=false};ready={status="observed",value=true} end
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
