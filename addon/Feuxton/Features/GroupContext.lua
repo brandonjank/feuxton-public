@@ -126,7 +126,6 @@ function feature.initialize()
         local friendly=(playerClass=="PALADIN" or playerClass=="SHAMAN" or playerClass=="DRUID") and ns.features.Healing or nil
         local now=S.readableCall(GetTime)
         if friendly then
-            friendly.spellStatus={}
             if type(now)~="number" or not pcall(friendly.refresh,now) then friendly=nil end
         elseif ns.features.Healing then pcall(ns.features.Healing.refresh,now) end
         for index,display in ipairs(displays) do

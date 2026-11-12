@@ -232,7 +232,7 @@ local function initializeNative(S)
     end
 end
 
-local function renderNative(tile,bound,learned,chosen,info,S)
+local function renderNative(tile,bound,learned,chosen,info,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
     tile.spellID=bound>0 and bound or nil;tile.known=learned.status=="observed" and learned.value or false
     S.renderSpellIcon(tile,info)
     S.renderCooldown(tile)
@@ -242,7 +242,9 @@ local function renderNative(tile,bound,learned,chosen,info,S)
     local valid=visible and slot==chosen.slot
     local rangeOK,usableOK=false,false
     if chosen and chosen.managed then
-        rangeOK,usableOK=ns.features.RangeTracking.render(tile.visualSignals,bound,chosen.unit)
+        -- The public packet checks target range. Self/pet native indicators
+        -- still need their own direct range query; usability has no unit.
+        rangeOK,usableOK=ns.features.RangeTracking.render(tile.visualSignals,bound,chosen.unit,chosen.unit=="target" and rangeRead or nil,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
     elseif valid then
         local hotkey=button.HotKey
         if type(hotkey)~="table" and type(hotkey)~="userdata" then hotkey=nil end
@@ -365,9 +367,10 @@ function paladin.initializePreview()
             if keyCode==0 then chosen=nil end
             local bound=chosen and chosen.id or id;bound=type(bound)=="number" and bound>0 and bound==math.floor(bound) and bound or 0
             local learned=bound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,bound) or {}
-            local usable,mana={},{}
-            if bound>0 then usable,mana=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
-            local range=bound>0 and ns.features.RangeTracking.readRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and bound or spec.name,"target") or {}
+            local usable,mana={},{};local usableRead,usableRaw,manaRaw,usableSource
+            if bound>0 then usable,mana,usableRead,usableRaw,manaRaw,usableSource=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
+            local range,rangeRead,rangeRaw={};local rangeSource=api.IsSpellInRange
+            if bound>0 then range,rangeRead,rangeRaw=ns.features.RangeTracking.observeRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
             local ready={}
             if bound>0 and type(api.GetSpellCooldown)=="function" then
                 local cdOK,cd=pcall(api.GetSpellCooldown,bound)
@@ -380,7 +383,7 @@ function paladin.initializePreview()
             local flags=0
             for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
             packet=packet..S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
-            renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S)
+            renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
             if index<=16 or index==18 then ns.features.SpellBridge.renderManaCost(paladin.nativeTiles[index].manaCost,bound,learned.status=="observed" and learned.value==true) end
             paladin.verifiedAuraIDs=paladin.verifiedAuraIDs or {}
             local family=spec.key..":"..bound

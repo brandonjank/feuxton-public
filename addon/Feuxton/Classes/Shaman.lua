@@ -11,10 +11,13 @@ function H.initializePreview()
  local tick,elapsed=0,0
  local function render()
   if not S.executionBytes then return end
-  local F=ns.features.Healing;F.spellStatus={};tick=(tick+1)%4294967296
+  local F=ns.features.Healing;tick=(tick+1)%4294967296
   local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local readings={}
-  for i,spec in ipairs(H.specs) do local r=F.spell(spec,spec.unit or "target");readings[i]=r;B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec) end
+  for i,spec in ipairs(H.specs) do
+   local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or "target");readings[i]=r
+   B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
+  end
   B.auras(bridge,H.specs,readings)
   local packet="SHS2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do

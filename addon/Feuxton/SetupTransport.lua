@@ -85,7 +85,7 @@ function S.loadedAddonPacket(tick)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI5",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1"}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI6",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1"}
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
@@ -168,6 +168,7 @@ function S.denseStatePacket(now,tick)
         ids[#ids+1]=22
     else buffPublication=nil;S.transportPackets[22]=nil end
     local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk;local liveBytes=23
+    local restIndex,restBaseChunk,restFullChunk,restOffers
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
         local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
@@ -179,7 +180,31 @@ function S.denseStatePacket(now,tick)
             if id==5 then setupChunk=chunk
             elseif id==4 then courtesyChunk=chunk
             elseif id==22 then buffChunk=chunk
-            else chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk end
+            else
+                chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk
+                if id==9 and #entry.packet>35 then
+                    -- Rest offers are optional. The same HHI6 producer can
+                    -- retain its complete original recovery prefix alone.
+                    local base=entry.packet:sub(1,31)
+                    base=base..S.bytes(S.adler32(base),4)
+                    local body=packedSource(9,base,classID)
+                    restIndex=#chunks;restFullChunk=chunk
+                    restBaseChunk=S.bytes(9,1)..S.bytes(age,2)..S.bytes(#body,2)..body
+                    restOffers=entry.packet:byte(40)>0
+                end
+            end
+        end
+    end
+    S.restPageDeferred=false
+    if restIndex then
+        local saved=#restFullChunk-#restBaseChunk
+        local courtesyNeedsBase=courtesyChunk and liveBytes+#courtesyChunk>2304 and liveBytes-saved+#courtesyChunk<=2304
+        -- Never displace mandatory recovery or core data for item offers.
+        -- Empty catalogs cannot evict a courtesy packet that used to fit.
+        -- Actual rest pages share pressure with courtesy on a three-batch
+        -- cadence, coprime with the four-page rest/setup schedules.
+        if liveBytes>2304 or courtesyNeedsBase and (not restOffers or tick%3==0) then
+            chunks[restIndex]=restBaseChunk;liveBytes=liveBytes-saved;S.restPageDeferred=true
         end
     end
     -- Core, party and shared runtime data always retain their budget. Optional
@@ -324,7 +349,11 @@ function S.collectSetup()
         specName=S.setupString(S.setupValue(C_SpecializationInfo.GetSpecializationInfo,2,specIndex))
     end
     local realm,serverType=S.collectRealmInfo()
+    local clientVersion=S.setupString(S.setupValue(GetBuildInfo,1))
+    local clientNumber=S.setupString(S.setupValue(GetBuildInfo,2))
+    local clientBuild=clientVersion and clientNumber and clientVersion:match("^%d+%.%d+%.%d+$") and clientNumber:match("^%d+$") and (clientVersion.."."..clientNumber) or nil
     local character=S.jsonObject({name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,realm=realm,serverType=serverType,
+        clientBuild=clientBuild,clientLocale=S.setupString(S.readableCall(GetLocale)),
         race=S.setupString(S.readableCall(UnitRace,"player")),zone=S.setupString(S.readableCall(GetRealZoneText)) or S.setupString(S.readableCall(GetZoneText)),
         subzone=S.setupString(S.readableCall(GetSubZoneText)),scannedAt=S.setupNumber(S.readableCall(GetServerTime))})
     local bindings={}
@@ -467,7 +496,8 @@ function S.collectSetup()
             key=S.setupString(S.setupValue(GetBindingKey,1,"BONUSACTIONBUTTON"..slot)),
             key2=S.setupString(S.setupValue(GetBindingKey,2,"BONUSACTIONBUTTON"..slot)),bindingAvailable=bindingOK==true})
     end
-    return '{"v":1,"character":'..character..',"bindings":['..table.concat(bindings,",")..'],"spells":['..table.concat(knownSpells,",")..'],"talents":['..table.concat(talents,",")..'],"trees":['..table.concat(trees,",")..'],"petActions":['..table.concat(petActions,",")..'],"bookAvailable":'..S.jsonValue(bookAvailable)..',"talentAvailable":'..S.jsonValue(talentAvailable)..'}'
+    local restInventory=ns.features.Consumables and ns.features.Consumables.restMetadata and ns.features.Consumables.restMetadata()or "null"
+    return '{"v":1,"restInventory":'..restInventory..',"character":'..character..',"bindings":['..table.concat(bindings,",")..'],"spells":['..table.concat(knownSpells,",")..'],"talents":['..table.concat(talents,",")..'],"trees":['..table.concat(trees,",")..'],"petActions":['..table.concat(petActions,",")..'],"bookAvailable":'..S.jsonValue(bookAvailable)..',"talentAvailable":'..S.jsonValue(talentAvailable)..'}'
 end
 function S.refreshSetup()
     if S.readableCall(InCombatLockdown)~=false then return end

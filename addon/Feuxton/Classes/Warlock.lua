@@ -89,13 +89,16 @@ function H.initializePreview()
  local tick,elapsed=0,0
  local function render()
   if not S.executionBytes then return end
-  local F=ns.features.Healing;F.spellStatus={};tick=(tick+1)%4294967296
+  local F=ns.features.Healing;tick=(tick+1)%4294967296
   local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local hover=mouseover();local readings={}
   for i,spec in ipairs(H.specs) do
-   local r=spec.petAbility and ns.features.PetSupport.readSacrifice() or F.spell(spec,spec.unit or "target");readings[i]=r
+   local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource
+   if spec.petAbility then r=ns.features.PetSupport.readSacrifice()
+   else r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or "target") end
+   readings[i]=r
    if spec.petAbility then ns.features.PetSupport.renderSacrifice(bridge.tiles[i],r)
-   else B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec);B.renderManaCost(bridge.tiles[i].manaCost,r.id,r.learned.status=="observed" and r.learned.value==true) end
+   else B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource);B.renderManaCost(bridge.tiles[i].manaCost,r.id,r.learned.status=="observed" and r.learned.value==true) end
   end
   -- The shield outlives the sacrificed demon. Retain only its verified aura
   -- lookup ID; current pet learned state, action and binding remain untouched.

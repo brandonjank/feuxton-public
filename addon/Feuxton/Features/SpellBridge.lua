@@ -104,11 +104,11 @@ function B.create(parent,specs)
     end
     return result
 end
-function B.render(bridge,index,id,learned,spec)
+function B.render(bridge,index,id,learned,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
     local S=ns.state;local tile=bridge.tiles[index];tile.spellID=id>0 and id or nil;tile.known=learned;tile.offGlobalCooldown=spec.offGlobalCooldown==true
     local info=S.readableCall(S.spellAPI.GetSpellInfo,id);S.renderSpellIcon(tile,info)
     S.renderCooldown(tile)
-    local range,usable=ns.features.RangeTracking.render(tile.visualSignals,id,spec.unit or "target")
+    local range,usable=ns.features.RangeTracking.render(tile.visualSignals,id,spec.unit or "target",rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
     local R=ns.features.RangeTracking
     R.paintColor(tile.visualSignals[2],range and 0 or 1,range and 1 or .65,range and 1 or 0,1);R.paintFlag(tile.visualSignals[4],usable)
     if not range then R.paintColor(tile.visualSignals[1],1,.65,0,1) end

@@ -186,6 +186,9 @@ function F.refresh(now)
     if F.classKey~=class then
         F.classKey=class;F.shaman=class=="SHAMAN";F.druid=class=="DRUID"
         F.signature=nil;F.attempt=nil;F.supportAttempt=nil;F.cache={}
+        -- Initial class setup can occur after its first class producer. Rank
+        -- selection depends on this class shape, so discard only that context.
+        if F.spellUpdateActive then F.spellStatus={} end
         if F.druid then
             F.actions={};F.heal=ns.classes.DRUID.healingSpecs[1]
         elseif F.shaman then
@@ -206,16 +209,26 @@ function F.refresh(now)
     local value=table.concat(signature,"|")
     if value~=F.signature then F.signature=value;F.revision=(F.revision+1)%4294967296 end
 end
+-- The coordinated publication owns public spell metadata only. Standalone
+-- calls stay fresh; native raw values are handed straight to one renderer.
+function F.beginSpellUpdate()
+    F.spellStatus={};F.spellUpdateActive=true
+end
+function F.endSpellUpdate()
+    F.spellUpdateActive=false;F.spellStatus=nil
+end
+-- First three results retain public/per-recipient semantics. Optional native
+-- scalars and source functions belong only to this call and its next renderer.
 function F.spell(spec,unit)
     local G=ns.features.GroupContext;local S=ns.state;local R=ns.features.RangeTracking;local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
-    local cached=F.spellStatus and F.spellStatus[spec.key]
+    local cached=F.spellUpdateActive and F.spellStatus and F.spellStatus[spec.key]
     if cached then
         -- Metadata is shared per spell; a caller owns its per-unit range view.
         -- Never change an earlier caller's record when the next unit is read.
         local result={};for key,value in pairs(cached) do result[key]=value end
-        local rangeOK,rangeRaw
-        if cached.id>0 then result.range,rangeOK,rangeRaw=R.observeRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and cached.id or spec.name,unit) else result.range={} end
-        return result,rangeOK,rangeRaw
+        local rangeOK,rangeRaw;local rangeSource=api.IsSpellInRange
+        if cached.id>0 then result.range,rangeOK,rangeRaw=R.observeRange(rangeSource or IsSpellInRange,rangeSource and cached.id or spec.name,unit) else result.range={} end
+        return result,rangeOK,rangeRaw,nil,nil,nil,rangeSource
     end
     local ok,info=pcall(api.GetSpellInfo or function() end,spec.name);local id=ok and numeric(G.field(info,"spellID")) or nil
     if spec.pinnedSpellID then
@@ -224,7 +237,7 @@ function F.spell(spec,unit)
         if learned.value==true and S.safeField(pinnedInfo,"name")==spec.name then id=spec.pinnedSpellID
         else
             local missing={id=0,learned=learned.value==false and learned or {},usable={},mana={},range={},ready={}}
-            if F.spellStatus then F.spellStatus[spec.key]=missing end
+            if F.spellUpdateActive then F.spellStatus[spec.key]=missing end
             return missing
         end
     end
@@ -250,11 +263,12 @@ function F.spell(spec,unit)
         if chosen and type(chosen.id)=="number" and chosen.id>0 then id=chosen.id end
     end
     local result={id=id or 0,learned={},usable={},mana={},range={},ready={}}
-    local rangeOK,rangeRaw
+    local rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,usableSource
+    local rangeSource=api.IsSpellInRange
     if id then
         result.learned=G.read(book.IsSpellKnown or IsSpellKnown,1,id)
-        result.usable,result.mana=R.readUsability(api.IsSpellUsable or IsUsableSpell,id)
-        result.range,rangeOK,rangeRaw=R.observeRange(api.IsSpellInRange or IsSpellInRange,api.IsSpellInRange and id or spec.name,unit)
+        result.usable,result.mana,usableOK,usableRaw,manaRaw,usableSource=R.readUsability(api.IsSpellUsable or IsUsableSpell,id)
+        result.range,rangeOK,rangeRaw=R.observeRange(rangeSource or IsSpellInRange,rangeSource and id or spec.name,unit)
         -- Off-GCD abilities need the native cooldown's ignore-GCD mode; a
         -- public global cooldown must not be mistaken for their own cooldown.
         if not spec.offGlobalCooldown then
@@ -265,8 +279,8 @@ function F.spell(spec,unit)
             end
         end
     end
-    if F.spellStatus then F.spellStatus[spec.key]=result end
-    return result,rangeOK,rangeRaw
+    if F.spellUpdateActive then F.spellStatus[spec.key]=result end
+    return result,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource
 end
 function F.memberBytes(index,unit,identity,class,role,now,spells)
     local G=ns.features.GroupContext;local S=ns.state

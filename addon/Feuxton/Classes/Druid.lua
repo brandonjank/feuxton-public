@@ -77,9 +77,14 @@ function H.initializePreview()
  local tick,elapsed=0,0
  local function render()
   if not S.executionBytes then return end
-  local F=ns.features.Healing;F.spellStatus={};tick=(tick+1)%4294967296
+  local F=ns.features.Healing;tick=(tick+1)%4294967296
   local level=integer(S,S.readableCall(UnitLevel,"player"),1,100);if not level then error("Level unavailable")end
-  local readings={};for i,spec in ipairs(H.specs)do local r=F.spell(spec,spec.unit or"target");readings[i]=r;local known=r.learned.status=="observed"and r.learned.value;B.render(bridge,i,r.id,known,spec);B.renderPowerCost(bridge.tiles[i].manaCost,r.id,known==true,spec.powerType or 0)end
+  local readings={};for i,spec in ipairs(H.specs)do
+   local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or"target");readings[i]=r
+   local known=r.learned.status=="observed"and r.learned.value
+   B.render(bridge,i,r.id,known,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
+   B.renderPowerCost(bridge.tiles[i].manaCost,r.id,known==true,spec.powerType or 0)
+  end
   local auraReads={};for i,spec in ipairs(H.specs)do auraReads[i]=readings[i]end
   auraReads[39]={id=16870,learned={status="observed",value=true}}
   B.auras(bridge,H.auraSpecs,auraReads)

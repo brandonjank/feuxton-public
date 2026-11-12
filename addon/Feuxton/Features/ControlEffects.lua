@@ -334,7 +334,7 @@ function X.packet(tick)
  packet=packet..S.bytes(flags,2)..S.bytes(flag(mana),1)
  local list=ns.features.Racials.learned();packet=packet..S.bytes(#list,1)
  for i,spec in ipairs(list) do
-  local spell=F.spell(spec,"player");local entry=S.managedSpells.entries[class..":"..spec.name]
+  local spell,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,"player");local entry=S.managedSpells.entries[class..":"..spec.name]
   local code=S.managedSpells.current(entry) and entry.id==spec.id and S.compactBindingCode(entry.key) or 0
   local presence
   if spec.name=="Find Treasure" then presence=X.tracking() else presence=active(spec.name,nil,helpful) end
@@ -342,13 +342,13 @@ function X.packet(tick)
   local range=ns.features.RangeTracking.readRange(S.spellAPI.IsSpellInRange,spec.id,"target")
   sf=sf+G.code(range)*256
   packet=packet..S.bytes(spec.index,1)..S.bytes(spec.id,4)..S.bytes(code,2)..S.bytes(sf,2)..S.bytes(S.spellUseCode(spec.key),1)
-  if i<=3 and X.tiles then local tile=X.tiles[i];tile.spellID=spec.id;tile.known=learned(spell);tile.offGlobalCooldown=spec.offGlobalCooldown==true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,spec.id,"player");if tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
+  if i<=3 and X.tiles then local tile=X.tiles[i];tile.spellID=spec.id;tile.known=learned(spell);tile.offGlobalCooldown=spec.offGlobalCooldown==true;S.renderCooldown(tile);local same=spell.id==spec.id;ns.features.RangeTracking.render(tile.signals,spec.id,"player",same and rangeOK or nil,rangeRaw,same and usableOK or nil,usableRaw,manaRaw,rangeSource,usableSource);if tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
  end
- local freedom,freedomRangeOK,freedomRangeRaw
- if class=="PALADIN" then freedom,freedomRangeOK,freedomRangeRaw=F.spell(X.freedom,"player") else freedom={id=0} end
+ local freedom,freedomRangeOK,freedomRangeRaw,freedomUsableOK,freedomUsableRaw,freedomManaRaw,freedomRangeSource,freedomUsableSource
+ if class=="PALADIN" then freedom,freedomRangeOK,freedomRangeRaw,freedomUsableOK,freedomUsableRaw,freedomManaRaw,freedomRangeSource,freedomUsableSource=F.spell(X.freedom,"player") else freedom={id=0} end
  local entry=class=="PALADIN" and F.delivery(X.freedom) or nil
  packet=packet..S.bytes(freedom.id or 0,4)..S.bytes(entry and S.compactBindingCode(entry.key) or 0,2)..S.bytes(S.spellUseCode(X.freedom.key),1)
- if X.tiles then local tile=X.tiles[4];tile.spellID=(freedom.id or 0)>0 and freedom.id or nil;tile.known=learned(freedom);tile.offGlobalCooldown=true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,freedom.id or 0,"player");if class=="PALADIN" and (freedom.id or 0)>0 and not tile.useKey then S.attachSpellUse(S.hud,tile.dial,X.freedom.key);tile.useKey=X.freedom.key end end
+ if X.tiles then local tile=X.tiles[4];tile.spellID=(freedom.id or 0)>0 and freedom.id or nil;tile.known=learned(freedom);tile.offGlobalCooldown=true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,freedom.id or 0,"player",freedomRangeOK,freedomRangeRaw,freedomUsableOK,freedomUsableRaw,freedomManaRaw,freedomRangeSource,freedomUsableSource);if class=="PALADIN" and (freedom.id or 0)>0 and not tile.useKey then S.attachSpellUse(S.hud,tile.dial,X.freedom.key);tile.useKey=X.freedom.key end end
  for index,unit in ipairs(X.units) do
   -- Optional scopes must be friendly players; avoid scanning hostile hovers or
   -- adding aura work for other classes. The app joins their HHB3 identities.
@@ -382,7 +382,8 @@ function X.packet(tick)
  packet=packet..S.bytes(receipt and receipt.sequence or 0,4)..S.bytes(receipt and receipt.revision or 0,4)..S.bytes(receipt and receipt.id or 0,4)..S.bytes(receipt and receipt.kind or 0,1)..S.bytes(math.min(65535,age),2)..S.bytes(#identity,1)..identity
  local nearby,probe,reach=X.nearby();packet=packet..nearby
  local spec;for _,candidate in ipairs(X.cleanseSpecs) do if candidate.class==class then spec=candidate;break end end
- local cleanse=spec and F.spell(spec,"player") or {id=0}
+ local cleanse,cleanseRangeOK,cleanseRangeRaw,cleanseUsableOK,cleanseUsableRaw,cleanseManaRaw,cleanseRangeSource,cleanseUsableSource
+ if spec then cleanse,cleanseRangeOK,cleanseRangeRaw,cleanseUsableOK,cleanseUsableRaw,cleanseManaRaw,cleanseRangeSource,cleanseUsableSource=F.spell(spec,"player") else cleanse={id=0} end
  local managed=spec and S.managedSpells.entries[class..":"..spec.name] or nil
  local valid=managed and S.bindingsValid and S.managedSpells.current(managed) and managed.unit=="player" and not managed.friendly and managed.id==cleanse.id
  local pf=G.code(cleanse.learned)+G.code(cleanse.usable)*4+G.code(cleanse.mana)*16+G.code(cleanse.ready)*64
@@ -390,7 +391,7 @@ function X.packet(tick)
  packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4,1)
  packet=packet..S.bytes(flag(effects.debuffsComplete),1)..S.bytes(#effects.debuffs,1)
  for _,aura in ipairs(effects.debuffs) do packet=packet..S.bytes(aura.id,4)..S.bytes(aura.types,1) end
- if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;tile.known=learned(cleanse);S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player");if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
+ if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;tile.known=learned(cleanse);S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player",cleanseRangeOK,cleanseRangeRaw,cleanseUsableOK,cleanseUsableRaw,cleanseManaRaw,cleanseRangeSource,cleanseUsableSource);if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
  -- Paint this final native witness beside the matching support stamp only
  -- after all packet assembly succeeds. A failed producer retains no new pair.
  X.targetMelee(probe,reach)

@@ -1,8 +1,8 @@
 -- Shared addon namespace. Keep this file first in the TOC.
 local addonName, ns = ...
 ns.addonName = addonName
-ns.version = "0.81.52"
-ns.contractRevision = 48
+ns.version = "0.81.60"
+ns.contractRevision = 49
 ns.state = {bridgeLabels={}}
 function ns.state.bridgeLabel(label) ns.state.bridgeLabels[#ns.state.bridgeLabels+1]=label end
 ns.classes = {}
@@ -33,7 +33,7 @@ local K={defaults={
 }}
 -- Reserve the whole Alt/function family: closing, window, graphics and OEM
 -- handlers may ignore additional modifiers. Do not enumerate just one variant.
-for i=1,12 do local key="ALT-F"..i;K.defaults[key]=K.defaults[key] or "Alt function shortcuts reserved for Windows / overlays" end
+for i=1,24 do local key="ALT-F"..i;K.defaults[key]=K.defaults[key] or "Alt function shortcuts reserved for Windows / overlays" end
 ns.keyPolicy=K
 function K.canonical(key)
     if type(key)~="string" or #key>80 then return nil end
@@ -95,7 +95,7 @@ function ns.state.compactBindingCode(key)
     if not (code>=65 and code<=90 or code>=48 and code<=57) then
         local fn=tonumber(key:match("^F(%d+)$"));local special={SPACE=32,["-"]=189,["="]=187,["["]=219,["]"]=221,[";"]=186,["'"]=222,[","]=188,["."]=190,["/"]=191}
         local pad=tonumber(key:match("^NUMPAD(%d)$"))
-        code=pad and 96+pad or fn and fn>=1 and fn<=12 and 111+fn or special[key] or 0
+        code=pad and 96+pad or fn and fn>=1 and fn<=24 and 111+fn or special[key] or 0
     end
     return code>0 and flags*256+code or 0
 end

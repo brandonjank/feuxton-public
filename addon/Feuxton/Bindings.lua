@@ -280,6 +280,7 @@ function S.discoverBindings()
     if M.refreshing then return end
     if ns.markSetupDirty then ns.markSetupDirty() end
     if S.readableCall(InCombatLockdown) ~= false then return end
+    if ns.features.Consumables and ns.features.Consumables.refreshRestBindings then pcall(ns.features.Consumables.refreshRestBindings)end
     S.bindingsValid = false
     S.bindingDiagnostics = {}
     S.setupMappings = {}

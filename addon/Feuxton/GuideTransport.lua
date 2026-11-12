@@ -266,6 +266,10 @@ for _,entry in ipairs({
 }) do S.profileScript(entry[1],"OnUpdate",entry[2]) end
 S.profileScript(S.hudEvents,"OnEvent","hud events")
 S.profileScript(S.setupEvents,"OnEvent","setup events")
+S.profileScript(ns.features.Consumables.events,"OnEvent","consumable events")
+S.discoverBindings=S.profileFunction(S.discoverBindings,"binding discovery")
+ns.features.Consumables.scanRestInventory=S.profileFunction(ns.features.Consumables.scanRestInventory,"rest inventory scan")
+ns.features.Consumables.refreshRestBindings=S.profileFunction(ns.features.Consumables.refreshRestBindings,"rest bindings")
 
 -- One periodic owner. Metadata may change bindings; class rendering supplies
 -- group range specs; core observes the completed batch before one publication.
@@ -307,6 +311,8 @@ do
     local update=S.profileFunction(function(delta)
         if ns.beginNativeCooldownBatch then pcall(ns.beginNativeCooldownBatch) end
         S.beginPacketUpdate()
+        local friendly=ns.features.Healing
+        if friendly then friendly.beginSpellUpdate() end
         local ok,err=true,nil
         for _,entry in ipairs(coordinator.entries) do
             if S.readableCall(entry.frame.IsShown,entry.frame)==true then
@@ -315,8 +321,10 @@ do
             end
         end
         coordinator.updates=coordinator.updates+1;coordinator.lastError=not ok and err or nil
-        S.endPacketUpdate(ok,err)
+        local published,publicationError=pcall(S.endPacketUpdate,ok,err)
+        if friendly then friendly.endSpellUpdate() end
         if ns.endNativeCooldownBatch then pcall(ns.endNativeCooldownBatch) end
+        if not published then error(publicationError,0) end
     end,"coordinated total (includes producers)")
     local frame=CreateFrame("Frame",nil,S.hud);coordinator.frame=frame
     frame:SetScript("OnUpdate",function(_,elapsed)

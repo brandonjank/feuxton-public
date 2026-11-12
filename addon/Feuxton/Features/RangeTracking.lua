@@ -36,11 +36,11 @@ function R.readRange(fn,arg,unit)
     return observation
 end
 function R.readUsability(fn,arg)
-    if type(fn)~="function" then return {status="unavailable"},{status="unavailable"} end
+    if type(fn)~="function" then return {status="unavailable"},{status="unavailable"},false,nil,nil end
     local ok,usable,mana=R.usability(fn,arg)
-    if not ok then return {status="error"},{status="error"} end
+    if not ok then return {status="error"},{status="error"},false,nil,nil end
     local G=ns.features.GroupContext
-    return G.scalar(usable),G.scalar(mana)
+    return G.scalar(usable),G.scalar(mana),true,usable,mana,fn
 end
 -- Reuse immutable public palette endpoints, never a game observation or the
 -- result of evaluating a restricted boolean. Reset if the API is replaced.
@@ -89,18 +89,24 @@ function R.movement(dot)
     end
     return true
 end
-function R.render(signals,id,unit)
+function R.render(signals,id,unit,observedRange,range,observedUsability,usable,mana,rangeSource,usableSource)
     local S=ns.state
     R.paintColor(signals[1],1,.65,0,1);R.paintColor(signals[3],1,.65,0,1)
     if type(id)~="number" or id<=0 then return false,false end
     local api=S.spellAPI or {}
+    unit=unit or "target"
+    -- A producer may pass its immediately preceding query for this exact
+    -- spell/unit and API. Legacy name-based queries cannot stand in for the
+    -- native numeric-ID call. Raw values never enter public records or a map.
     local rangeOK,usableOK=false,false
-    local ok,range=R.range(api.IsSpellInRange or function() end,id,unit or "target")
+    local ok=observedRange==true and rangeSource~=nil and rangeSource==api.IsSpellInRange
+    if not ok then ok,range=R.range(api.IsSpellInRange or function() end,id,unit) end
     if ok then
         local painted,result=pcall(color,signals[1],range,{1,1,1,1},{1,0,0,1})
         rangeOK=painted and result==true
     end
-    local ok,usable,mana=R.usability(api.IsSpellUsable or function() end,id)
+    local ok=observedUsability==true and usableSource~=nil and usableSource==api.IsSpellUsable
+    if not ok then ok,usable,mana=R.usability(api.IsSpellUsable or function() end,id) end
     if ok then
         local painted,result=pcall(function()
             if S.isSecret(mana) then
