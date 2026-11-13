@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.70",
+    "addonVersion":  "0.81.71",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v54",
-    "sourceRevision":  "2378c8915fca5b07318999748f940eeec7182868",
+    "sourceRevision":  "85b9a7b6dc2a50a60b94b5b7218d9af663df5bb5",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -102,8 +102,8 @@
                   },
                   {
                       "path":  "Features/GroupContext.lua",
-                      "sha256":  "658C75BB7BBC60A28A8E870D50FDEEA7D2590CAF06A1A68DBA46873E5721E087",
-                      "size":  13907
+                      "sha256":  "11278E9FABFC85CDAA80D4753071F63D7E18E0FFD188B528FD266784F9A59752",
+                      "size":  14033
                   },
                   {
                       "path":  "Features/GuildRecruitment.lua",
@@ -167,12 +167,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "D23B4E777EBF1412452897208B26831926AA4DD55C127BD607BF239E3B9D5025",
+                      "sha256":  "F7A09AA602B8ABB1EAD2E46766D58B274372CDE7B6A8AE92FB9CC306A1811C5D",
                       "size":  5318
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "D6EE4E41BB4F275BCC1335D2A77EAEFF6C7BDD76666F29DE8BD814EC765BFBD3",
+                      "sha256":  "2E6E3EA8570CF2106E7663DCB82FC4A4F577A1DE663F3142E33202ABE194D16C",
                       "size":  1083
                   },
                   {
