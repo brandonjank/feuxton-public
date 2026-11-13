@@ -26,10 +26,13 @@ function feature.readPair(fn, ...)
     if not ok then return {status="error"},{status="error"} end
     return feature.scalar(first),feature.scalar(second)
 end
+local function fieldValue(object,key)return object[key]end
 function feature.field(object, key)
     if type(issecretvalue)=="function" and issecretvalue(object) then return {status="restricted"} end
     if type(object)~="table" then return {status="unknown"} end
-    return feature.read(function() return object[key] end,1)
+    local ok,value=pcall(fieldValue,object,key)
+    if not ok then return {status="error"} end
+    return feature.scalar(value)
 end
 function feature.auraSummary(unit)
     local api=type(C_UnitAuras)=="table" and C_UnitAuras or {}
