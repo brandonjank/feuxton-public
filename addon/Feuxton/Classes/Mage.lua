@@ -87,8 +87,15 @@ function H.initializePreview()
   end
   local combat=G.read(UnitAffectingCombat,1,"player");combatDot:SetColorTexture(1,1,1,1)
   local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1});if not ok or painted~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
-  wandDot:SetColorTexture(1,1,1,1);local painted,result=pcall(function() return ns.features.RangeTracking.paintBoolean(wandDot,IsAutoRepeatSpell(5019),{0,1,0,1},{.2,.2,.2,1}) end);if not painted or result~=true then wandDot:SetVertexColor(1,1,1,1);wandDot:SetColorTexture(1,.65,0,1) end
-  packet=packet..S.executionBytes(2)..S.bytes(G.code(combat),1)..S.bytes(G.code(G.read(IsAutoRepeatSpell,1,5019)),1)
+  -- IsAutoRepeatSpell is a type query, not active state. Explicit start/stop
+  -- events stay authoritative between shots, as in the existing Warlock bridge.
+  local wand,wandRaw={},nil
+  if S.autoStateSource=="autorepeat event" and type(S.autoActive)=="boolean" then wand=obs(S.autoActive);wandRaw=S.autoActive
+  else local current=S.spellAPI.IsCurrentSpell or IsCurrentSpell
+   if type(current)=="function" then local ok,value=pcall(current,5019);if ok then wandRaw=value;if not S.isSecret(value) and type(value)=="boolean" then wand=obs(value) end end end
+  end
+  wandDot:SetColorTexture(1,1,1,1);local painted,result=pcall(ns.features.RangeTracking.paintBoolean,wandDot,wandRaw,{0,1,0,1},{.2,.2,.2,1});if not painted or result~=true then wandDot:SetVertexColor(1,1,1,1);wandDot:SetColorTexture(1,.65,0,1) end
+  packet=packet..S.executionBytes(2)..S.bytes(G.code(combat),1)..S.bytes(G.code(wand),1)
   for i=1,3 do local p=S.setupTalentPoints and S.setupTalentPoints[i];packet=packet..S.bytes(type(p)=="number" and p>=0 and p<=100 and p or 255,1) end
   local stop=S.managedSpells and S.managedSpells.entries["MAGE:Feuxton Stop Casting"]
   local stopKey=S.bindingsValid and S.managedSpells.current(stop) and S.compactBindingCode(stop.key) or 0
