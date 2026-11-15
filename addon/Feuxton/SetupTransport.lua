@@ -85,7 +85,7 @@ function S.loadedAddonPacket(tick)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI6",[10]="HHX5",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI2"}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI7",[10]="HHX6",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI4",[27]="HGQ1"}
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
@@ -214,7 +214,7 @@ function S.denseStatePacket(now,tick)
                     selectedInterruptActive=nameSize~=nil and entry.packet:byte(19+nameSize)==2
                 end
                 if id==9 and #entry.packet>35 then
-                    -- Rest offers are optional. The same HHI6 producer can
+                    -- Rest offers are optional. The same HHI7 producer can
                     -- retain its complete original recovery prefix alone.
                     local base=entry.packet:sub(1,31)
                     base=base..S.bytes(S.adler32(base),4)
@@ -279,6 +279,16 @@ function S.denseStatePacket(now,tick)
         selectedSetup=setupFragmentChunk(S.transportPackets[5],tick,2304-liveBytes)
     end
     if selectedSetup then chunks[#chunks+1]=selectedSetup;count=count+1 end
+    -- Read-only guild monitoring uses leftovers only: never evict gameplay,
+    -- social authorization, courtesy recipients or setup progress for a table.
+    if guildChunk and not S.guildRecruitmentPageDeferred and recruitment and type(recruitment.monitorPacket)=="function"then
+        local remaining=2304-liveBytes-(selectedSetup and #selectedSetup or 0)
+        local ok,page=pcall(recruitment.monitorPacket,tick,math.min(499,remaining+3))
+        if ok and page then
+            local body=packedSource(27,page,classID)
+            if #body+5<=remaining then chunks[#chunks+1]=S.bytes(27,1)..S.bytes(0,2)..S.bytes(#body,2)..body;count=count+1 end
+        end
+    end
     S.setupPageDeferred=setupChunk~=nil and selectedSetup==nil
     S.setupPageFragmented=selectedSetup~=nil and selectedSetup~=setupChunk
     local payload=table.concat(chunks)

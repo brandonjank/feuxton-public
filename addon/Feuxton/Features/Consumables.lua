@@ -17,6 +17,18 @@ function C.installRestHook()
     C.restHookInstalled=pcall(hooksecurefunc,C_ChatInfo,"PerformEmote",C.observeRestRequest)
 end
 C.installRestHook()
+-- Loot lifecycle events also cover auto-loot and replacement loot windows.
+-- The initial read handles /reload with the Blizzard loot window already open.
+-- No inventory scan, item callback or protected action is needed here.
+function C.lootState()
+    if type(C.looting)=="boolean" then return C.looting end
+    local S=ns.state
+    local shown
+    if type(LootFrame)=="table" then shown=S.readableCall(LootFrame.IsShown,LootFrame) end
+    local count=S.readableCall(GetNumLootItems)
+    if shown==true or type(count)=="number" and count>0 then return true end
+    if shown==false and count==0 then return false end
+end
 local function api(name,legacy) return type(C_Item)=="table" and C_Item[name] or _G[legacy] end
 local function number(value)
     local S=ns.state
@@ -411,20 +423,24 @@ function C.packet(tick)
     -- HHI4 never carries a previous campfire presence into an unknown read.
     -- Bits 2..3 reserve a tri-state sitting observation. It remains unknown
     -- until a real client query is verified; bit 4 is separate local intent.
-    local recoveryState=flag(campfire)+(C.restPauseRequested and 16 or 0)
+    -- Bits 5..6 carry looting's tri-state without another byte or HUD cell.
+    local recoveryState=flag(campfire)+(C.restPauseRequested and 16 or 0)+flag(C.lootState())*32
     -- A corpse is not a ghost. Query the explicit public API each completed
     -- batch; missing, restricted and invalid results remain unknown.
     local ghost=flag(S.readableCall(UnitIsGhost,"player"))
-    local packet="HHI6"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(recoveryState,1)..S.bytes(ghost,1)..C.restExtension(tick,wellFed)
+    local packet="HHI7"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(recoveryState,1)..S.bytes(ghost,1)..C.restExtension(tick,wellFed)
     assert(#packet+4<=66,"rest inventory packet capacity")
     return packet..S.bytes(S.adler32(packet),4)
 end
 local events=CreateFrame("Frame");C.events=events
 events:RegisterEvent("BAG_UPDATE_DELAYED");events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:RegisterEvent("PLAYER_STARTED_MOVING");events:RegisterEvent("PLAYER_ENTERING_WORLD")
+for _,event in ipairs({"LOOT_READY","LOOT_OPENED","LOOT_CLOSED"})do pcall(events.RegisterEvent,events,event)end
 for _,event in ipairs({"ITEM_DATA_LOAD_RESULT","GET_ITEM_INFO_RECEIVED","UPDATE_BINDINGS","UNIT_AURA","PLAYER_LEVEL_UP"})do pcall(events.RegisterEvent,events,event)end
 events:SetScript("OnEvent",function(_,event,unit)
     local S=ns.state;local R=C.rest
+    if event=="LOOT_READY" or event=="LOOT_OPENED"then C.looting=true;return end
+    if event=="LOOT_CLOSED"then C.looting=false;return end
     if event=="UNIT_AURA"then
         if not S.isSecret(unit) and unit=="player"then R.wellFedDirty=true end
         return
@@ -439,6 +455,7 @@ events:SetScript("OnEvent",function(_,event,unit)
     end
     if event=="UPDATE_BINDINGS"then R.bindingsDirty=true;return end
     if event=="PLAYER_ENTERING_WORLD"then
+        C.looting=nil
         C.installRestHook();C.bindingItemID=nil;R.bindingsDirty=true
     end
     if event=="BAG_UPDATE_DELAYED" or event=="PLAYER_ENTERING_WORLD"then C.invalidateBagIndex()end

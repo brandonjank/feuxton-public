@@ -1,4 +1,4 @@
--- HHX5: shared control, friendly target/mouseover and independent Freedom receipt.
+-- HHX6: shared control, friendly target/mouseover and independent Freedom receipt.
 -- All secret fields remain unknown; native cooldown/usability stays rendered.
 local _,ns=...
 local X={cache={}}
@@ -12,18 +12,149 @@ X.cleanseSpecs={{index=1,class="PALADIN",key="paladin.purify",name="Purify",unit
 -- Do not infer a mechanic from an icon, tooltip wording or a shared spell name.
 -- Sources/rank limits: docs/control-aura-catalog-0.263.md.
 X.controlAuraGroups={
- {kind="root",name="Entangling Roots",ids={339,1062,5195,9853}},
- {kind="root",name="Frost Nova",ids={122,865,10230}},
- {kind="root",name="Net",ids={6533}},
- {kind="snare",name="Frostbolt",ids={116,205,837,7322,8406,8407,10179,10180,10181}},
- {kind="snare",name="Hamstring",ids={1715,7372,7373}},
- {kind="snare",name="Wing Clip",ids={2974,14268}},
- {kind="snare",name="Concussive Shot",ids={5116}},
- {kind="snare",name="Frost Shock",ids={8056,8058,10472,10473}},
- {kind="snare",name="Crippling Poison",ids={3409}},
- {kind="snare",name="Frost Trap",ids={13810}},
- {kind="snare",name="Earthbind",ids={3600}},
+ -- Root/snare IDs: decoded Forever 1.60.1.70888 categories, preserving prior verified ranks.
+ {kind="root",name="Aqua Strike",ids={404275}},
+ {kind="root",name="Battle Net",ids={10852}},
+ {kind="root",name="Boar Charge",ids={25999}},
+ {kind="root",name="Chains of Ice",ids={113,512,22744}},
+ {kind="root",name="Chastise",ids={1277331,1277332,1277333,1277334,1277335}},
+ {kind="root",name="Citizen's Arrest",ids={1231280}},
+ {kind="root",name="Counterattack",ids={19306,20909,20910,1242634}},
+ {kind="root",name="Crushing Brambles",ids={1271000}},
+ {kind="root",name="Cursed Webbing",ids={1220845}},
+ {kind="root",name="Devilsaur Glare",ids={1300493,1300496}},
+ {kind="root",name="Drowning Grasp",ids={1306224}},
+ {kind="root",name="Earthbound",ids={1238289}},
+ {kind="root",name="Earthgrab",ids={8377,440574,1269433}},
+ {kind="root",name="Electrified Net",ids={11820,441453}},
+ {kind="root",name="Encasing Webs",ids={4962}},
+ {kind="root",name="Entangle",ids={22994,1240688}},
+ {kind="root",name="Entangling Roots",ids={339,1062,5195,5196,9852,9853,11922,12747,19970,19971,19972,19973,19974,19975,20654,20699,21331,22127,22415,22800,24648,26071,28858,435991,460690,1213253,1263640,1281781,1294112,1303308,1316480,1320095}},
+ {kind="root",name="Entrapment",ids={19185,465230}},
+ {kind="root",name="Enveloping Web",ids={15471}},
+ {kind="root",name="Enveloping Webs",ids={24110}},
+ {kind="root",name="Feral Charge",ids={19675}},
+ {kind="root",name="Fox-Catching Net",ids={1280481}},
+ {kind="root",name="Frost Hold",ids={10017}},
+ {kind="root",name="Frost Nova",ids={122,865,6131,9915,10230,11831,12674,12748,14907,15063,15531,15532,22645,29849,30094,463448,1220855,1289447,1300716,1310354}},
+ {kind="root",name="Frostbite",ids={12494}},
+ {kind="root",name="Frozen",ids={1306620}},
+ {kind="root",name="Grasping Vines",ids={8142,22924}},
+ {kind="root",name="Headhunter's Barbed Spear",ids={446731}},
+ {kind="root",name="Hooked Net",ids={13608,14030,15609}},
+ {kind="root",name="Ice Blast",ids={11264,467370,467832}},
+ {kind="root",name="Ice Nova",ids={22519}},
+ {kind="root",name="Improved Hamstring",ids={23694}},
+ {kind="root",name="Improved Wing Clip",ids={19229}},
+ {kind="root",name="Infernal Lasso",ids={447590,1312052}},
+ {kind="root",name="Miring Mud",ids={5567}},
+ {kind="root",name="Mobility Malfunction",ids={8346}},
+ {kind="root",name="Naraxis Web",ids={3542}},
+ {kind="root",name="Net",ids={6533,12024,1283364,1303136}},
+ {kind="root",name="Net-o-Matic",ids={13099,13119,13138,16566}},
+ {kind="root",name="Nightmare Brambles",ids={368329}},
+ {kind="root",name="Pet Submerge",ids={42598}},
+ {kind="root",name="Rootbinder's Will",ids={1307520}},
+ {kind="root",name="Silken Tomb",ids={1269767}},
+ {kind="root",name="Spare Change",ids={446631,448156,450005}},
+ {kind="root",name="Spider's Kiss",ids={17333}},
+ {kind="root",name="Trap",ids={8312}},
+ {kind="root",name="Web",ids={745,12023,28991,1265843,1265878,1265880,1265881,1265883}},
+ {kind="root",name="Web Explosion",ids={15474,16469}},
+ {kind="root",name="Web Spray",ids={12252}},
+ {kind="root",name="Whipweed Roots",ids={24152}},
+ {kind="snare",name="Aftermath",ids={18118}},
+ {kind="snare",name="Avenger's Shield",ids={470265}},
+ {kind="snare",name="Baron Rivendare's Soul Drain",ids={27640}},
+ {kind="snare",name="Black Sludge",ids={7279}},
+ {kind="snare",name="Blast Wave",ids={11113,13018,13019,13020,13021}},
+ {kind="snare",name="Blizzard",ids={1271394,1291168}},
+ {kind="snare",name="Buriza-Do Spike",ids={1309005}},
+ {kind="snare",name="Caustic Slime",ids={468925}},
+ {kind="snare",name="Chew Hamstring",ids={1231397}},
+ {kind="snare",name="Chilled",ids={6136,7321,12484,16927,20005,1296223}},
+ {kind="snare",name="Chilling Blade",ids={1294273}},
+ {kind="snare",name="Chilling Touch",ids={12531}},
+ {kind="snare",name="Cold Eye",ids={1139}},
+ {kind="snare",name="Concussed",ids={1318163}},
+ {kind="snare",name="Concussive Shot",ids={5116,17174,22914,27634,1236191}},
+ {kind="snare",name="Cone of Cold",ids={120,8492,10159,10160,10161}},
+ {kind="snare",name="Confession",ids={1231873}},
+ {kind="snare",name="Copy of Frostbolt",ids={29163}},
+ {kind="snare",name="Creeping Chill",ids={367740}},
+ {kind="snare",name="Cripple",ids={89,11443,20812,29212,1238366,1239241,1250426}},
+ {kind="snare",name="Crippling Poison",ids={3409,11201,25809}},
  {kind="snare",name="Curse of Exhaustion",ids={18223}},
+ {kind="snare",name="Cursed Blade",ids={462228}},
+ {kind="snare",name="Debug Frost Spell",ids={29607}},
+ {kind="snare",name="Demolishing Smash",ids={437617}},
+ {kind="snare",name="Desert Winds",ids={1320579,1320580}},
+ {kind="snare",name="Devour",ids={438101}},
+ {kind="snare",name="Discombobulate",ids={4060}},
+ {kind="snare",name="Diseased Slime",ids={6907}},
+ {kind="snare",name="Earthbind",ids={3600}},
+ {kind="snare",name="Eskhandar's Rake",ids={22639}},
+ {kind="snare",name="Exhaustion",ids={24225}},
+ {kind="snare",name="Feral Charge",ids={414923}},
+ {kind="snare",name="Freezing",ids={438720}},
+ {kind="snare",name="Freezing Arrow",ids={407548}},
+ {kind="snare",name="Frigid Depths",ids={1313978}},
+ {kind="snare",name="Frost",ids={18977}},
+ {kind="snare",name="Frost Breath",ids={31688}},
+ {kind="snare",name="Frost Shock",ids={8056,8058,10472,10473,12548,15089,15499,19133,21030,21401,22582,23115,1248001}},
+ {kind="snare",name="Frost Shot",ids={6984,6985,12551,18802}},
+ {kind="snare",name="Frost Trap Aura",ids={13810}},
+ {kind="snare",name="Frostbolt",ids={116,205,837,7322,8406,8407,8408,9672,10179,10180,10181,11538,12675,13322,13439,15043,15497,15530,16249,16799,17503,20297,20792,20806,20819,20822,21369,23102,24942,25304,28478,28479,350025,406680,420526,1213276,1220854,1244970,1248148,1283410,1283420,1293790,1298416,1300715,1303226,1310353}},
+ {kind="snare",name="Frostbolt Volley",ids={8398,12737,22643,1220853,1266642,1289448}},
+ {kind="snare",name="Frostbrand Attack",ids={8034,8037,10458,16352,16353}},
+ {kind="snare",name="Frostfire Bolt",ids={401502,1237312,1237313}},
+ {kind="snare",name="Frozen Orb",ids={440809}},
+ {kind="snare",name="Geyser",ids={10987}},
+ {kind="snare",name="Greater Frostbolt",ids={404316}},
+ {kind="snare",name="Gunk",ids={438142}},
+ {kind="snare",name="Hallow's End Fright",ids={25022}},
+ {kind="snare",name="Hamstring",ids={1715,7372,7373,9080,26141,26211,27584,1236177}},
+ {kind="snare",name="High-Yield Radiation Bomb",ids={443813}},
+ {kind="snare",name="Hive'Zara Catalyst",ids={25187}},
+ {kind="snare",name="Howling Blast",ids={1310514}},
+ {kind="snare",name="Hurricane",ids={1289130}},
+ {kind="snare",name="Hydra Strike",ids={1292739}},
+ {kind="snare",name="Incapacitating Shout",ids={18328}},
+ {kind="snare",name="Lacerate",ids={5422}},
+ {kind="snare",name="Lag",ids={10855}},
+ {kind="snare",name="Long Daze",ids={12705}},
+ {kind="snare",name="Low Swipe",ids={8716}},
+ {kind="snare",name="Magma Shackles",ids={19496}},
+ {kind="snare",name="Melt Ore",ids={5159}},
+ {kind="snare",name="Might of Vis'era",ids={1231541}},
+ {kind="snare",name="Mind Flay",ids={15407,16568,17165,17311,17312,17313,17314,18807,22919,23953,26044,26143,28310,29407,412526,474204,474268,1215740}},
+ {kind="snare",name="OLDFrost Trap Effect",ids={14207}},
+ {kind="snare",name="Piercing Howl",ids={12323,23600}},
+ {kind="snare",name="Piercing Shriek",ids={26379}},
+ {kind="snare",name="Pinch",ids={1264735,1264736,1264739,1264741,1264742}},
+ {kind="snare",name="Plague Nova",ids={1293327}},
+ {kind="snare",name="Plagued Shot",ids={446573}},
+ {kind="snare",name="Quick Draw",ids={398196}},
+ {kind="snare",name="Riverglades Marsh Gas",ids={1295639}},
+ {kind="snare",name="Rotted Strike",ids={1282519}},
+ {kind="snare",name="Shadowy Chains",ids={425239,426495}},
+ {kind="snare",name="Sliced Ankle",ids={1316346}},
+ {kind="snare",name="Slow",ids={246,6146,11436,13747,18972,19137,22356,24415,1236220,1240686,1303350}},
+ {kind="snare",name="Slow Poison",ids={1294208}},
+ {kind="snare",name="Slowing Ooze",ids={16050}},
+ {kind="snare",name="Slowing Poison",ids={7992,14897}},
+ {kind="snare",name="Spellfrost Bolt",ids={412532}},
+ {kind="snare",name="Stomp",ids={27993}},
+ {kind="snare",name="Stygian Grasp",ids={29164,1219270,1220520}},
+ {kind="snare",name="Stygian Grip",ids={1220533}},
+ {kind="snare",name="Tendon Rip",ids={3604,1265038,1265039,1265040,1265041,1265042}},
+ {kind="snare",name="Theka's Last Breath",ids={1294617,1294626}},
+ {kind="snare",name="Thunderclap",ids={8078,8147,15548,15588,23931,1213464}},
+ {kind="snare",name="Triple Bolt",ids={448573,448574}},
+ {kind="snare",name="Unstable Fuel Cell",ids={1251362}},
+ {kind="snare",name="Vekniss Catalyst",ids={26078}},
+ {kind="snare",name="Waylay",ids={408699}},
+ {kind="snare",name="Wing Clip",ids={2974,14267,14268,27633,1310180}},
  {kind="stun",name="Hammer of Justice",ids={853,5589,10308}},
  {kind="stun",name="Bash",ids={5211,8983}},
  {kind="stun",name="Cheap Shot",ids={1833}},
@@ -288,7 +419,33 @@ function X.tracking()
  end
  if complete and not other then return false end -- do not replace another tracking choice
 end
+local function prepareNativeMovement()
+ if X.movementNativeAttempted or not ns.state.hud or value(InCombatLockdown)~=false then return end
+ X.movementNativeAttempted=true
+ local S=ns.state
+ X.movementNativeReady=false;X.movementNativeError=nil
+ -- The native aura engine owns filtering and protected visibility. No aura
+ -- field, secret numeric argument or visibility result is read by Lua.
+ local base=S.hud:CreateTexture(nil,"OVERLAY");base:SetSize(4,4);base:SetPoint("TOPLEFT",316,-2);base:SetColorTexture(1,.65,0,1)
+ local native
+ local ok,err=pcall(function()
+  local ids={};for id,kind in pairs(controlByID)do if kind=="root"or kind=="snare"then ids[id]=true end end
+  native=CreateFrame("AuraContainer",nil,S.hud,"CustomAuraContainerTemplate")
+  native:SetPoint("TOPLEFT",S.hud,"TOPLEFT",316,-2);native:SetSize(4,4)
+  native:AddAuraSlot("selfMovement","HARMFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
+   local rendered,why=pcall(function()
+    button:SetSize(4,4);button:SetPoint("TOPLEFT",native,"TOPLEFT",0,0);button:EnableMouse(false)
+    local dot=button:CreateTexture(nil,"OVERLAY");dot:SetAllPoints(button);dot:SetColorTexture(0,1,0,1)
+   end)
+   if not rendered then X.movementNativeReady=false;X.movementNativeError=S.describe(why)end
+  end})
+  native:SetUnit("player");native:SetEnabled(true)
+ end)
+ X.movementNativeReady=ok and X.movementNativeError==nil;X.movementAuraContainer=native
+ if not ok then X.movementNativeError=S.describe(err);if native then pcall(native.Hide,native)end end
+end
 function X.native()
+ prepareNativeMovement()
  if X.tiles or not ns.state.hud then return end
  local S=ns.state;X.tiles={};X.stamp={};X.ranges={};X.nearbyDots={}
  X.meleeDot=S.hud:CreateTexture(nil,"OVERLAY");X.meleeDot:SetSize(4,4);X.meleeDot:SetPoint("TOPLEFT",572,-2);ns.features.RangeTracking.initialize(X.meleeDot,1,.65,0,1)
@@ -315,13 +472,16 @@ function X.packet(tick)
  -- another tick, event or publication; partial scans retain unknown absence.
  local helpful,unitEffects={},{}
  X.native()
+ -- Invalidate the old native witness before repainting any current values.
+ -- A capture during assembly cannot join a new root cell to an old packet.
+ if X.stamp and X.stamp[1]then X.stamp[1]:SetColorTexture(1,0,1,1)end
  local class=value(function()local _,c=UnitClass("player");return c end)
  local race=value(function()local _,r=UnitRace("player");return r end) or ""
  if #race>32 then race="" end
  local roster=S.transportPackets[16];local rosterTick=roster and string.byte(roster.packet,9) and 0 or nil
  if roster then for i=0,3 do rosterTick=rosterTick+string.byte(roster.packet,9+i)*256^i end end
  local revision=F.revision or 0
- local packet="HHX5"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
+ local packet="HHX6"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
  local contexts={value(IsFalling),value(IsStealthed),value(UnitIsPlayer,"target"),value(UnitIsDeadOrGhost,"target"),value(UnitAffectingCombat,"player")}
  local corpseType=value(UnitCreatureType,"target")
  contexts[6]=(corpseType=="Humanoid" or corpseType=="Undead") and true or type(corpseType)=="string" and false or nil
@@ -388,7 +548,7 @@ function X.packet(tick)
  local valid=managed and S.bindingsValid and S.managedSpells.current(managed) and managed.unit=="player" and not managed.friendly and managed.id==cleanse.id
  local pf=G.code(cleanse.learned)+G.code(cleanse.usable)*4+G.code(cleanse.mana)*16+G.code(cleanse.ready)*64
  local effects=unitEffects.player
- packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4,1)
+ packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4+(X.movementNativeReady and 16 or 0),1)
  packet=packet..S.bytes(flag(effects.debuffsComplete),1)..S.bytes(#effects.debuffs,1)
  for _,aura in ipairs(effects.debuffs) do packet=packet..S.bytes(aura.id,4)..S.bytes(aura.types,1) end
  if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;tile.known=learned(cleanse);S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player",cleanseRangeOK,cleanseRangeRaw,cleanseUsableOK,cleanseUsableRaw,cleanseManaRaw,cleanseRangeSource,cleanseUsableSource);if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end

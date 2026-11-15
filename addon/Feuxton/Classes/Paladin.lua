@@ -186,6 +186,8 @@ local function initializeNative(S)
     for i,color in ipairs({{0,1,1},{1,0.5,0},{1,0,1}}) do
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",4+(i-1)*6,0);dot:SetColorTexture(color[1],color[2],color[3],1)
     end
+    paladin.shieldSource=panel:CreateTexture(nil,"OVERLAY");paladin.shieldSource:SetSize(4,4);paladin.shieldSource:SetPoint("TOPLEFT",342,-25);paladin.shieldSource:SetColorTexture(0,0,0,1)
+    paladin.shieldAura=panel:CreateTexture(nil,"ARTWORK");paladin.shieldAura:SetSize(8,8);paladin.shieldAura:SetPoint("TOPLEFT",330,-23);paladin.shieldAura:SetColorTexture(0,0.25,1,1)
     paladin.nativeStamp={};paladin.nativeTiles={}
     paladin.castIdentityCells={}
     for i=1,3 do
@@ -285,18 +287,19 @@ local function refreshNativeAuras(readings,S)
         container=CreateFrame("AuraContainer",nil,S.paladinNativePanel,"CustomAuraContainerTemplate");container:SetAllPoints(S.paladinNativePanel)
         local mask,absence=0,0
         for i,reading in ipairs(readings) do
-            if auraSlots[i] and reading.learned==true then
+            if (auraSlots[i] or i==19) and reading.learned==true then
                 local ids={[reading.bound]=true}
                 for _,spell in ipairs(S.setupKnownSpells or {}) do if spell.name==reading.name then ids[spell.id]=true end end
                 -- A public player aura identifies this server's actual aura ID,
                 -- which can differ from the cast ID. Include it in the native
                 -- filter before certifying its blue background as absence.
                 if reading.auraID then ids[reading.auraID]=true;absence=absence+2^(i-1) end
-                local slotX=i==17 and 214 or 12+(i-1)*46+36
+                local slotX=i==19 and 330 or i==17 and 214 or 12+(i-1)*46+36
+                local auraKey=i==19 and "paladin.divineShield" or "paladin."..paladin.packetKeys[i]
                 local signalIndex
-                if ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,paladin,"paladin."..paladin.packetKeys[i],"player",paladin.signalAuraRevision,"HELPFUL",reading.auraID and 2 or 1);if declared then signalIndex=index end end
-                container:AddAuraSlot("paladin."..paladin.packetKeys[i],"HELPFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
-                    button:SetSize(8,8);button:SetPoint("TOPLEFT",container,"TOPLEFT",slotX,i==17 and -23 or -6);button:EnableMouse(false)
+                if i~=19 and ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,paladin,"paladin."..paladin.packetKeys[i],"player",paladin.signalAuraRevision,"HELPFUL",reading.auraID and 2 or 1);if declared then signalIndex=index end end
+                container:AddAuraSlot(auraKey,"HELPFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
+                    button:SetSize(8,8);button:SetPoint("TOPLEFT",container,"TOPLEFT",slotX,(i==17 or i==19) and -23 or -6);button:EnableMouse(false)
                     local icon=button:CreateTexture(nil,"ARTWORK");icon:SetAllPoints(button);button:SetIcon(icon)
                     local signal=button:CreateTexture(nil,"OVERLAY");signal:SetAllPoints(button);signal:SetColorTexture(0,1,0,1)
                     if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end
@@ -396,10 +399,23 @@ function paladin.initializePreview()
             nativeReadings[index]={name=spec.name,bound=bound,learned=learned.status=="observed" and learned.value or false,auraID=paladin.verifiedAuraIDs[family]}
             if spec.healing and bound>0 and learned.value==true then paladin.rangeSpecs[#paladin.rangeSpecs+1]={id=bound,name=spec.name} end
         end
+        -- Aura-only capability: no new binding, spell slot, packet bytes or
+        -- sampling dimensions. Restricted presence stays in AuraContainer.
+        local shieldSpec
+        for _,spec in ipairs(paladin.specs) do if spec.key=="paladin.divineShield" then shieldSpec=spec;break end end
+        local shieldOK,shieldInfo=pcall(api.GetSpellInfo or function() end,shieldSpec.name)
+        local shieldID=shieldOK and group.field(shieldInfo,"spellID") or {}
+        local shieldBound=shieldID.status=="observed" and type(shieldID.value)=="number" and shieldID.value>0 and shieldID.value<2147483648 and math.floor(shieldID.value)==shieldID.value and shieldID.value or 0
+        local shieldKnown=shieldBound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,shieldBound) or {}
+        nativeReadings[19]={name=shieldSpec.name,bound=shieldBound,learned=shieldKnown.status=="observed" and shieldKnown.value==true}
         local movement=group.read(GetUnitSpeed,1,"player");movement=movement.status=="observed" and type(movement.value)=="number" and {status="observed",value=movement.value>0} or {}
         packet=packet..S.bytes(group.code(movement),1)..S.bytes(group.code(group.read(UnitAffectingCombat,1,"player")),1)..S.bytes(group.code(group.read(IsMounted,1)),1)..S.bytes(group.code(group.read(UnitOnTaxi,1,"player")),1)
         refreshNativeAuras(nativeReadings,S)
         local auraMask=GetTime()>=(paladin.auraSettledAt or math.huge) and (paladin.auraMask or 0) or 0
+        -- The source marker proves that this frame owns a settled Shield filter.
+        -- A blue/hidden/occluded cell is unknown, never inferred protection.
+        local shieldReady=math.floor(auraMask/262144)%2==1
+        paladin.shieldSource:SetColorTexture(0,shieldReady and 1 or 0,0,1)
         -- Absence is available only for a native filter built with an actual
         -- public player aura identity for this bound spell rank.
         local absenceMask=auraMask~=0 and (paladin.auraAbsenceMask or 0) or 0

@@ -4,6 +4,8 @@ local _,ns=...
 local B={plates={},samples={},pending={},action=0,rosterDirty=true,configurationNonce=0}
 ns.features.GuildRecruitment=B
 local MAX=2147483647
+local D=ns.features.GuildDiscovery
+local M=ns.features.GuildMilestones
 local function public(value)
     if type(issecretvalue)~="function" then return false end
     local ok,secret=pcall(issecretvalue,value);return ok and not secret
@@ -72,7 +74,7 @@ local function nativeChatState(t)
     local text=call(function()return focus:GetText()end)
     if type(text)=="string"then
         state.empty=text==""
-        if t and t.kind==1 then state.matches=text=="/ginvite "..t.name else state.matches=false end
+        if t and(t.kind==1 or t.kind==5)then state.matches=text==(t.kind==5 and "/gpromote "or "/ginvite ")..t.name else state.matches=false end
     end
     return state
 end
@@ -88,7 +90,7 @@ local function ownContext()
     if not actor or not guild or not realm or not name or not stamp or not utc or not session or session==0 then return nil end
     local key=realm.."\31"..guild.."\31"..actor
     if B.owner~=key or B.session~=session then
-        retireTicket(stamp);B.owner=key;B.session=session;B.pending={};B.samples={};B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.rosterRequested=nil;B.ledger=nil;B.ledgerMaintenance=nil
+        retireTicket(stamp);B.owner=key;B.session=session;B.pending={};B.samples={};D.reset(key.."\31"..session);B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.rosterRequested=nil;B.ledger=nil;B.ledgerMaintenance=nil
     end
     if type(FeuxtonDB)~="table"then return nil end
     local store=FeuxtonDB.guildRecruitment
@@ -136,10 +138,12 @@ end
 local function safety(context,configuration,kind,grant)
     if not context then return false end
     if kind~=0 then
-        local invite,chat=permissions();if chat~=true or kind~=2 and invite~=true then return false end
+        local invite,chat=permissions();if chat~=true or(kind==1 or kind==3)and invite~=true or kind==5 and call(CanGuildPromote)~=true then return false end
         if type(C_ChatInfo)~="table"or call(C_ChatInfo.InChatMessagingLockdown)~=false or type(C_ChatInfo.SendChatMessage)~="function"or type(C_GuildInfo)~="table"then return false end
     end
-    if call(InCombatLockdown)~=false or call(UnitAffectingCombat,"player")~=false or call(UnitIsDeadOrGhost,"player")~=false or call(UnitOnTaxi,"player")~=false or movement()~=false then return false end
+    local taxi=call(UnitOnTaxi,"player")
+    if taxi~=true and taxi~=false then return false end
+    if call(InCombatLockdown)~=false or call(UnitAffectingCombat,"player")~=false or call(UnitIsDeadOrGhost,"player")~=false or taxi==false and movement()~=false then return false end
     for _,name in ipairs({"UnitCastingInfo","UnitChannelInfo"})do
         local fn=_G[name]
         if type(fn)~="function"then return false end
@@ -164,17 +168,18 @@ local function safety(context,configuration,kind,grant)
 end
 local function candidate(unit,context)
     if not utf8(unit,32)or call(UnitExists,unit)~=true or call(UnitIsPlayer,unit)~=true or call(UnitIsUnit,unit,"player")~=false or call(UnitCanAssist,"player",unit)~=true or call(UnitIsVisible,unit)~=true or call(UnitIsConnected,unit)~=true or call(UnitIsDeadOrGhost,unit)~=false then return nil end
-    if unit=="target"or unit=="mouseover"then
-        if call(CheckInteractDistance,unit,4)~=true then return nil end
-    elseif not unit:match("^nameplate%d+$")then return nil end
+    -- Discovery only needs a publicly visible player, not interaction range.
+    -- CheckInteractDistance is protected during combat on Forever: even a
+    -- pcall emits ADDON_ACTION_BLOCKED. Keep passive collection read-only.
+    if unit~="target"and unit~="mouseover"and not unit:match("^nameplate%d+$")then return nil end
     local guid=utf8(call(UnitGUID,unit),64);local first,name=ns.features.GroupContext.names(unit,96);name=utf8(name,96)
     if not guid or guid==context.actor or not name then return nil end
     local ok,guild=pcall(GetGuildInfo,unit)
     if not ok or not public(guild)then return nil end
-    if guild~=nil then B.samples[guid]=nil;return nil end
+    if guild~=nil then B.samples[guid]=nil;D.remove(name);return nil end
     local isGuilded=call(UnitIsInGuild,unit)
     local guildless=isGuilded==false
-    if isGuilded==true then return nil end
+    if isGuilded==true then D.remove(name);return nil end
     if not guildless then
         -- Owner-confirmed API contract, 2026-11-12: a successful public nil
         -- means no guild on every supported client build. The current unit,
@@ -195,13 +200,21 @@ local function candidate(unit,context)
     if call(UnitGUID,unit)~=guid or ns.features.GroupContext.fullName(unit,96)~=name then return nil end
     return {unit=unit,guid=guid,name=name,qualified=guildless}
 end
+local function candidateLevel(unit)
+    local level=integer(call(UnitLevel,unit))
+    return level and level>0 and level or nil
+end
+local function currentCandidate(t,context)
+    return D.current(t,context,candidate,candidateLevel)
+end
 local function rosterMember(index)
     if type(GetGuildRosterInfo)~="function"then return nil end
-    local ok,name,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,guid=pcall(GetGuildRosterInfo,index)
+    local ok,name,rankName,rank,level,_,_,_,_,online,_,_,_,_,_,_,_,guid=pcall(GetGuildRosterInfo,index)
     name=utf8(name,96);guid=utf8(guid,64)
-    return ok and name and {name=name,guid=guid,index=index}or nil
+    local onlineFlag;if public(online)and type(online)=="boolean"then onlineFlag=online end
+    return ok and name and {name=name,guid=guid,index=index,rank=integer(rank,9),level=integer(level,100),online=onlineFlag}or nil
 end
-local function rosterStep(context)
+local function rosterStep(context,cfg)
     if B.requestRoster and (not B.rosterRequested or context.at-B.rosterRequested>=2)then
         B.requestRoster=false;B.rosterRequested=context.at
         if type(C_GuildInfo)=="table"and type(C_GuildInfo.GuildRoster)=="function"then pcall(C_GuildInfo.GuildRoster)end
@@ -222,11 +235,17 @@ local function rosterStep(context)
     B.rosterScan=nil
     if scan.count~=integer(call(GetNumGuildMembers),1000)or not scan.valid then return end
     local initial=B.roster==nil;B.roster=scan.members;B.rosterAt=context.at
+    if M then M.observe(context,B.roster,cfg and cfg.milestones)end
     if initial then return end -- initial login roster is never a join event
     for guid,pending in pairs(B.pending)do
         local member=scan.members[guid]
+        if not member and guid:sub(1,5)=="name:"then
+            for _,entry in pairs(scan.members)do if entry.name==pending.name then member=entry;pending.memberGUID=entry.guid;break end end
+        end
         if pending.joinSeen and pending.invited and not pending.joined and member and member.name==pending.name and pending.joinAt and scan.at>=pending.joinAt then
             pending.joined=true;pending.joinedAt=context.at;context.ledger.totalJoins=increment(context.ledger.totalJoins)
+            if not pending.statisticsConfirmed then pending.statisticsConfirmed=true;D.statistics(context,"confirmed")end
+            D.statistics(context,"joins")
             local row=context.ledger.records[guid];if row then row.joined=true end
         end
     end
@@ -265,7 +284,7 @@ local function suppressed(context,c)
     return result
 end
 local function decode64(value)
-    if type(value)~="string"or #value==0 or #value>10332 or #value%4~=0 or value:find("[^A-Za-z0-9+/=]")then return nil end
+    if type(value)~="string"or #value==0 or #value>15764 or #value%4~=0 or value:find("[^A-Za-z0-9+/=]")then return nil end
     local alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";local digits={}
     for i=1,#alphabet do digits[alphabet:sub(i,i)]=i-1 end
     local out={}
@@ -277,16 +296,16 @@ local function decode64(value)
         if c~="="then out[#out+1]=string.char(y%16*16+math.floor(z/4))end
         if d~="="then out[#out+1]=string.char(z%4*64+w)end
     end
-    local decoded=table.concat(out);return #decoded<=7747 and decoded or nil
+    local decoded=table.concat(out);return #decoded<=11821 and decoded or nil
 end
-local function template(value)
+local function template(value,milestone)
     value=utf8(value,120);if not value then return nil end
-    local remainder=value:gsub("{player}",""):gsub("{guild}","")
+    local remainder=value:gsub("{player}",""):gsub("{guild}","");if milestone then remainder=remainder:gsub("{level}","")end
     return not remainder:find("[{}]")and value or nil
 end
 local function decodeConfiguration(raw)
-    if type(raw)~="string"or #raw<7 or #raw>7747 or raw:byte(1)~=1 then return nil end
-    local offset=2;local lists={}
+    if type(raw)~="string"or #raw<8 or #raw>11821 or raw:byte(1)~=3 or raw:byte(2)>2 then return nil end
+    local offset=3;local lists={}
     for kind=1,2 do
         local count=raw:byte(offset);offset=offset+1;if not count or count<1 or count>32 then return nil end
         local list={}
@@ -298,8 +317,21 @@ local function decodeConfiguration(raw)
         end
         lists[kind]=list
     end
+    local flags=raw:byte(offset);offset=offset+1;if not flags or flags>7 then return nil end
+    if offset+3>#raw then return nil end
+    local generation=0;for i=0,3 do generation=generation+raw:byte(offset+i)*256^i end;offset=offset+4
+    local ranks={}
+    for _,level in ipairs({25,45,60})do
+        local length=raw:byte(offset);offset=offset+1;if not length or length>64 or offset+length-1>#raw then return nil end
+        local name=raw:sub(offset,offset+length-1);offset=offset+length
+        if length>0 and(not utf8(name,64)or name:find("[{}]")or name:match("^%s")or name:match("%s$"))then return nil end
+        ranks[level]=name
+    end
+    local count=raw:byte(offset);offset=offset+1;if not count or count<1 or count>32 then return nil end
+    local messages={}
+    for i=1,count do local length=raw:byte(offset);offset=offset+1;if not length or length<1 or length>120 or offset+length-1>#raw then return nil end;local text=template(raw:sub(offset,offset+length-1),true);if not text then return nil end;messages[i]=text;offset=offset+length end
     if offset~=#raw+1 then return nil end
-    return {canonical=raw,checksum=ns.state.adler32(raw),invite=lists[1],welcome=lists[2]}
+    return {canonical=raw,checksum=ns.state.adler32(raw),invite=lists[1],welcome=lists[2],whoScope=raw:byte(2),recruiting=flags>=4,milestones={generation=generation,enabled=flags%2==1,congratulate=math.floor(flags/2)%2==1,ranks=ranks,messages=messages}}
 end
 local function configuration()
     local store=type(FeuxtonDB)=="table"and FeuxtonDB.guildRecruitment
@@ -352,7 +384,7 @@ local function keyCurrent(kind,key)
     return M and M.auxiliaryCurrent and M.auxiliaryCurrent(kind=="action"and "guild.action"or "guild.configuration",kind=="action"and "FeuxtonGuildRecruitAction"or "FeuxtonGuildRecruitConfiguration",key)or false
 end
 local function macroText(t)
-    return t.kind==2 and "/stopmacro [combat][dead]\n/g "..t.message or nil
+    return(t.kind==2 or t.kind==4 and t.claimReady)and "/stopmacro [combat][dead]\n/g "..t.message or nil
 end
 local function attributeMatches(button,key,expected)
     local ok,value=pcall(button.GetAttribute,button,key)
@@ -360,7 +392,7 @@ local function attributeMatches(button,key,expected)
 end
 local function macroCurrent(t,context)
     local button=B.actionButton
-    return button and keyCurrent("action",B.actionKey)and attributeMatches(button,"type",t.kind==2 and "macro"or nil)
+    return button and keyCurrent("action",B.actionKey)and attributeMatches(button,"type",macroText(t)and "macro"or nil)
         and attributeMatches(button,"macrotext",macroText(t))
         and call(button.GetAttribute,button,"feuxton-action")==t.action
         and call(button.GetAttribute,button,"feuxton-session")==context.session
@@ -372,8 +404,8 @@ local function beginOwnedAction(context,t)
     B.actionWindow={at=context.at,expires=math.min(t.expires,context.at+2),session=t.session,action=t.action,kind=t.kind,guid=t.guid,owner=B.owner}
 end
 local function welcomeCurrent(t)
-    local pending=B.pending[t.guid];local member=B.roster and B.roster[t.guid];local current=member and rosterMember(member.index)
-    return pending and pending.joined and not pending.welcomeReserved and current and current.guid==t.guid and current.name==t.name
+    local pending=B.pending[t.guid];local member=B.roster and B.roster[pending and pending.memberGUID or t.guid];local current=member and rosterMember(member.index)
+    return pending and pending.joined and not pending.welcomeReserved and current and current.guid==(pending.memberGUID or t.guid)and current.name==t.name
         and type(C_GuildInfo)=="table"and call(C_GuildInfo.MemberExistsByName,t.name)==true
 end
 local function clickAction(_,_,down)
@@ -381,27 +413,38 @@ local function clickAction(_,_,down)
     local context=ownContext();local t=B.ticket;local cfg=configuration()
     if not context or not t or t.stage~=0 or t.status~=4 or B.routeRejected or not cfg or cfg.checksum~=t.configurationChecksum or t.owner~=B.owner or t.session~=context.session or context.at>=t.expires
         or B.quarantine and context.at<B.quarantine or not safety(context,false,t.kind)or not macroCurrent(t,context)then clearMacro();if t then t.stage=0;t.status=6 end;return end
+    if t.kind==3 then
+        if not t.who or cfg.whoScope~=t.who.scope or D.best(context,candidate,candidateLevel,suppressed,function(a,b)return a.name<b.name end)then clearMacro();t.status=6;return end
+        t.status=D.sendWho(context,t.who,utf8)and 5 or 6
+        B.quarantine=context.at+2;return
+    end
     if t.kind==1 then
-        local c=candidate(t.unit,context)
+        local c=currentCandidate(t,context)
         if not c or not c.qualified or c.guid~=t.guid or c.name~=t.name or suppressed(context,c)or not budget(context)or not B.roster or nativeChatState(t).opener~=true then clearMacro();t.status=6;return end
         beginOwnedAction(context,t)
         context.ledger.attempts[#context.ledger.attempts+1]=context.utc;context.ledger.lastAttempt=context.utc
         context.ledger.lastDelayMs=math.random(8000,12000)
         B.lastAttemptMonotonic=context.at;B.lastAttemptOwner=B.owner
-        context.ledger.totalInvites=increment(context.ledger.totalInvites)
+        context.ledger.totalInvites=increment(context.ledger.totalInvites);D.statistics(context,"attempts")
         context.ledger.records[c.guid]={name=c.name,untilAt=context.utc+86400,attempted=context.utc,result="unknown"}
         B.recordCount=(B.recordCount or 0)+1;context.ledger.names[c.name]=c.guid
         local pending={name=c.name,at=context.at,invited=false,authorized=false};B.pending[c.guid]=pending
         t.status=5;B.quarantine=context.at+2;B.blocked=false
         local ok=pcall(C_ChatInfo.SendChatMessage,t.message,"WHISPER",nil,c.name)
-        local latest=ownContext();local current=latest and candidate(t.unit,latest)
+        local latest=ownContext();local current=latest and currentCandidate(t,latest)
         if not ok or B.blocked or not latest or latest.actor~=context.actor or latest.guild~=context.guild or latest.realm~=context.realm or latest.session~=context.session
             or not current or not current.qualified or current.guid~=c.guid or current.name~=c.name or not safety(latest,false,1)then clearMacro();t.status=6;return end
         pending.authorized=true;t.stage=2;t.status=5
+    elseif t.kind==4 or t.kind==5 then
+        if not M.current(context,t,cfg.milestones,rosterMember)then clearMacro();t.status=6;return end
+        if not M.owns(context,t)then M.claim(context,t);clearMacro();t.status=5;B.quarantine=context.at+2;return end
+        if not M.reserve(context,t)then clearMacro();t.status=6;return end
+        beginOwnedAction(context,t);t.status=5;B.quarantine=context.at+2
+        if t.kind==5 then t.stage=2;B.requestRoster=true end
     elseif t.kind==2 then
         if not welcomeCurrent(t)then clearMacro();t.status=6;return end
         beginOwnedAction(context,t)
-        local pending=B.pending[t.guid];pending.welcomeReserved=true
+        local pending=B.pending[t.guid];pending.welcomeReserved=true;D.statistics(context,"welcomes")
         local row=context.ledger.records[t.guid];if row then row.welcomed=true end
         t.status=5;B.quarantine=context.at+2
     else clearMacro();t.status=6 end
@@ -424,7 +467,7 @@ local function importConfiguration()
     if not context or not B.editorOwner or B.editorOwner~=context.owner or not B.editorExpires or context.at>=B.editorExpires or focused~=true
         or not keyCurrent("configuration",B.configurationKey)or not safety(context,true,0)then closeEditor();return end
     local text=call(B.editor.GetText,B.editor)
-    if type(text)~="string"or #text>10365 then closeEditor();return end
+    if type(text)~="string"or #text>16000 then closeEditor();return end
     local nonce,encoded=text:match("^/feuxton%-guild%-config (%d+) ([A-Za-z0-9+/=]+)$")
     local number=nonce and #nonce<=10 and tonumber(nonce)
     if not number or number~=B.configurationNonce or nonce~=string.format("%.0f",number)then closeEditor();return end
@@ -451,40 +494,39 @@ local function ensureButtons()
         button:SetSize(1,1);button:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000);button:SetAlpha(0);button:RegisterForClicks("AnyDown")
         button:SetScript("OnClick",openConfiguration);B.configurationButton=button
         local editor=CreateFrame("EditBox","FeuxtonGuildRecruitConfigurationEditBox",UIParent,"InputBoxTemplate")
-        editor:SetSize(1,1);editor:SetPoint("CENTER",UIParent,"CENTER",0,0);editor:SetAlpha(0);editor:SetAutoFocus(false);editor:SetMaxLetters(10400)
+        editor:SetSize(1,1);editor:SetPoint("CENTER",UIParent,"CENTER",0,0);editor:SetAlpha(0);editor:SetAutoFocus(false);editor:SetMaxLetters(16000)
         editor:SetScript("OnEnterPressed",importConfiguration);editor:SetScript("OnEscapePressed",closeEditor);editor:Hide();B.editor=editor
     end
     B.actionKey=M.claimAuxiliaryBinding("guild.action","FeuxtonGuildRecruitAction")
     B.configurationKey=M.claimAuxiliaryBinding("guild.configuration","FeuxtonGuildRecruitConfiguration")
 end
-local function render(value,name,guild)
-    if not template(value)or not utf8(name,96)or not utf8(guild,96)or name:find("[{}]")or guild:find("[{}]")then return nil end
+local function render(value,name,guild,level)
+    if not template(value,level~=nil)or not utf8(name,96)or not utf8(guild,96)or name:find("[{}]")or guild:find("[{}]")then return nil end
+    if level then value=value:gsub("{level}",tostring(level))end
     return utf8(value:gsub("{player}",function()return name end):gsub("{guild}",function()return guild end),140)
 end
 local function ticket(context,kind,c,cfg)
-    local messages=kind==1 and cfg.invite or cfg.welcome;local start=math.random(1,#messages)
+    local messages=kind==5 and {"Promotion at level {level}"}or kind==4 and cfg.milestones.messages or kind==3 and {"Search available guildless players"}or kind==1 and cfg.invite or cfg.welcome;local start=math.random(1,#messages)
     local message,index
     for offset=0,#messages-1 do
-        index=(start+offset-1)%#messages+1;message=render(messages[index],c.name,context.guild)
+        index=(start+offset-1)%#messages+1;message=render(messages[index],c.name,context.guild,c.milestoneLevel)
         if message then break end
     end
     if not message then return false end
     B.action=B.action%4294967295+1
     local t={action=B.action,kind=kind,status=4,stage=0,messageIndex=index-1,message=message,messageChecksum=ns.state.adler32(message),configurationChecksum=cfg.checksum,configurationNonce=B.configurationNonce,
-        guid=c.guid,name=c.name,unit=c.unit,expires=context.at+10,owner=B.owner,session=context.session}
+        guid=c.guid,name=c.name,unit=c.unit,who=c.whoRequest,expires=context.at+10,owner=B.owner,session=context.session,milestoneLevel=c.milestoneLevel,targetRank=c.targetRank,currentRank=c.currentRank}
+    if kind==4 or kind==5 then t.claimReady=M.owns(context,t)end
     B.ticket=t;B.candidateScan=nil
     local button=B.actionButton
     if call(InCombatLockdown)~=false or not keyCurrent("action",B.actionKey)then t.status=6;return false end
     button:SetAttribute("macrotext",macroText(t));button:SetAttribute("feuxton-action",t.action);button:SetAttribute("feuxton-session",t.session)
     button:SetAttribute("feuxton-configuration",t.configurationChecksum);button:SetAttribute("feuxton-message",t.messageChecksum);button:SetAttribute("feuxton-nonce",t.configurationNonce)
-    button:SetAttribute("type",kind==2 and "macro"or nil)
+    button:SetAttribute("type",macroText(t)and "macro"or nil)
     B.macroArmed=true
     return true
 end
-local function candidateLevel(unit)
-    local level=integer(call(UnitLevel,unit))
-    return level and level>0 and level or nil
-end
+
 local function candidateBefore(a,b)
     if a.level~=b.level then
         if not a.level then return false end;if not b.level then return true end
@@ -492,64 +534,48 @@ local function candidateBefore(a,b)
     end
     if a.guid~=b.guid then return a.guid<b.guid end
     if a.name~=b.name then return a.name<b.name end
-    return a.unit<b.unit
+    return (a.unit or "")<(b.unit or "")
 end
 local function rankedCandidate(context)
-    local scan=B.candidateScan
-    if not scan or context.at-scan.at>5 then
-        local units={"target","mouseover"};for unit in pairs(B.plates)do units[#units+1]=unit end
-        if #units>130 then B.candidateScan=nil;return nil,true end
-        table.sort(units);scan={units=units,index=0,candidates={},unknown=false,at=context.at};B.candidateScan=scan
-    end
-    -- Finish the entire observed set before offering anyone. The bounded
-    -- sweep avoids letting target order or nameplate enumeration set priority.
-    for _=1,math.min(8,#scan.units-scan.index)do
-        scan.index=scan.index+1
-        local c=candidate(scan.units[scan.index],context)
-        if c and not suppressed(context,c)then
-            if c.qualified then
-                c.level=candidateLevel(c.unit)
-                local previous=scan.candidates[c.guid]
-                if previous==nil then scan.candidates[c.guid]=c
-                elseif previous and previous.name~=c.name then scan.candidates[c.guid]=false
-                elseif previous and candidateBefore(c,previous)then scan.candidates[c.guid]=c end
-            else scan.unknown=true end
-        end
-    end
-    if scan.index<#scan.units then return nil,true end
-    B.candidateScan=nil
-    local best;for _,c in pairs(scan.candidates)do if c and(not best or candidateBefore(c,best))then best=c end end
-    if not best then return nil,scan.unknown end
-    if best.unit~="target"and best.unit~="mouseover"and not B.plates[best.unit]then return nil,true end
-    local current=candidate(best.unit,context)
-    if not current or not current.qualified or current.guid~=best.guid or current.name~=best.name or suppressed(context,current)
-        or candidateLevel(current.unit)~=best.level then return nil,true end
-    return current,false
+    if D.scan then return nil,true end
+    return D.best(context,candidate,candidateLevel,suppressed,candidateBefore),false
 end
 local function update(context,cfg)
     for guid,pending in pairs(B.pending)do if context.at-pending.at>300 then B.pending[guid]=nil end end
     if not cfg or not keyCurrent("action",B.actionKey)then retireTicket(context.at);return 3 end
     if B.routeRejected then return 6 end
-    rosterStep(context)
+    if M.configure(context,cfg.milestones)then B.rosterDirty=true;B.requestRoster=true end
+    if cfg.milestones.enabled and(not B.rosterRequested or context.at-B.rosterRequested>=30)then B.rosterDirty=true;B.requestRoster=true end
+    rosterStep(context,cfg)
     if B.ticket then
         local t=B.ticket
         if t.owner~=B.owner or t.session~=context.session or context.at>=t.expires or cfg.checksum~=t.configurationChecksum then retireTicket(context.at)
         elseif t.stage==2 then
-            local c=candidate(t.unit,context);local chat=nativeChatState(t)
-            if t.kind~=1 or t.status~=5 or not c or not c.qualified or c.guid~=t.guid or c.name~=t.name or chat.opener~=true or not safety(context,false,1,t)then retireTicket(context.at);return 2 end
+            local c=t.kind==1 and currentCandidate(t,context);local chat=nativeChatState(t)
+            local valid=t.kind==1 and c and c.qualified and c.guid==t.guid and c.name==t.name or t.kind==5 and M.current(context,t,cfg.milestones,rosterMember)and M.owns(context,t)
+            if not valid or t.status~=5 or chat.opener~=true or not safety(context,false,t.kind,t)then retireTicket(context.at);return 2 end
             return 5
         elseif t.status~=4 then
             if B.quarantine and context.at<B.quarantine then return t.status end
             retireTicket(context.at)
         else
-            if not safety(context,false,t.kind)or not macroCurrent(t,context)or t.kind==1 and nativeChatState(t).opener~=true then return 2 end
-            if t.kind==1 then local c=candidate(t.unit,context);if not c or not c.qualified or c.guid~=t.guid or c.name~=t.name then return 2 end
+            if not safety(context,false,t.kind)or not macroCurrent(t,context)or(t.kind==1 or t.kind==5)and nativeChatState(t).opener~=true then return 2 end
+            if t.kind==1 then local c=currentCandidate(t,context);if not c or not c.qualified or c.guid~=t.guid or c.name~=t.name then retireTicket(context.at);return 2 end
+            elseif t.kind==3 then
+                if not t.who or D.best(context,candidate,candidateLevel,suppressed,candidateBefore)then retireTicket(context.at);return 3 end
+            elseif t.kind==4 or t.kind==5 then if not M.current(context,t,cfg.milestones,rosterMember)then retireTicket(context.at);return 2 end
             elseif not welcomeCurrent(t)then return 2 end
             return 4
         end
     end
     if B.quarantine and context.at<B.quarantine then return 3 end
     if not B.roster then return 1 end
+    local milestoneKind,milestone=M.next(context,cfg.milestones,rosterMember)
+    if milestoneKind then
+        if not safety(context,false,milestoneKind)or milestoneKind==5 and nativeChatState(nil).opener~=true then return 2 end
+        return ticket(context,milestoneKind,milestone,cfg)and 4 or 2
+    end
+    if not cfg.recruiting then return 3 end
     for guid,pending in pairs(B.pending)do
         if pending.joined and not pending.welcomeReserved and context.at-pending.joinedAt<=60 then
             if not safety(context,false,2)then return 2 end
@@ -557,34 +583,109 @@ local function update(context,cfg)
         end
     end
     if not safety(context,false,1)or nativeChatState(nil).opener~=true then B.candidateScan=nil;return 2 end
-    if not budget(context)then B.candidateScan=nil;return 3 end
     local c,unknown=rankedCandidate(context)
-    if c then return ticket(context,1,c,cfg)and 4 or 2 end
+    if c then
+        if not budget(context)then return 3 end
+        return ticket(context,1,c,cfg)and 4 or 2
+    end
+    if not unknown then
+        local request=D.whoRequest(context,cfg.whoScope,utf8)
+        if request then return ticket(context,3,{guid="who-query",name="Who search",whoRequest=request},cfg)and 4 or 2 end
+    end
     return unknown and 1 or 3
 end
 function B.packet(tick)
+    D.maintain()
     ensureButtons()
     if B.macroArmed and not B.ticket then retireTicket(now())end
     local editorContext=configurationContext()
     if B.editorOwner and(not editorContext or editorContext.owner~=B.editorOwner or not B.editorExpires or editorContext.at>=B.editorExpires or not safety(editorContext,true,0))then closeEditor()end
     local focus,empty=editorFlags();local cfg=configuration();local context=ownContext();local status
+    if context then D.collect(context,B.plates,candidate,candidateLevel)end
     if focus==true then retireTicket(editorContext and editorContext.at);status=3
     elseif context then status=update(context,cfg)
-    else retireTicket(editorContext and editorContext.at);B.pending={};status=editorContext and 3 or 0 end
+    else retireTicket(editorContext and editorContext.at);B.pending={};M.clear();status=editorContext and 3 or 0 end
+    B.monitorContext=context;B.monitorTick=tick
     local invite,canChat=permissions();local t=B.ticket
     local expires=t and math.max(0,math.min(10000,math.floor((t.expires-context.at)*1000)))or 0
     local ledger=context and context.ledger or {};local S=ns.state
     local actionKey=keyCurrent("action",B.actionKey)and S.compactBindingCode(B.actionKey)or 0
     local configKey=keyCurrent("configuration",B.configurationKey)and S.compactBindingCode(B.configurationKey)or 0
     local chat=nativeChatState(t)
-    local packet="HGI2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(t and t.action or 0,4)..S.bytes(t and t.kind or 0,1)..S.bytes(status,1)..S.bytes(expires,2)
+    local milestoneStatus,milestonePending,announcements,confirmed,promoted=M.statistics()
+    local packet="HGI4"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(t and t.action or 0,4)..S.bytes(t and t.kind or 0,1)..S.bytes(status,1)..S.bytes(expires,2)
         ..S.bytes(math.min(10,#(ledger.attempts or {})),1)..S.bytes(integer(ledger.totalInvites)or 0,4)..S.bytes(integer(ledger.totalJoins)or 0,4)..S.bytes(integer(ledger.totalDeclines)or 0,4)
-        ..S.bytes(flag(invite)+flag(canChat)*4,1)..S.bytes(focus==true and 1 or t and t.stage or 0,1)..S.bytes(t and t.messageChecksum or 0,4)
+        ..S.bytes(flag(invite)+flag(canChat)*4+flag(call(CanGuildPromote))*16,1)..S.bytes(focus==true and 1 or t and t.stage or 0,1)..S.bytes(t and t.messageChecksum or 0,4)
         ..S.bytes(cfg and cfg.checksum or 0,4)..S.bytes(B.configurationNonce,4)..S.bytes(t and t.messageIndex or 0,1)..S.bytes(actionKey,2)..S.bytes(configKey,2)..S.bytes(flag(focus)+flag(empty)*4,1)
         ..S.bytes(flag(chat.focus)+flag(chat.empty)*4+flag(chat.matches)*16+flag(chat.opener)*64,1)
+        ..S.bytes(D.count,2)..S.bytes(D.whoStatus,1)
+        ..S.bytes(t and t.milestoneLevel or 0,1)..S.bytes(t and t.targetRank or 255,1)..S.bytes(t and t.currentRank or 255,1)..S.bytes(milestoneStatus,1)..S.bytes(milestonePending,2)..S.bytes(announcements,4)..S.bytes(confirmed,4)..S.bytes(promoted,4)
     for _,value in ipairs({context and context.actor or editorContext and editorContext.actor or "",context and context.guild or "",context and context.realm or editorContext and editorContext.realm or "",t and t.guid or "",t and t.name or "",chat.identity})do packet=packet..S.bytes(#value,1)..value end
-    assert(#packet+4<=512,"guild recruitment packet capacity")
+    assert(#packet+4<=602,"guild recruitment packet capacity")
     return packet..S.bytes(S.adler32(packet),4)
+end
+
+-- Read-only queue pages use only remaining envelope space. They cannot
+-- prepare actions, refresh native unit facts or reserve an invitation.
+local monitorStatKeys=D.statisticsKeys
+local function monitorRow(c,context)
+    local ledger=context.ledger;local record=ledger.records[c.guid]or ledger.records[ledger.names[c.name]or ""]
+    local pending=B.pending[c.guid];local state=1;local wait=0
+    if record and type(record.untilAt)=="number"and record.untilAt>context.utc then
+        state=record.result=="declined"and 8 or 4;wait=math.min(86400,math.ceil(record.untilAt-context.utc))
+    elseif not c.qualified or not c.guildAt then state=2
+    elseif context.at<c.guildAt or context.at-c.guildAt>60 then state=3 end
+    if pending and pending.authorized then state=pending.joined and 7 or 6 end
+    if B.ticket and B.ticket.kind==1 and B.ticket.guid==c.guid and B.ticket.status==4 then state=5 end
+    local level=type(c.level)=="number"and c.level>0 and c.level<=255 and c.level or 0
+    return {name=c.name,guid=c.guid,level=level,source=c.who and 2 or 1,state=state,wait=wait,seen=math.max(0,math.min(65535,math.floor(context.at-c.seenAt)))}
+end
+function B.monitorPacket(tick,maximum)
+    local previous=B.monitorPublication
+    if previous and previous.session==ns.state.setupSession and previous.tick==tick then return previous.packet end
+    local publication={session=ns.state.setupSession,tick=tick};B.monitorPublication=publication
+    local context=B.monitorTick==tick and B.monitorContext
+    local stats=D.statistics(context)
+    if not context or not stats or type(maximum)~="number"or maximum<75 then return nil end
+    local view=B.monitorView
+    if not view or view.owner~=B.owner or view.session~=context.session or context.at<view.at or context.at-view.at>30
+        or view.offset>=#view.rows and context.at-view.at>=1 then
+        B.monitorRevision=(B.monitorRevision or 0)%4294967295+1
+        view={owner=B.owner,session=context.session,revision=B.monitorRevision,at=context.at,offset=0,rows={},ready=0,unknown=0,suppressed=0}
+        for _,c in pairs(D.rows)do if utf8(c.name,96)then
+            local row=monitorRow(c,context);view.rows[#view.rows+1]=row
+            if row.state==1 or row.state==5 then view.ready=view.ready+1 elseif row.state==2 or row.state==3 then view.unknown=view.unknown+1 elseif row.state==4 or row.state==8 then view.suppressed=view.suppressed+1 end
+        end end
+        local function rank(row)return row.state==5 and 0 or row.state==1 and 1 or row.state==6 and 2 or 3 end
+        table.sort(view.rows,function(a,b)if rank(a)~=rank(b)then return rank(a)<rank(b)end;return candidateBefore(a,b)end)
+        B.monitorView=view
+    end
+    local ready,unknown,suppressedCount,outstanding=view.ready,view.unknown,view.suppressed,0
+    for _,p in pairs(B.pending)do if p.authorized and not p.joined and not p.declined and context.at-p.at<=120 then outstanding=outstanding+1 end end
+    local delay=type(context.ledger.lastDelayMs)=="number"and context.ledger.lastDelayMs or 8000
+    local inviteWait=0
+    if B.lastAttemptOwner==B.owner and B.lastAttemptMonotonic then inviteWait=math.max(0,(delay/1000-(context.at-B.lastAttemptMonotonic))*1000)
+    elseif context.ledger.lastAttempt then inviteWait=math.max(0,(math.ceil(delay/1000)+1-(context.utc-context.ledger.lastAttempt))*1000)end
+    if #context.ledger.attempts>=8 then inviteWait=math.max(inviteWait,(60-(context.utc-context.ledger.attempts[1]))*1000)end
+    local whoWait=math.max(0,((D.nextWho or 0)-context.at)*1000,((D.externalUntil or 0)-context.at)*1000)
+    if D.lastWhoOwner~=D.owner and context.ledger.lastWhoAt then whoWait=math.max(whoWait,(61-(context.utc-context.ledger.lastWhoAt))*1000)end
+    local entries={};local bytes=75;local offset=math.min(view.offset,#view.rows)
+    for index=offset+1,math.min(#view.rows,offset+4)do
+        local row=view.rows[index];local size=#row.name+10
+        if bytes+size>maximum then break end
+        entries[#entries+1]=ns.state.bytes(#row.name,1)..row.name..ns.state.bytes(row.level,1)..ns.state.bytes(row.source,1)..ns.state.bytes(row.state,1)..ns.state.bytes(row.seen,2)..ns.state.bytes(row.wait,4);bytes=bytes+size
+    end
+    if offset<#view.rows and #entries==0 then return nil end
+    local S=ns.state
+    local packet="HGQ1"..S.bytes(context.session,4)..S.bytes(tick,4)..S.bytes(S.adler32(B.owner),4)..S.bytes(view.revision,4)
+        ..S.bytes(#view.rows,2)..S.bytes(offset,2)..S.bytes(math.min(65535,math.floor((context.at-view.at)*1000)),2)..S.bytes(#entries,1)
+        ..S.bytes(ready,2)..S.bytes(unknown,2)..S.bytes(suppressedCount,2)..S.bytes(outstanding,2)
+        ..S.bytes(math.min(65535,math.ceil(inviteWait)),2)..S.bytes(math.min(65535,math.ceil(whoWait)),2)..S.bytes(stats.since,4)
+    for _,key in ipairs(monitorStatKeys)do packet=packet..S.bytes(stats[key],4)end
+    packet=packet..table.concat(entries);packet=packet..S.bytes(S.adler32(packet),4)
+    publication.packet=packet;view.offset=offset+#entries
+    if view.offset>=#view.rows and context.at-view.at<1 then view.offset=0 end
+    return packet
 end
 
 local function nativeText(value)
@@ -609,6 +710,7 @@ local function systemMessage(message)
         for guid,pending in pairs(B.pending)do
             if pending.name==invited and pending.authorized and not pending.declined then
                 pending.invited=true;pending.inviteReceipt=true
+                if not pending.statisticsConfirmed then pending.statisticsConfirmed=true;D.statistics(context,"confirmed")end
                 if B.ticket and B.ticket.guid==guid and B.ticket.kind==1 then B.ticket.status=5 end
                 return
             end
@@ -623,6 +725,8 @@ local function systemMessage(message)
             if declined then
                 if not pending.declined and not pending.joined then
                     pending.declined=true;context.ledger.totalDeclines=increment(context.ledger.totalDeclines)
+                    if not pending.statisticsConfirmed then pending.statisticsConfirmed=true;D.statistics(context,"confirmed")end
+                    D.statistics(context,"declines")
                     local row=context.ledger.records[guid];if row then row.untilAt=math.max(row.untilAt,context.utc+86400);row.result="declined"end
                     if B.ticket and B.ticket.guid==guid then retireTicket(context.at)end
                     B.pending[guid]=nil
@@ -639,15 +743,17 @@ local function systemMessage(message)
     end
 end
 local events=CreateFrame("Frame");B.events=events
-for _,event in ipairs({"NAME_PLATE_UNIT_ADDED","NAME_PLATE_UNIT_REMOVED","PLAYER_TARGET_CHANGED","UPDATE_MOUSEOVER_UNIT","PLAYER_ENTERING_WORLD","PLAYER_LEAVING_WORLD","PLAYER_REGEN_DISABLED","GUILD_ROSTER_UPDATE","PLAYER_GUILD_UPDATE","CHAT_MSG_SYSTEM","ADDON_ACTION_BLOCKED","ADDON_ACTION_FORBIDDEN","MACRO_ACTION_BLOCKED","MACRO_ACTION_FORBIDDEN"})do pcall(events.RegisterEvent,events,event)end
+for _,event in ipairs({"NAME_PLATE_UNIT_ADDED","NAME_PLATE_UNIT_REMOVED","PLAYER_TARGET_CHANGED","UPDATE_MOUSEOVER_UNIT","PLAYER_ENTERING_WORLD","PLAYER_LEAVING_WORLD","PLAYER_REGEN_DISABLED","ADDON_LOADED","WHO_LIST_UPDATE","GUILD_ROSTER_UPDATE","PLAYER_GUILD_UPDATE","CHAT_MSG_SYSTEM","ADDON_ACTION_BLOCKED","ADDON_ACTION_FORBIDDEN","MACRO_ACTION_BLOCKED","MACRO_ACTION_FORBIDDEN"})do pcall(events.RegisterEvent,events,event)end
 events:SetScript("OnEvent",function(_,event,value,...)
     if event=="NAME_PLATE_UNIT_ADDED"then if public(value)and type(value)=="string"and value:match("^nameplate%d+$")then local count=0;for _ in pairs(B.plates)do count=count+1 end;if count<128 and not B.plates[value]then B.plates[value]=true;B.candidateScan=nil end end
     elseif event=="NAME_PLATE_UNIT_REMOVED"then if public(value)and type(value)=="string"and B.plates[value]then B.plates[value]=nil;B.candidateScan=nil end
     elseif event=="PLAYER_TARGET_CHANGED"or event=="UPDATE_MOUSEOVER_UNIT"then B.candidateScan=nil
+    elseif event=="WHO_LIST_UPDATE"then D.whoResults(ownContext(),utf8)
+    elseif event=="ADDON_LOADED"then D.addonLoaded()
     elseif event=="CHAT_MSG_SYSTEM"then systemMessage(value)
     elseif event=="GUILD_ROSTER_UPDATE"then B.rosterDirty=true -- permission to request is not a request trigger
     elseif event=="PLAYER_GUILD_UPDATE"then if public(value)and value=="player"then B.rosterDirty=true;B.requestRoster=true end
-    elseif event=="ADDON_ACTION_BLOCKED"or event=="ADDON_ACTION_FORBIDDEN"or event=="MACRO_ACTION_BLOCKED"or event=="MACRO_ACTION_FORBIDDEN"then rejectOwnedAction(event,value,select(1,...))
+    elseif event=="ADDON_ACTION_BLOCKED"or event=="ADDON_ACTION_FORBIDDEN"or event=="MACRO_ACTION_BLOCKED"or event=="MACRO_ACTION_FORBIDDEN"then local fn=(event=="MACRO_ACTION_BLOCKED"or event=="MACRO_ACTION_FORBIDDEN")and value or select(1,...);if not D.rejected(fn)then rejectOwnedAction(event,value,select(1,...))end
     elseif event=="PLAYER_REGEN_DISABLED"then closeEditor();retireTicket(now())
-    else closeEditor();retireTicket(now());B.actionWindow=nil;B.pending={};B.samples={};B.plates={};B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.requestRoster=true end
+    else D.cancelWho();closeEditor();retireTicket(now());B.actionWindow=nil;B.pending={};B.samples={};B.plates={};B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.requestRoster=true end
 end)
