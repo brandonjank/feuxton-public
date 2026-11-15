@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.86",
+    "addonVersion":  "0.81.87",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v62",
-    "sourceRevision":  "62397db815752d0f2fdb235ffaa446c71d1914d4",
+    "sourceRevision":  "7b98724d6ef503fec5a29f10ddc4d6b2325560cd",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -67,8 +67,8 @@
                   },
                   {
                       "path":  "Diagnostics.lua",
-                      "sha256":  "CFCDDCE854A95D2199F84E8A1912FFBD0E70D3A4AEC8A963C8035B82AC2EBFAC",
-                      "size":  30134
+                      "sha256":  "7C2674E361340379F6C03F418D2A1B76797F10E2B9DB0FDF116E813AF68F4C92",
+                      "size":  32764
                   },
                   {
                       "path":  "Features/Bandages.lua",
@@ -182,12 +182,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "12F3682E17F6F0754D445E0DA01D1253691650BF21107095C279FD6A1442B7F2",
+                      "sha256":  "82E8EAE41617682C622964AD8E822FF1C864D6A8226AC5972B67B2ABAEF81692",
                       "size":  5419
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "951AACDAB8FBD87449F3E5D0B3B22005B6DF7FE062C031BCC787B0024A53DAEF",
+                      "sha256":  "A105F459979198C9B4C6E04A06DEFAF031DEB84B3C38082B3E407E2267846D0D",
                       "size":  1233
                   },
                   {
@@ -237,8 +237,8 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "834B94761C23C8842106A7C1523E6C7CE14D70022088EFBB9D92C0950A51B57F",
-                      "size":  43216
+                      "sha256":  "F0FA9C398EF6E5836F8C8E24F5175D804384CD40AEB327803766EEB72F4D6CAA",
+                      "size":  43458
                   },
                   {
                       "path":  "SpellCatalog.lua",
