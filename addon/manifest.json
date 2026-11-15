@@ -1,264 +1,264 @@
 {
-    "schemaVersion":  1,
-    "addonVersion":  "0.81.82",
-    "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v62",
-    "sourceRevision":  "33f9f81b4bc9b2b8c758ce577b303e44c7fbecbd",
-    "files":  [
-                  {
-                      "path":  "Activity.lua",
-                      "sha256":  "B3A35829BF4E64B156BF6E0F31FB514A42EE9058127851CBCCDA9D4D1D6E885C",
-                      "size":  5677
-                  },
-                  {
-                      "path":  "Bindings.lua",
-                      "sha256":  "6F0D517F52773676D39D9BA04F1D2942C927ABDF755D4A406FFF1DB1BEFF390C",
-                      "size":  43917
-                  },
-                  {
-                      "path":  "Classes/Druid.lua",
-                      "sha256":  "1FA7F17BBF35158A8ABDD2D625F94AB9222868D590DA1C17489D95255A35C525",
-                      "size":  13410
-                  },
-                  {
-                      "path":  "Classes/Hunter.lua",
-                      "sha256":  "ADCDC12537FE6D4C326A73D9755BCE70BD56C89C5F6326B0837F2986C61F352B",
-                      "size":  469
-                  },
-                  {
-                      "path":  "Classes/Mage.lua",
-                      "sha256":  "8F45A11DD16B420830CF663F9FD3A966755777E75BC8799588C65B8A7699ADE4",
-                      "size":  8329
-                  },
-                  {
-                      "path":  "Classes/Paladin.lua",
-                      "sha256":  "495F985049395FEEF4B4112BEFB80D7384B781DE13D70F9AA84E88BA4F94EA4B",
-                      "size":  37706
-                  },
-                  {
-                      "path":  "Classes/Priest.lua",
-                      "sha256":  "66F0DEFFD5F590D85FAEF2F54DC8864CEAEAA1198CE122188288E4933E2DCE33",
-                      "size":  166
-                  },
-                  {
-                      "path":  "Classes/Rogue.lua",
-                      "sha256":  "10F68CE16097B7EBC4C25ECFDBD33C53FCAB6C097A7D30EE6E378CFCDEC3E67E",
-                      "size":  164
-                  },
-                  {
-                      "path":  "Classes/Shaman.lua",
-                      "sha256":  "6D3D9596CCFB8DB5AAE36503C535B073B41EEEB1F5049864A6B4AA10CD2F7A55",
-                      "size":  4664
-                  },
-                  {
-                      "path":  "Classes/Warlock.lua",
-                      "sha256":  "9B99C223C8705A84B7CE7149BBB757B1AF699F2BE8730B53E72BEDF722B96C21",
-                      "size":  13963
-                  },
-                  {
-                      "path":  "Classes/Warrior.lua",
-                      "sha256":  "86B7C8C76DEAA3D610700F7D8C503BA92E729D284237B71266635707AF8D14D8",
-                      "size":  168
-                  },
-                  {
-                      "path":  "CoreTransport.lua",
-                      "sha256":  "BCCDD7E303262C84D601454D31BCF0D61FBEF2DE413E42C712EE0CD6C92E19AC",
-                      "size":  2920
-                  },
-                  {
-                      "path":  "Diagnostics.lua",
-                      "sha256":  "CFCDDCE854A95D2199F84E8A1912FFBD0E70D3A4AEC8A963C8035B82AC2EBFAC",
-                      "size":  30134
-                  },
-                  {
-                      "path":  "Features/Bandages.lua",
-                      "sha256":  "5ECAF419988093683C5E8815C497CDC87E26F13F2608F8755D1F7339E1F8DB71",
-                      "size":  8827
-                  },
-                  {
-                      "path":  "Features/BuffCoordination.lua",
-                      "sha256":  "FE216289452992D73645626CF4A61641193CABB6BFE06D57C01E85A1F3150E61",
-                      "size":  14512
-                  },
-                  {
-                      "path":  "Features/BuffCoverage.lua",
-                      "sha256":  "AB5101DBECA405B4F1E1ECE24D6C047FF8AF181664C566E9C0712082E20D1C93",
-                      "size":  13971
-                  },
-                  {
-                      "path":  "Features/CastTracking.lua",
-                      "sha256":  "0023AE519A709A112643E45433287D16B278D3656CBAA5A26F22B3647BC21207",
-                      "size":  13180
-                  },
-                  {
-                      "path":  "Features/Consumables.lua",
-                      "sha256":  "4F84A4B8498B7848DA38EA0A1697C975C07B82274879BC7EDAEC8AA522002B5D",
-                      "size":  27018
-                  },
-                  {
-                      "path":  "Features/ControlEffects.lua",
-                      "sha256":  "513AC2A7D2424FE1B14EDEF3A961AE9336B6EBDB3C60E780D6A03FC7AC63D337",
-                      "size":  39806
-                  },
-                  {
-                      "path":  "Features/GroupContext.lua",
-                      "sha256":  "11278E9FABFC85CDAA80D4753071F63D7E18E0FFD188B528FD266784F9A59752",
-                      "size":  14033
-                  },
-                  {
-                      "path":  "Features/GuildDiscovery.lua",
-                      "sha256":  "7C815C44E081B419F05592C44B3FDABAA043021C37DDA59DDBD5E1B9DC163845",
-                      "size":  12855
-                  },
-                  {
-                      "path":  "Features/GuildMilestones.lua",
-                      "sha256":  "97F2ACF95EA102800787418BEF75671D23837803AD6BEBE9B62772595404935F",
-                      "size":  10491
-                  },
-                  {
-                      "path":  "Features/GuildRecruitment.lua",
-                      "sha256":  "279707FF0B3F8091026EED8D3FBDB442F37ED1BFD40A38BAB04DB754498C212B",
-                      "size":  52037
-                  },
-                  {
-                      "path":  "Features/GuildRecruitmentHistory.lua",
-                      "sha256":  "F9ED66EBF7416452957E1DC8A2F6B2CFF1976735AC09638350716FD8B56F29FA",
-                      "size":  10787
-                  },
-                  {
-                      "path":  "Features/Healing.lua",
-                      "sha256":  "B06D06207CD42F2F54136E052E609BB9354E4A65E0D9AD23A3D7BA52985855D4",
-                      "size":  24445
-                  },
-                  {
-                      "path":  "Features/Interrupts.lua",
-                      "sha256":  "2B5C2DA45CB09E07AD95EB4D3C642950777086B26D5135AFACEE199FECE45B50",
-                      "size":  20850
-                  },
-                  {
-                      "path":  "Features/PetSupport.lua",
-                      "sha256":  "BAC29AF509B83EABDFD0467949E77CB8A9FF16BE8A3A1454206EB117426CA8D4",
-                      "size":  5407
-                  },
-                  {
-                      "path":  "Features/Potions.lua",
-                      "sha256":  "91CBE670E4A15110A182047FC6807894C3DB71274C336B2684417E4157084064",
-                      "size":  10554
-                  },
-                  {
-                      "path":  "Features/Racials.lua",
-                      "sha256":  "14C996A6A59B3EE7D3001BEE0FE263B5872D74D86AB5B9386CA2D15296E1DD67",
-                      "size":  1974
-                  },
-                  {
-                      "path":  "Features/RangeTracking.lua",
-                      "sha256":  "5E5960F3A59BB2751A45DBEBB12D1EA029E6420B1F481ACFDFFEEC0196CB9A28",
-                      "size":  29891
-                  },
-                  {
-                      "path":  "Features/RecipientTargeting.lua",
-                      "sha256":  "6C2230094A157A0C57B60B14470BB5C96C1E90285D3BFB3961A97D797343EE99",
-                      "size":  4685
-                  },
-                  {
-                      "path":  "Features/Rendering.lua",
-                      "sha256":  "9F879A7E172EF181C2A7EDDC136837EA4290859C8DCEB3B45A5E8AEBCBD67779",
-                      "size":  5391
-                  },
-                  {
-                      "path":  "Features/SpellBridge.lua",
-                      "sha256":  "2F7C3E02ACF5788558438DF18E706732A71705D21665741160DD48D0D549BE2D",
-                      "size":  14647
-                  },
-                  {
-                      "path":  "Features/Threat.lua",
-                      "sha256":  "2A433CCDF49CFD093A074CFD1328B149DEEF653977B41FA3C111FAF22460D77E",
-                      "size":  2615
-                  },
-                  {
-                      "path":  "Features/Totems.lua",
-                      "sha256":  "391CFC598B565D48C3DBC1BE3CA5AC1BA05458CE2E1E00DEB914272D21C1B48F",
-                      "size":  3751
-                  },
-                  {
-                      "path":  "Feuxton.lua",
-                      "sha256":  "3F7D01E69442DEB0B845D3EEC0B4FAB00F9B6933CE96C4672B786A5833D370BB",
-                      "size":  5419
-                  },
-                  {
-                      "path":  "Feuxton.toc",
-                      "sha256":  "DEF6A131AB4704042F58550A488BDCE0BF1FA159ADCA74421BA1BBB8ECB6B854",
-                      "size":  1233
-                  },
-                  {
-                      "path":  "GuideTransport.lua",
-                      "sha256":  "F2D3EB3765442E9D4AD68F32C008AAA17EABC325CCC84B3E84131B4CF08BA30A",
-                      "size":  21016
-                  },
-                  {
-                      "path":  "Hud.lua",
-                      "sha256":  "57067A883E400FE83597E525565E1CD35CE0D96D872B73024F24881EEC020FC0",
-                      "size":  8106
-                  },
-                  {
-                      "path":  "HudUpdates.lua",
-                      "sha256":  "5065544200071BDC236CDF61DF26645F921ADE039BEFAA345FB8B16C6936E4A0",
-                      "size":  13820
-                  },
-                  {
-                      "path":  "HunterSpells.lua",
-                      "sha256":  "97AC55A87D1AE8C91E8AA09D32F0703E29217ACAFB81D39F4F0A07DBD742783C",
-                      "size":  4431
-                  },
-                  {
-                      "path":  "LICENSE",
-                      "sha256":  "0781D2563D0A0A1A63E1A53911B220D73D16A3C3570767934ECF4874E3CF2EC8",
-                      "size":  1069
-                  },
-                  {
-                      "path":  "PlayerAuras.lua",
-                      "sha256":  "DF38C8CE93419EE65198916DDC482EF0FD34E4C7CBB61A0059682F5E7E056429",
-                      "size":  9056
-                  },
-                  {
-                      "path":  "ProbeWindow.lua",
-                      "sha256":  "608D53E4D3DD7D59182B3D2CA6B977F0AD942E2ECD35624A4C3C8F59F5243CDB",
-                      "size":  40673
-                  },
-                  {
-                      "path":  "ResourceGauges.lua",
-                      "sha256":  "48BF66DEEC3D04FD4AB5813929C5384827E41CF13B1FE965AEAC7C2588132ACF",
-                      "size":  6316
-                  },
-                  {
-                      "path":  "Settings.lua",
-                      "sha256":  "7D55FB5640FF33385C66EB0866AA31E21AE3098753434E57944DB92A45E98D94",
-                      "size":  7356
-                  },
-                  {
-                      "path":  "SetupTransport.lua",
-                      "sha256":  "E686316BF0059C34D18B276C89A2348F498EB8A49B63839D6986495C9148989C",
-                      "size":  37901
-                  },
-                  {
-                      "path":  "SpellCatalog.lua",
-                      "sha256":  "940C425627E22A7B8E56F79D4FC5AEC1AA9BE17F6668471166F8AF50AF467D28",
-                      "size":  109548
-                  },
-                  {
-                      "path":  "SpellWidgets.lua",
-                      "sha256":  "67CB043AD49E36CE09CD585A07850F8783A6A771ABCA13F2F7C14FB09F9CF65D",
-                      "size":  9076
-                  },
-                  {
-                      "path":  "TargetAuras.lua",
-                      "sha256":  "7020DEEBC759D0BC96E599314A049B527CAABB38F419A0F880F84B5C5D0EF92B",
-                      "size":  19009
-                  },
-                  {
-                      "path":  "TargetHud.lua",
-                      "sha256":  "AFECC87BA4D81306F03BDD9CBFDE89BBF814F2ABE31F833745C228DCB9D964FF",
-                      "size":  8111
-                  }
-              ]
+  "schemaVersion": 1,
+  "addonVersion": "0.81.83",
+  "interfaceVersion": 16001,
+  "contract": "feuxton-dense-v62",
+  "sourceRevision": "4946d309ef46bd659470d3e665b9fd6500a01fff",
+  "files": [
+    {
+      "path": "Activity.lua",
+      "sha256": "B3A35829BF4E64B156BF6E0F31FB514A42EE9058127851CBCCDA9D4D1D6E885C",
+      "size": 5677
+    },
+    {
+      "path": "Bindings.lua",
+      "sha256": "6F0D517F52773676D39D9BA04F1D2942C927ABDF755D4A406FFF1DB1BEFF390C",
+      "size": 43917
+    },
+    {
+      "path": "Classes/Druid.lua",
+      "sha256": "1FA7F17BBF35158A8ABDD2D625F94AB9222868D590DA1C17489D95255A35C525",
+      "size": 13410
+    },
+    {
+      "path": "Classes/Hunter.lua",
+      "sha256": "ADCDC12537FE6D4C326A73D9755BCE70BD56C89C5F6326B0837F2986C61F352B",
+      "size": 469
+    },
+    {
+      "path": "Classes/Mage.lua",
+      "sha256": "4FA2C5688D6FE56C360C528C42739BA3B6866E9FAE80E829124236A24A583C2C",
+      "size": 8936
+    },
+    {
+      "path": "Classes/Paladin.lua",
+      "sha256": "495F985049395FEEF4B4112BEFB80D7384B781DE13D70F9AA84E88BA4F94EA4B",
+      "size": 37706
+    },
+    {
+      "path": "Classes/Priest.lua",
+      "sha256": "66F0DEFFD5F590D85FAEF2F54DC8864CEAEAA1198CE122188288E4933E2DCE33",
+      "size": 166
+    },
+    {
+      "path": "Classes/Rogue.lua",
+      "sha256": "10F68CE16097B7EBC4C25ECFDBD33C53FCAB6C097A7D30EE6E378CFCDEC3E67E",
+      "size": 164
+    },
+    {
+      "path": "Classes/Shaman.lua",
+      "sha256": "6D3D9596CCFB8DB5AAE36503C535B073B41EEEB1F5049864A6B4AA10CD2F7A55",
+      "size": 4664
+    },
+    {
+      "path": "Classes/Warlock.lua",
+      "sha256": "9B99C223C8705A84B7CE7149BBB757B1AF699F2BE8730B53E72BEDF722B96C21",
+      "size": 13963
+    },
+    {
+      "path": "Classes/Warrior.lua",
+      "sha256": "86B7C8C76DEAA3D610700F7D8C503BA92E729D284237B71266635707AF8D14D8",
+      "size": 168
+    },
+    {
+      "path": "CoreTransport.lua",
+      "sha256": "BCCDD7E303262C84D601454D31BCF0D61FBEF2DE413E42C712EE0CD6C92E19AC",
+      "size": 2920
+    },
+    {
+      "path": "Diagnostics.lua",
+      "sha256": "CFCDDCE854A95D2199F84E8A1912FFBD0E70D3A4AEC8A963C8035B82AC2EBFAC",
+      "size": 30134
+    },
+    {
+      "path": "Features/Bandages.lua",
+      "sha256": "5ECAF419988093683C5E8815C497CDC87E26F13F2608F8755D1F7339E1F8DB71",
+      "size": 8827
+    },
+    {
+      "path": "Features/BuffCoordination.lua",
+      "sha256": "FE216289452992D73645626CF4A61641193CABB6BFE06D57C01E85A1F3150E61",
+      "size": 14512
+    },
+    {
+      "path": "Features/BuffCoverage.lua",
+      "sha256": "AB5101DBECA405B4F1E1ECE24D6C047FF8AF181664C566E9C0712082E20D1C93",
+      "size": 13971
+    },
+    {
+      "path": "Features/CastTracking.lua",
+      "sha256": "0023AE519A709A112643E45433287D16B278D3656CBAA5A26F22B3647BC21207",
+      "size": 13180
+    },
+    {
+      "path": "Features/Consumables.lua",
+      "sha256": "4F84A4B8498B7848DA38EA0A1697C975C07B82274879BC7EDAEC8AA522002B5D",
+      "size": 27018
+    },
+    {
+      "path": "Features/ControlEffects.lua",
+      "sha256": "513AC2A7D2424FE1B14EDEF3A961AE9336B6EBDB3C60E780D6A03FC7AC63D337",
+      "size": 39806
+    },
+    {
+      "path": "Features/GroupContext.lua",
+      "sha256": "11278E9FABFC85CDAA80D4753071F63D7E18E0FFD188B528FD266784F9A59752",
+      "size": 14033
+    },
+    {
+      "path": "Features/GuildDiscovery.lua",
+      "sha256": "7C815C44E081B419F05592C44B3FDABAA043021C37DDA59DDBD5E1B9DC163845",
+      "size": 12855
+    },
+    {
+      "path": "Features/GuildMilestones.lua",
+      "sha256": "97F2ACF95EA102800787418BEF75671D23837803AD6BEBE9B62772595404935F",
+      "size": 10491
+    },
+    {
+      "path": "Features/GuildRecruitment.lua",
+      "sha256": "279707FF0B3F8091026EED8D3FBDB442F37ED1BFD40A38BAB04DB754498C212B",
+      "size": 52037
+    },
+    {
+      "path": "Features/GuildRecruitmentHistory.lua",
+      "sha256": "F9ED66EBF7416452957E1DC8A2F6B2CFF1976735AC09638350716FD8B56F29FA",
+      "size": 10787
+    },
+    {
+      "path": "Features/Healing.lua",
+      "sha256": "B06D06207CD42F2F54136E052E609BB9354E4A65E0D9AD23A3D7BA52985855D4",
+      "size": 24445
+    },
+    {
+      "path": "Features/Interrupts.lua",
+      "sha256": "2B5C2DA45CB09E07AD95EB4D3C642950777086B26D5135AFACEE199FECE45B50",
+      "size": 20850
+    },
+    {
+      "path": "Features/PetSupport.lua",
+      "sha256": "BAC29AF509B83EABDFD0467949E77CB8A9FF16BE8A3A1454206EB117426CA8D4",
+      "size": 5407
+    },
+    {
+      "path": "Features/Potions.lua",
+      "sha256": "91CBE670E4A15110A182047FC6807894C3DB71274C336B2684417E4157084064",
+      "size": 10554
+    },
+    {
+      "path": "Features/Racials.lua",
+      "sha256": "14C996A6A59B3EE7D3001BEE0FE263B5872D74D86AB5B9386CA2D15296E1DD67",
+      "size": 1974
+    },
+    {
+      "path": "Features/RangeTracking.lua",
+      "sha256": "5E5960F3A59BB2751A45DBEBB12D1EA029E6420B1F481ACFDFFEEC0196CB9A28",
+      "size": 29891
+    },
+    {
+      "path": "Features/RecipientTargeting.lua",
+      "sha256": "6C2230094A157A0C57B60B14470BB5C96C1E90285D3BFB3961A97D797343EE99",
+      "size": 4685
+    },
+    {
+      "path": "Features/Rendering.lua",
+      "sha256": "9F879A7E172EF181C2A7EDDC136837EA4290859C8DCEB3B45A5E8AEBCBD67779",
+      "size": 5391
+    },
+    {
+      "path": "Features/SpellBridge.lua",
+      "sha256": "2F7C3E02ACF5788558438DF18E706732A71705D21665741160DD48D0D549BE2D",
+      "size": 14647
+    },
+    {
+      "path": "Features/Threat.lua",
+      "sha256": "2A433CCDF49CFD093A074CFD1328B149DEEF653977B41FA3C111FAF22460D77E",
+      "size": 2615
+    },
+    {
+      "path": "Features/Totems.lua",
+      "sha256": "391CFC598B565D48C3DBC1BE3CA5AC1BA05458CE2E1E00DEB914272D21C1B48F",
+      "size": 3751
+    },
+    {
+      "path": "Feuxton.lua",
+      "sha256": "DA21B14544B9F536B96CF1BF60343F3C2C3938D1AEC919FBA0B379C6F02651D8",
+      "size": 5419
+    },
+    {
+      "path": "Feuxton.toc",
+      "sha256": "7B61B6F2393D4E2EF611B93DD512D225C31CD12177AB8C4D137C4D4AF70ED265",
+      "size": 1233
+    },
+    {
+      "path": "GuideTransport.lua",
+      "sha256": "F2D3EB3765442E9D4AD68F32C008AAA17EABC325CCC84B3E84131B4CF08BA30A",
+      "size": 21016
+    },
+    {
+      "path": "Hud.lua",
+      "sha256": "57067A883E400FE83597E525565E1CD35CE0D96D872B73024F24881EEC020FC0",
+      "size": 8106
+    },
+    {
+      "path": "HudUpdates.lua",
+      "sha256": "5065544200071BDC236CDF61DF26645F921ADE039BEFAA345FB8B16C6936E4A0",
+      "size": 13820
+    },
+    {
+      "path": "HunterSpells.lua",
+      "sha256": "97AC55A87D1AE8C91E8AA09D32F0703E29217ACAFB81D39F4F0A07DBD742783C",
+      "size": 4431
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "0781D2563D0A0A1A63E1A53911B220D73D16A3C3570767934ECF4874E3CF2EC8",
+      "size": 1069
+    },
+    {
+      "path": "PlayerAuras.lua",
+      "sha256": "DF38C8CE93419EE65198916DDC482EF0FD34E4C7CBB61A0059682F5E7E056429",
+      "size": 9056
+    },
+    {
+      "path": "ProbeWindow.lua",
+      "sha256": "608D53E4D3DD7D59182B3D2CA6B977F0AD942E2ECD35624A4C3C8F59F5243CDB",
+      "size": 40673
+    },
+    {
+      "path": "ResourceGauges.lua",
+      "sha256": "48BF66DEEC3D04FD4AB5813929C5384827E41CF13B1FE965AEAC7C2588132ACF",
+      "size": 6316
+    },
+    {
+      "path": "Settings.lua",
+      "sha256": "7D55FB5640FF33385C66EB0866AA31E21AE3098753434E57944DB92A45E98D94",
+      "size": 7356
+    },
+    {
+      "path": "SetupTransport.lua",
+      "sha256": "E686316BF0059C34D18B276C89A2348F498EB8A49B63839D6986495C9148989C",
+      "size": 37901
+    },
+    {
+      "path": "SpellCatalog.lua",
+      "sha256": "940C425627E22A7B8E56F79D4FC5AEC1AA9BE17F6668471166F8AF50AF467D28",
+      "size": 109548
+    },
+    {
+      "path": "SpellWidgets.lua",
+      "sha256": "67CB043AD49E36CE09CD585A07850F8783A6A771ABCA13F2F7C14FB09F9CF65D",
+      "size": 9076
+    },
+    {
+      "path": "TargetAuras.lua",
+      "sha256": "7020DEEBC759D0BC96E599314A049B527CAABB38F419A0F880F84B5C5D0EF92B",
+      "size": 19009
+    },
+    {
+      "path": "TargetHud.lua",
+      "sha256": "AFECC87BA4D81306F03BDD9CBFDE89BBF814F2ABE31F833745C228DCB9D964FF",
+      "size": 8111
+    }
+  ]
 }
