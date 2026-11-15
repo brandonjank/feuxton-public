@@ -79,7 +79,7 @@ do
             -- enemy-cast source current without querying hidden Hunter tiles.
             probeTick=(probeTick+1)%4294967296
             S.publishTransportPacket(2,nil,true)
-            if class=="PALADIN" or class=="SHAMAN" or class=="DRUID" or class=="WARLOCK" then
+            if class=="PALADIN" or class=="SHAMAN" or class=="DRUID" or class=="WARLOCK" or class=="MAGE" then
                 local enemyCast=ns.features.Interrupts.bytes()
                 S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast))
             else S.publishTransportPacket(8,nil) end
@@ -171,7 +171,7 @@ do
         -- signals change only the trailing band, never the health/power grid.
         -- Paladin's near-finished-heal guard always retains its cast clock.
         local profile={};for key,value in pairs(base) do profile[key]=value end
-        profile.extendedSignals=class=="PALADIN" or type(ns.extendedHudDiagnostics)=="function" and ns.extendedHudDiagnostics()==true
+        profile.extendedSignals=base.requiredSignals==true or class=="PALADIN" or type(ns.extendedHudDiagnostics)=="function" and ns.extendedHudDiagnostics()==true
         -- Leave a blank discovery-marker tail when the native number grid is
         -- last; its final full-width UInt32 cell must never share marker ink.
         profile.height=profile.nativeVitalsTop+profile.nativeVitalsHeight+(profile.extendedSignals and profile.nativeSignalsHeight or 8)
@@ -303,6 +303,7 @@ do
     register(S.signalUpdater,"signals")
     register(S.paladinPanel,"paladin preview")
     register(S.shamanNativePanel,"Shaman bridge")
+    register(S.mageNativePanel,"Mage bridge")
     register(S.druidNativePanel,"Druid bridge")
     register(S.warlockNativePanel,"Warlock bridge")
     register(S.guidePanel,"guide")

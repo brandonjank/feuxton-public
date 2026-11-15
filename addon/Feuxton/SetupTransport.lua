@@ -85,7 +85,7 @@ function S.loadedAddonPacket(tick)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI7",[10]="HHX6",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI4",[27]="HGQ1"}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI7",[10]="HHX6",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI4",[27]="HGQ1",[28]="MGS1"}
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
@@ -130,10 +130,10 @@ end
 function S.denseStatePacket(now,tick)
     if sourceSession~=S.setupSession then sourceSession=S.setupSession;sourceSessionBytes=S.bytes(sourceSession,4) end
     local core=S.transportPackets[1];local classID=core and string.byte(core.packet,11) or 0
-    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 then ids[#ids+1]=11 elseif classID==5 then ids[#ids+1]=12 end
+    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 then ids[#ids+1]=11 elseif classID==5 then ids[#ids+1]=12 elseif classID==9 then ids[#ids+1]=28 end
     for id=16,21 do ids[#ids+1]=id end
     if classID==7 then ids[#ids+1]=4 end -- optional public courtesy recipients
-    ids[#ids+1]=5;if classID==7 or classID==2 or classID==5 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 or classID==4 or classID==5 then ids[#ids+1]=8 end -- setup, recipients and shared enemy cast
+    ids[#ids+1]=5;if classID==7 or classID==2 or classID==5 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 or classID==4 or classID==5 or classID==9 then ids[#ids+1]=8 end -- setup, recipients and shared enemy cast
     if ns.features.Consumables then
         local ok,packet=pcall(ns.features.Consumables.packet,tick)
         S.transportPackets[9]=ok and {packet=packet,at=now} or nil
@@ -500,18 +500,19 @@ function S.collectSetup()
         S.setupKnownSpellFingerprint=fingerprint;S.setupKnownSpellRevision=(S.setupKnownSpellRevision or 0)+1
     end
     S.setupKnownSpells=nativeSpells;S.setupBookAvailable=bookAvailable
-    local talents,trees={},{}
+    local talents,trees={},{};S.setupTalentPoints={};S.setupTalentNames={}
     local talentAvailable=false
     local tabs=S.setupNumber(S.readableCall(GetNumTalentTabs))
     if tabs and tabs>=0 and tabs<=8 and type(GetTalentInfo)=="function" then
         talentAvailable=true
         for tab=1,tabs do
+            S.setupTalentPoints[tab]=S.setupNumber(S.setupValue(GetTalentTabInfo,3,tab));
             trees[#trees+1]=S.jsonObject({name=S.setupString(S.setupValue(GetTalentTabInfo,1,tab)),points=S.setupNumber(S.setupValue(GetTalentTabInfo,3,tab))})
             local count=S.setupNumber(S.readableCall(GetNumTalents,tab))
             if count and count<=200 then
                 for index=1,count do
                     local rank=S.setupNumber(S.setupValue(GetTalentInfo,5,tab,index))
-                    if rank and rank>0 then talents[#talents+1]=S.jsonObject({name=S.setupString(S.setupValue(GetTalentInfo,1,tab,index)),rank=rank,tree=tab}) end
+                    if rank and rank>0 then local name=S.setupString(S.setupValue(GetTalentInfo,1,tab,index));if name then S.setupTalentNames[name]=true end;talents[#talents+1]=S.jsonObject({name=S.setupString(S.setupValue(GetTalentInfo,1,tab,index)),rank=rank,tree=tab}) end
                 end
             else talentAvailable=false end
         end
@@ -544,6 +545,7 @@ function S.collectSetup()
             end
         end
     end
+    S.setupTalentsAvailable=talentAvailable
     local petActions={}
     for slot=1,10 do
         local name=S.setupString(S.setupValue(GetPetActionInfo,1,slot))

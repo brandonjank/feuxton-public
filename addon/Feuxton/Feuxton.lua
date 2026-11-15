@@ -1,8 +1,8 @@
 -- Shared addon namespace. Keep this file first in the TOC.
 local addonName, ns = ...
 ns.addonName = addonName
-ns.version = "0.81.80"
-ns.contractRevision = 60
+ns.version = "0.81.82"
+ns.contractRevision = 62
 ns.state = {bridgeLabels={}}
 function ns.state.bridgeLabel(label) ns.state.bridgeLabels[#ns.state.bridgeLabels+1]=label end
 ns.classes = {}

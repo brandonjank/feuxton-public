@@ -25,7 +25,7 @@ for code=0,9 do
 end
 local druidKeys={};for _,key in ipairs(M.keys)do druidKeys[#druidKeys+1]=key end
 for _,key in ipairs(M.extendedKeys)do druidKeys[#druidKeys+1]=key end
-function M.keysForClass(class)return (class=="DRUID" or class=="WARLOCK")and druidKeys or M.keys end
+function M.keysForClass(class)return (class=="DRUID" or class=="WARLOCK" or class=="MAGE")and druidKeys or M.keys end
 -- Recovery items and explicit safety commands must remain available when
 -- optional spellbook utilities fill the class pool. Keeping the
 -- original allocation first preserves every existing spell/item family key.
@@ -141,12 +141,13 @@ function M.catalog()
         local candidate=ns.features.PetSupport.abilityCandidate();if candidate then candidates[#candidates+1]=candidate;byName[candidate.name]=candidate end
     end
     for _,spec in ipairs(specs) do
-        if not spec.petAbility then
+        if not spec.petAbility and not spec.passive and not spec.itemID then
             local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.pinnedSpellID or spec.name)
             local unit=spec.unit or "target"
             add(spec.pinnedSpellID or S.safeField(info,"spellID"),spec.name,unit,true,spec.startAttack,spec.petAttack,spec.managedName,spec)
         end
     end
+    if catalog and catalog.extraCandidates then for _,candidate in ipairs(catalog.extraCandidates()) do candidates[#candidates+1]=candidate end end
     if ns.features.PetSupport and ns.features.PetSupport.candidate then
         local candidate=ns.features.PetSupport.candidate(class);if candidate then candidates[#candidates+1]=candidate end
     end

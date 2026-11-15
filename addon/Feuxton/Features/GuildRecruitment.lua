@@ -6,6 +6,7 @@ ns.features.GuildRecruitment=B
 local MAX=2147483647
 local D=ns.features.GuildDiscovery
 local M=ns.features.GuildMilestones
+local H=ns.features.GuildRecruitmentHistory
 local function public(value)
     if type(issecretvalue)~="function" then return false end
     local ok,secret=pcall(issecretvalue,value);return ok and not secret
@@ -99,13 +100,15 @@ local function ownContext()
     local ledger=store.scopes[key]
     if ledger==nil then ledger={records={},names={},attempts={},totalInvites=0,totalJoins=0,totalDeclines=0};store.scopes[key]=ledger end
     if type(ledger)~="table"or type(ledger.records)~="table"or type(ledger.names)~="table"or type(ledger.attempts)~="table"then return nil end
+    local historyContext={actor=actor,guild=guild,realm=realm,session=session,at=stamp,utc=utc,ledger=ledger}
+    if not H.attach(store,historyContext,utf8,B.configuration and B.configuration.reinviteHours or 72)then return nil end
     if B.ledger~=ledger or not B.ledgerMaintenance or stamp-B.ledgerMaintenance>=5 then
         local count=0
         for guid,row in pairs(ledger.records)do
             if type(row)~="table"or not integer(row.untilAt)then return nil end
             if row.untilAt<=utc then ledger.records[guid]=nil;if ledger.names[row.name]==guid then ledger.names[row.name]=nil end else count=count+1 end
         end
-        B.ledger=ledger;B.recordCount=count;B.ledgerMaintenance=stamp
+        B.ledger=ledger;B.recordCount=count;B.ledgerMaintenance=stamp;H.count=count;H.full=count>=H.limit
     end
     if #ledger.attempts>10 then return nil end
     local attempts={}
@@ -296,7 +299,7 @@ local function decode64(value)
         if c~="="then out[#out+1]=string.char(y%16*16+math.floor(z/4))end
         if d~="="then out[#out+1]=string.char(z%4*64+w)end
     end
-    local decoded=table.concat(out);return #decoded<=11821 and decoded or nil
+    local decoded=table.concat(out);return #decoded<=11823 and decoded or nil
 end
 local function template(value,milestone)
     value=utf8(value,120);if not value then return nil end
@@ -304,7 +307,7 @@ local function template(value,milestone)
     return not remainder:find("[{}]")and value or nil
 end
 local function decodeConfiguration(raw)
-    if type(raw)~="string"or #raw<8 or #raw>11821 or raw:byte(1)~=3 or raw:byte(2)>2 then return nil end
+    if type(raw)~="string"or #raw<8 or #raw>11823 or raw:byte(1)~=4 or raw:byte(2)>2 then return nil end
     local offset=3;local lists={}
     for kind=1,2 do
         local count=raw:byte(offset);offset=offset+1;if not count or count<1 or count>32 then return nil end
@@ -330,8 +333,11 @@ local function decodeConfiguration(raw)
     local count=raw:byte(offset);offset=offset+1;if not count or count<1 or count>32 then return nil end
     local messages={}
     for i=1,count do local length=raw:byte(offset);offset=offset+1;if not length or length<1 or length>120 or offset+length-1>#raw then return nil end;local text=template(raw:sub(offset,offset+length-1),true);if not text then return nil end;messages[i]=text;offset=offset+length end
+    if offset+1~=#raw then return nil end
+    local hours=raw:byte(offset)+256*raw:byte(offset+1);if hours<1 or hours>720 then return nil end
+    offset=offset+2
     if offset~=#raw+1 then return nil end
-    return {canonical=raw,checksum=ns.state.adler32(raw),invite=lists[1],welcome=lists[2],whoScope=raw:byte(2),recruiting=flags>=4,milestones={generation=generation,enabled=flags%2==1,congratulate=math.floor(flags/2)%2==1,ranks=ranks,messages=messages}}
+    return {canonical=raw,checksum=ns.state.adler32(raw),invite=lists[1],welcome=lists[2],whoScope=raw:byte(2),reinviteHours=hours,recruiting=flags>=4,milestones={generation=generation,enabled=flags%2==1,congratulate=math.floor(flags/2)%2==1,ranks=ranks,messages=messages}}
 end
 local function configuration()
     local store=type(FeuxtonDB)=="table"and FeuxtonDB.guildRecruitment
@@ -421,13 +427,13 @@ local function clickAction(_,_,down)
     if t.kind==1 then
         local c=currentCandidate(t,context)
         if not c or not c.qualified or c.guid~=t.guid or c.name~=t.name or suppressed(context,c)or not budget(context)or not B.roster or nativeChatState(t).opener~=true then clearMacro();t.status=6;return end
+        if not H.ready(context)or not H.reserve(context,c,cfg.reinviteHours)then clearMacro();t.status=6;return end
         beginOwnedAction(context,t)
         context.ledger.attempts[#context.ledger.attempts+1]=context.utc;context.ledger.lastAttempt=context.utc
         context.ledger.lastDelayMs=math.random(8000,12000)
         B.lastAttemptMonotonic=context.at;B.lastAttemptOwner=B.owner
         context.ledger.totalInvites=increment(context.ledger.totalInvites);D.statistics(context,"attempts")
-        context.ledger.records[c.guid]={name=c.name,untilAt=context.utc+86400,attempted=context.utc,result="unknown"}
-        B.recordCount=(B.recordCount or 0)+1;context.ledger.names[c.name]=c.guid
+        B.recordCount=H.count;context.recordCount=H.count
         local pending={name=c.name,at=context.at,invited=false,authorized=false};B.pending[c.guid]=pending
         t.status=5;B.quarantine=context.at+2;B.blocked=false
         local ok=pcall(C_ChatInfo.SendChatMessage,t.message,"WHISPER",nil,c.name)
@@ -545,14 +551,16 @@ local function update(context,cfg)
     if not cfg or not keyCurrent("action",B.actionKey)then retireTicket(context.at);return 3 end
     if B.routeRejected then return 6 end
     if M.configure(context,cfg.milestones)then B.rosterDirty=true;B.requestRoster=true end
-    if cfg.milestones.enabled and(not B.rosterRequested or context.at-B.rosterRequested>=30)then B.rosterDirty=true;B.requestRoster=true end
+    if(cfg.milestones.enabled or cfg.recruiting)and(not B.rosterRequested or context.at-B.rosterRequested>=30)then B.rosterDirty=true;B.requestRoster=true end
     rosterStep(context,cfg)
+    H.step(context,B.roster)
     if B.ticket then
         local t=B.ticket
         if t.owner~=B.owner or t.session~=context.session or context.at>=t.expires or cfg.checksum~=t.configurationChecksum then retireTicket(context.at)
         elseif t.stage==2 then
             local c=t.kind==1 and currentCandidate(t,context);local chat=nativeChatState(t)
-            local valid=t.kind==1 and c and c.qualified and c.guid==t.guid and c.name==t.name or t.kind==5 and M.current(context,t,cfg.milestones,rosterMember)and M.owns(context,t)
+            local record=t.kind==1 and context.ledger.records[t.guid]
+            local valid=t.kind==1 and c and c.qualified and c.guid==t.guid and c.name==t.name and record and record.result~="declined"and H.ready(context)or t.kind==5 and M.current(context,t,cfg.milestones,rosterMember)and M.owns(context,t)
             if not valid or t.status~=5 or chat.opener~=true or not safety(context,false,t.kind,t)then retireTicket(context.at);return 2 end
             return 5
         elseif t.status~=4 then
@@ -560,7 +568,7 @@ local function update(context,cfg)
             retireTicket(context.at)
         else
             if not safety(context,false,t.kind)or not macroCurrent(t,context)or(t.kind==1 or t.kind==5)and nativeChatState(t).opener~=true then return 2 end
-            if t.kind==1 then local c=currentCandidate(t,context);if not c or not c.qualified or c.guid~=t.guid or c.name~=t.name then retireTicket(context.at);return 2 end
+            if t.kind==1 then local c=currentCandidate(t,context);if not c or not c.qualified or c.guid~=t.guid or c.name~=t.name or suppressed(context,c)or not H.ready(context)then retireTicket(context.at);return 2 end
             elseif t.kind==3 then
                 if not t.who or D.best(context,candidate,candidateLevel,suppressed,candidateBefore)then retireTicket(context.at);return 3 end
             elseif t.kind==4 or t.kind==5 then if not M.current(context,t,cfg.milestones,rosterMember)then retireTicket(context.at);return 2 end
@@ -576,6 +584,7 @@ local function update(context,cfg)
         return ticket(context,milestoneKind,milestone,cfg)and 4 or 2
     end
     if not cfg.recruiting then return 3 end
+    if not H.ready(context)then return 7 end
     for guid,pending in pairs(B.pending)do
         if pending.joined and not pending.welcomeReserved and context.at-pending.joinedAt<=60 then
             if not safety(context,false,2)then return 2 end
@@ -632,7 +641,7 @@ local function monitorRow(c,context)
     local ledger=context.ledger;local record=ledger.records[c.guid]or ledger.records[ledger.names[c.name]or ""]
     local pending=B.pending[c.guid];local state=1;local wait=0
     if record and type(record.untilAt)=="number"and record.untilAt>context.utc then
-        state=record.result=="declined"and 8 or 4;wait=math.min(86400,math.ceil(record.untilAt-context.utc))
+        state=record.result=="declined"and 8 or 4;wait=math.min(H.maximum,math.ceil(record.untilAt-context.utc))
     elseif not c.qualified or not c.guildAt then state=2
     elseif context.at<c.guildAt or context.at-c.guildAt>60 then state=3 end
     if pending and pending.authorized then state=pending.joined and 7 or 6 end
@@ -727,7 +736,7 @@ local function systemMessage(message)
                     pending.declined=true;context.ledger.totalDeclines=increment(context.ledger.totalDeclines)
                     if not pending.statisticsConfirmed then pending.statisticsConfirmed=true;D.statistics(context,"confirmed")end
                     D.statistics(context,"declines")
-                    local row=context.ledger.records[guid];if row then row.untilAt=math.max(row.untilAt,context.utc+86400);row.result="declined"end
+                    H.declined(context,guid,B.configuration and B.configuration.reinviteHours or 72)
                     if B.ticket and B.ticket.guid==guid then retireTicket(context.at)end
                     B.pending[guid]=nil
                 end
