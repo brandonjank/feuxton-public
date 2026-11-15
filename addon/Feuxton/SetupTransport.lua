@@ -635,7 +635,10 @@ function S.collectSetup()
             key2=S.setupString(S.setupValue(GetBindingKey,2,"BONUSACTIONBUTTON"..slot)),bindingAvailable=bindingOK==true})
     end
     local restInventory=ns.features.Consumables and ns.features.Consumables.restMetadata and ns.features.Consumables.restMetadata()or "null"
-    return '{"v":1,"restInventory":'..restInventory..',"character":'..character..',"bindings":['..table.concat(bindings,",")..'],"spells":['..table.concat(knownSpells,",")..'],"talents":['..table.concat(talents,",")..'],"trees":['..table.concat(trees,",")..'],"petActions":['..table.concat(petActions,",")..'],"bookAvailable":'..S.jsonValue(bookAvailable)..',"talentAvailable":'..S.jsonValue(talentAvailable)..'}'
+    local payload='{"v":1,"restInventory":'..restInventory..',"character":'..character..',"bindings":['..table.concat(bindings,",")..'],"spells":['..table.concat(knownSpells,",")..'],"talents":['..table.concat(talents,",")..'],"trees":['..table.concat(trees,",")..'],"petActions":['..table.concat(petActions,",")..'],"bookAvailable":'..S.jsonValue(bookAvailable)..',"talentAvailable":'..S.jsonValue(talentAvailable)..'}'
+    local performance=S.collectClientPerformance and S.collectClientPerformance()
+    if performance and #payload+#performance+22<=65536 then return payload:sub(1,-2)..',"clientPerformance":'..performance..'}'end
+    return payload
 end
 function S.refreshSetup()
     if S.readableCall(InCombatLockdown)~=false then return end

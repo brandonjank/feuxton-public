@@ -2,6 +2,47 @@
 local _, ns = ...
 local S = ns.state
 
+-- Fixed read-only client diagnostics, sampled by the existing out-of-combat
+-- setup scan. No settings setters, chat commands, or extra update loop.
+function S.collectClientPerformance()
+    local function number(value,maximum)
+        value=S.setupNumber(value)
+        return value and value>=0 and value<=maximum and value or nil
+    end
+    local function text(value,maximum)
+        value=S.setupString(value)
+        return value and #value<=maximum and not value:find("[%z\1-\31\127]") and value or nil
+    end
+    local report={v=1,at=number(S.readableCall(GetServerTime),9007199254740991),fps=number(S.readableCall(GetFramerate),10000)}
+    local cvars={};local read=S.safeField(C_CVar,"GetCVar") or GetCVar
+    for _,key in ipairs({"useMaxFPS","maxFPS","useMaxFPSBk","maxFPSBk","gxVSync","scriptProfile","gxApi","graphicsQuality","graphicsViewDistance","graphicsEnvironmentDetail","graphicsGroundClutter","graphicsShadowQuality","RenderScale","gxAdapter","RAIDsettingsEnabled","useTargetFPS","targetFPS"})do
+        cvars[key]=text(S.readableCall(read,key),128)
+    end
+    local top="null";local profiler=C_AddOnProfiler
+    local enabled=S.readableCall(S.safeField(profiler,"IsEnabled"))
+    if type(enabled)=="boolean"then report.profilerEnabled=enabled end
+    local metric=number(S.safeField(S.safeField(Enum,"AddOnProfilerMetric"),"RecentAverageTime"),100)
+    if enabled==true and metric then
+        report.allAddonsMs=number(S.readableCall(S.safeField(profiler,"GetOverallMetric"),metric),60000)
+        report.applicationMs=number(S.readableCall(S.safeField(profiler,"GetApplicationMetric"),metric),60000)
+        report.feuxtonMs=number(S.readableCall(S.safeField(profiler,"GetAddOnMetric"),"Feuxton",metric),60000)
+        local rows=S.readableCall(S.safeField(profiler,"GetTopKAddOnsForMetric"),metric,5)
+        if type(rows)=="table"and not S.isSecret(rows)and #rows<=5 then
+            local values,seen={},{};local complete=true
+            for _,row in ipairs(rows)do
+                local name=text(S.safeField(row,"addOnName"),80)
+                local cost=number(S.safeField(row,"metricValue"),60000)
+                if not name or name==""or not cost or seen[name]then complete=false;break end
+                seen[name]=true;values[#values+1]=S.jsonObject({name=name,ms=cost})
+            end
+            if complete then top="["..table.concat(values,",").."]"end
+        end
+    end
+    local value=S.jsonObject(report)
+    value=value:sub(1,-2)..',"cvars":'..S.jsonObject(cvars)..',"topAddons":'..top..'}'
+    return #value<=4096 and value or nil
+end
+
 -- Do not compare, stringify, or export restricted values.
 function S.describe(value)
     if type(issecretvalue) == "function" and issecretvalue(value) then
