@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.71",
+    "addonVersion":  "0.81.80",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v54",
-    "sourceRevision":  "85b9a7b6dc2a50a60b94b5b7218d9af663df5bb5",
+    "contract":  "feuxton-dense-v60",
+    "sourceRevision":  "f3c5ba55ac180b979a4973b692e3f68ceb2b4dd2",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -32,8 +32,8 @@
                   },
                   {
                       "path":  "Classes/Paladin.lua",
-                      "sha256":  "E53E5862E1C8C5C695FD9CD2A88183B88CF649909B7614E652DEBB4041AA4861",
-                      "size":  35980
+                      "sha256":  "495F985049395FEEF4B4112BEFB80D7384B781DE13D70F9AA84E88BA4F94EA4B",
+                      "size":  37706
                   },
                   {
                       "path":  "Classes/Priest.lua",
@@ -92,13 +92,13 @@
                   },
                   {
                       "path":  "Features/Consumables.lua",
-                      "sha256":  "88E6F9637C963FF74B653C6E089860C48E120015FF0F5AC2019BBA7E0385AE5B",
-                      "size":  26004
+                      "sha256":  "4F84A4B8498B7848DA38EA0A1697C975C07B82274879BC7EDAEC8AA522002B5D",
+                      "size":  27018
                   },
                   {
                       "path":  "Features/ControlEffects.lua",
-                      "sha256":  "144A2076CC79BB9A6073B848A6ACA1D706F76621D04A1147330043BD5BA8A874",
-                      "size":  29796
+                      "sha256":  "513AC2A7D2424FE1B14EDEF3A961AE9336B6EBDB3C60E780D6A03FC7AC63D337",
+                      "size":  39806
                   },
                   {
                       "path":  "Features/GroupContext.lua",
@@ -106,9 +106,19 @@
                       "size":  14033
                   },
                   {
+                      "path":  "Features/GuildDiscovery.lua",
+                      "sha256":  "7C815C44E081B419F05592C44B3FDABAA043021C37DDA59DDBD5E1B9DC163845",
+                      "size":  12855
+                  },
+                  {
+                      "path":  "Features/GuildMilestones.lua",
+                      "sha256":  "97F2ACF95EA102800787418BEF75671D23837803AD6BEBE9B62772595404935F",
+                      "size":  10491
+                  },
+                  {
                       "path":  "Features/GuildRecruitment.lua",
-                      "sha256":  "8B01BCF5AD1FE3AC9B6DADE498666EF961A880F8E018B8079F595012418F8228",
-                      "size":  41575
+                      "sha256":  "B19C0BCD8696A59E944CE6BD433C50AD75B9246EC4FD9FFF02497562EC3894A7",
+                      "size":  51342
                   },
                   {
                       "path":  "Features/Healing.lua",
@@ -167,13 +177,13 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "F7A09AA602B8ABB1EAD2E46766D58B274372CDE7B6A8AE92FB9CC306A1811C5D",
-                      "size":  5318
+                      "sha256":  "1292794DB223139768794D0273F4BD501969F73728DB599C491EDDF7CC2F1F95",
+                      "size":  5419
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "2E6E3EA8570CF2106E7663DCB82FC4A4F577A1DE663F3142E33202ABE194D16C",
-                      "size":  1083
+                      "sha256":  "F210E256D8494C3574BB4119CEA85FFC0C78CDB0A6E1737A9DA0075EDBAB868F",
+                      "size":  1195
                   },
                   {
                       "path":  "GuideTransport.lua",
@@ -222,8 +232,8 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "CF6C13DFD2E89387528732B829C307572B825252C73BC873B697656C0876D2E9",
-                      "size":  36846
+                      "sha256":  "F49ACD07DB1F96C7A38AFF82E10CD82039CF0B9E94CD545A8D0A73F468AE17C2",
+                      "size":  37543
                   },
                   {
                       "path":  "SpellCatalog.lua",
