@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.80",
+    "addonVersion":  "0.81.82",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v60",
-    "sourceRevision":  "f3c5ba55ac180b979a4973b692e3f68ceb2b4dd2",
+    "contract":  "feuxton-dense-v62",
+    "sourceRevision":  "33f9f81b4bc9b2b8c758ce577b303e44c7fbecbd",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "FA41F38F602F706886ED2E82E3C2D480AC2929EB0DAC1E142689CB1E3D54DA02",
-                      "size":  43710
+                      "sha256":  "6F0D517F52773676D39D9BA04F1D2942C927ABDF755D4A406FFF1DB1BEFF390C",
+                      "size":  43917
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -27,8 +27,8 @@
                   },
                   {
                       "path":  "Classes/Mage.lua",
-                      "sha256":  "87969961ED470B6459F2881582E82BD1544B16E052EEA8D5E061FE1F6FD2AB70",
-                      "size":  162
+                      "sha256":  "8F45A11DD16B420830CF663F9FD3A966755777E75BC8799588C65B8A7699ADE4",
+                      "size":  8329
                   },
                   {
                       "path":  "Classes/Paladin.lua",
@@ -117,8 +117,13 @@
                   },
                   {
                       "path":  "Features/GuildRecruitment.lua",
-                      "sha256":  "B19C0BCD8696A59E944CE6BD433C50AD75B9246EC4FD9FFF02497562EC3894A7",
-                      "size":  51342
+                      "sha256":  "279707FF0B3F8091026EED8D3FBDB442F37ED1BFD40A38BAB04DB754498C212B",
+                      "size":  52037
+                  },
+                  {
+                      "path":  "Features/GuildRecruitmentHistory.lua",
+                      "sha256":  "F9ED66EBF7416452957E1DC8A2F6B2CFF1976735AC09638350716FD8B56F29FA",
+                      "size":  10787
                   },
                   {
                       "path":  "Features/Healing.lua",
@@ -177,18 +182,18 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "1292794DB223139768794D0273F4BD501969F73728DB599C491EDDF7CC2F1F95",
+                      "sha256":  "3F7D01E69442DEB0B845D3EEC0B4FAB00F9B6933CE96C4672B786A5833D370BB",
                       "size":  5419
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "F210E256D8494C3574BB4119CEA85FFC0C78CDB0A6E1737A9DA0075EDBAB868F",
-                      "size":  1195
+                      "sha256":  "DEF6A131AB4704042F58550A488BDCE0BF1FA159ADCA74421BA1BBB8ECB6B854",
+                      "size":  1233
                   },
                   {
                       "path":  "GuideTransport.lua",
-                      "sha256":  "2397CF402D6BBB5B20B16EB5C3A3FE45CB4107E2A6844DBF17DB6E27EB474C7A",
-                      "size":  20922
+                      "sha256":  "F2D3EB3765442E9D4AD68F32C008AAA17EABC325CCC84B3E84131B4CF08BA30A",
+                      "size":  21016
                   },
                   {
                       "path":  "Hud.lua",
@@ -232,13 +237,13 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "F49ACD07DB1F96C7A38AFF82E10CD82039CF0B9E94CD545A8D0A73F468AE17C2",
-                      "size":  37543
+                      "sha256":  "E686316BF0059C34D18B276C89A2348F498EB8A49B63839D6986495C9148989C",
+                      "size":  37901
                   },
                   {
                       "path":  "SpellCatalog.lua",
-                      "sha256":  "3464427269F3EFBF45959C22DA9001CB04AB368520CFC215754DB1A599A43A37",
-                      "size":  101754
+                      "sha256":  "940C425627E22A7B8E56F79D4FC5AEC1AA9BE17F6668471166F8AF50AF467D28",
+                      "size":  109548
                   },
                   {
                       "path":  "SpellWidgets.lua",
