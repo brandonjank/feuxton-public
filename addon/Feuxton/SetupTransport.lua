@@ -518,6 +518,10 @@ function S.collectSetup()
         end
     elseif type(C_ClassTalents)=="table" and type(C_Traits)=="table" then
         local configID=S.setupNumber(S.readableCall(C_ClassTalents.GetActiveConfigID))
+        if not configID and type(C_SpecializationInfo)=="table" then
+            local group=S.setupNumber(S.readableCall(C_SpecializationInfo.GetActiveSpecGroup))
+            configID=group and S.setupNumber(S.readableCall(C_SpecializationInfo.GetCombatConfigIDForSpecGroup,group))
+        end
         local config=configID and S.readableCall(C_Traits.GetConfigInfo,configID) or nil
         local treeIDs=S.safeField(config,"treeIDs")
         if type(treeIDs)=="table" and not S.isSecret(treeIDs) then
@@ -529,7 +533,8 @@ function S.collectSetup()
                     for _,nodeID in ipairs(nodes) do
                         nodeID=S.setupNumber(nodeID)
                         local node=nodeID and S.readableCall(C_Traits.GetNodeInfo,configID,nodeID) or nil
-                        local rank=S.setupNumber(S.safeField(node,"currentRank"))
+                        local rank=S.setupNumber(S.safeField(node,"activeRank"))
+                        if not rank then talentAvailable=false end
                         if rank and rank>0 then
                             local entry=S.safeField(node,"activeEntry")
                             local entryID=S.setupNumber(S.safeField(entry,"entryID"))
@@ -538,10 +543,52 @@ function S.collectSetup()
                             local definition=definitionID and S.readableCall(C_Traits.GetDefinitionInfo,definitionID) or nil
                             local spellID=S.setupNumber(S.safeField(definition,"spellID"))
                             local spell=spellID and S.readableCall(S.spellAPI.GetSpellInfo,spellID) or nil
-                            talents[#talents+1]=S.jsonObject({id=nodeID,spellID=spellID,name=S.setupString(S.safeField(spell,"name")),rank=rank,tree=treeID})
+                            local name=S.setupString(S.safeField(spell,"name"))
+                            if name then S.setupTalentNames[name]=true else talentAvailable=false end
+                            talents[#talents+1]=S.jsonObject({id=nodeID,spellID=spellID,name=name,rank=rank,tree=treeID})
                         end
                     end
                 else talentAvailable=false end
+            end
+            -- Forever displays three branches in one class trait tree, not
+            -- three treeIDs. Read the same ordered group totals as Blizzard's
+            -- Camelot talent headers. Staged edits must not select a rotation.
+            if #treeIDs==1 and S.readableCall(C_Traits.ConfigHasStagedChanges,configID)==false then
+                local displays=S.readableCall(C_Traits.GetGroupDisplayInfoByTreeID,treeIDs[1])
+                if type(displays)=="table" and not S.isSecret(displays) and #displays==3 then
+                    local ordered,ids,seen={},{},{};local complete=true
+                    for _,display in ipairs(displays) do
+                        local id=S.setupNumber(S.safeField(display,"groupID"))
+                        local order=S.setupNumber(S.safeField(display,"orderIndex"))
+                        local name=S.setupString(S.safeField(display,"displayName"))
+                        if not id or not order or not name or seen[id] then complete=false;break end
+                        seen[id]=true;ordered[#ordered+1]={id=id,order=order,name=name};ids[#ids+1]=id
+                    end
+                    if complete then
+                        table.sort(ordered,function(a,b)return a.order<b.order end)
+                        local groups=S.readableCall(C_Traits.GetGroupCurrencyInfo,configID,ids)
+                        local points={}
+                        if type(groups)=="table" and not S.isSecret(groups) and #groups==3 then
+                            for _,group in ipairs(groups) do
+                                local id=S.setupNumber(S.safeField(group,"traitNodeGroupID"))
+                                local currencies=S.safeField(group,"currencyInfos")
+                                local currency=S.safeField(currencies,1)
+                                local spent=S.setupNumber(S.safeField(currency,"spent"))
+                                if not id or not seen[id] or points[id] or not spent or spent<0 or spent>100 or spent%1~=0 then complete=false;break end
+                                points[id]=spent
+                            end
+                        else complete=false end
+                        for i,display in ipairs(ordered) do
+                            if not points[display.id] or i>1 and display.order==ordered[i-1].order then complete=false end
+                        end
+                        if complete then
+                            for i,display in ipairs(ordered) do
+                                S.setupTalentPoints[i]=points[display.id]
+                                trees[#trees+1]=S.jsonObject({name=display.name,points=points[display.id]})
+                            end
+                        end
+                    end
+                end
             end
         end
     end
