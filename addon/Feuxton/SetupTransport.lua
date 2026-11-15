@@ -398,6 +398,7 @@ function S.collectRealmInfo()
 end
 function S.collectSetup()
     local class=S.setupString(S.setupValue(UnitClass,2,"player"))
+    local className=S.setupString(S.setupValue(UnitClass,1,"player"))
     local level=S.setupNumber(S.readableCall(UnitLevel,"player"))
     local specIndex=S.setupNumber(S.readableCall(GetSpecialization))
     if not specIndex and type(C_SpecializationInfo)=="table" then
@@ -411,10 +412,10 @@ function S.collectSetup()
     local clientVersion=S.setupString(S.setupValue(GetBuildInfo,1))
     local clientNumber=S.setupString(S.setupValue(GetBuildInfo,2))
     local clientBuild=clientVersion and clientNumber and clientVersion:match("^%d+%.%d+%.%d+$") and clientNumber:match("^%d+$") and (clientVersion.."."..clientNumber) or nil
-    local character=S.jsonObject({name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,realm=realm,serverType=serverType,
+    local character={name=S.setupString(S.readableCall(UnitName,"player")),class=class,level=level,spec=specName,realm=realm,serverType=serverType,
         clientBuild=clientBuild,clientLocale=S.setupString(S.readableCall(GetLocale)),
         race=S.setupString(S.readableCall(UnitRace,"player")),zone=S.setupString(S.readableCall(GetRealZoneText)) or S.setupString(S.readableCall(GetZoneText)),
-        subzone=S.setupString(S.readableCall(GetSubZoneText)),scannedAt=S.setupNumber(S.readableCall(GetServerTime))})
+        subzone=S.setupString(S.readableCall(GetSubZoneText)),scannedAt=S.setupNumber(S.readableCall(GetServerTime))}
     local bindings={}
     for _,mapping in ipairs(S.setupMappings) do
         local id=S.setupNumber(mapping.id)
@@ -500,14 +501,15 @@ function S.collectSetup()
         S.setupKnownSpellFingerprint=fingerprint;S.setupKnownSpellRevision=(S.setupKnownSpellRevision or 0)+1
     end
     S.setupKnownSpells=nativeSpells;S.setupBookAvailable=bookAvailable
-    local talents,trees={},{};S.setupTalentPoints={};S.setupTalentNames={}
+    local talents,trees,treeNames={},{},{};S.setupTalentPoints={};S.setupTalentNames={}
     local talentAvailable=false
     local tabs=S.setupNumber(S.readableCall(GetNumTalentTabs))
     if tabs and tabs>=0 and tabs<=8 and type(GetTalentInfo)=="function" then
         talentAvailable=true
         for tab=1,tabs do
             S.setupTalentPoints[tab]=S.setupNumber(S.setupValue(GetTalentTabInfo,3,tab));
-            trees[#trees+1]=S.jsonObject({name=S.setupString(S.setupValue(GetTalentTabInfo,1,tab)),points=S.setupNumber(S.setupValue(GetTalentTabInfo,3,tab))})
+            treeNames[tab]=S.setupString(S.setupValue(GetTalentTabInfo,1,tab))
+            trees[#trees+1]=S.jsonObject({name=treeNames[tab],points=S.setupTalentPoints[tab]})
             local count=S.setupNumber(S.readableCall(GetNumTalents,tab))
             if count and count<=200 then
                 for index=1,count do
@@ -526,6 +528,7 @@ function S.collectSetup()
         local treeIDs=S.safeField(config,"treeIDs")
         if type(treeIDs)=="table" and not S.isSecret(treeIDs) then
             talentAvailable=true
+            local committedRanks,committedRanksKnown=0,true
             for _,treeID in ipairs(treeIDs) do
                 treeID=S.setupNumber(treeID)
                 local nodes=treeID and S.readableCall(C_Traits.GetTreeNodes,treeID) or nil
@@ -535,6 +538,8 @@ function S.collectSetup()
                         local node=nodeID and S.readableCall(C_Traits.GetNodeInfo,configID,nodeID) or nil
                         local rank=S.setupNumber(S.safeField(node,"activeRank"))
                         if not rank then talentAvailable=false end
+                        if not rank or rank<0 or rank>100 or rank%1~=0 then committedRanksKnown=false
+                        else committedRanks=committedRanks+rank end
                         if rank and rank>0 then
                             local entry=S.safeField(node,"activeEntry")
                             local entryID=S.setupNumber(S.safeField(entry,"entryID"))
@@ -567,23 +572,33 @@ function S.collectSetup()
                     if complete then
                         table.sort(ordered,function(a,b)return a.order<b.order end)
                         local groups=S.readableCall(C_Traits.GetGroupCurrencyInfo,configID,ids)
-                        local points={}
-                        if type(groups)=="table" and not S.isSecret(groups) and #groups==3 then
+                        local points={};local spentTotal=0
+                        if type(groups)=="table" and not S.isSecret(groups) and #groups<=3 then
                             for _,group in ipairs(groups) do
                                 local id=S.setupNumber(S.safeField(group,"traitNodeGroupID"))
                                 local currencies=S.safeField(group,"currencyInfos")
                                 local currency=S.safeField(currencies,1)
                                 local spent=S.setupNumber(S.safeField(currency,"spent"))
                                 if not id or not seen[id] or points[id] or not spent or spent<0 or spent>100 or spent%1~=0 then complete=false;break end
-                                points[id]=spent
+                                points[id]=spent;spentTotal=spentTotal+spent
                             end
                         else complete=false end
+                        -- Forever omits zero-spend groups (the native header
+                        -- also displays them as zero). Accept that omission
+                        -- only when the complete public committed ranks account
+                        -- for every returned point; a partial/failed read stays
+                        -- unknown rather than inventing an unspent branch.
+                        if complete and #groups<3 then
+                            if not talentAvailable or not committedRanksKnown or spentTotal~=committedRanks then complete=false
+                            else for _,display in ipairs(ordered) do if points[display.id]==nil then points[display.id]=0 end end end
+                        end
                         for i,display in ipairs(ordered) do
                             if not points[display.id] or i>1 and display.order==ordered[i-1].order then complete=false end
                         end
                         if complete then
                             for i,display in ipairs(ordered) do
                                 S.setupTalentPoints[i]=points[display.id]
+                                treeNames[i]=display.name
                                 trees[#trees+1]=S.jsonObject({name=display.name,points=points[display.id]})
                             end
                         end
@@ -593,6 +608,21 @@ function S.collectSetup()
         end
     end
     S.setupTalentsAvailable=talentAvailable
+    -- Forever's specialization API may return the localized class name. The
+    -- committed branch totals identify the build without any class-name map.
+    if not specName or specName==className or class and specName:upper()==class:upper() then
+        local best,points,tied=nil,0,false
+        if talentAvailable and #trees==3 then
+            for i=1,3 do
+                local spent=S.setupTalentPoints[i]
+                if not spent or spent<0 or spent>100 or spent%1~=0 or not treeNames[i] then best=nil;break end
+                if spent>points then best=treeNames[i];points=spent;tied=false
+                elseif spent==points then tied=true end
+            end
+        end
+        character.spec=best and not tied and best or nil
+    end
+    character=S.jsonObject(character)
     local petActions={}
     for slot=1,10 do
         local name=S.setupString(S.setupValue(GetPetActionInfo,1,slot))
