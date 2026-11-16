@@ -5,6 +5,12 @@ ns.classes.DRUID=H
 H.specs=ns.spellCatalog.DRUID.specs
 -- Class-owned native certificates, rank choices and form/queue handling.
 local spellOverrides={["druid.wrath"]={["nativeAuraCandidates"]={48518},["auraName"]="Eclipse (Lunar)",["aura"]="player"},["druid.starfire"]={["nativeAuraCandidates"]={48517},["auraName"]="Eclipse (Solar)",["aura"]="player"},["druid.moonkinForm"]={["noToggle"]=true},["druid.bearForm"]={["noToggle"]=true},["druid.direBearForm"]={["noToggle"]=true},["druid.catForm"]={["noToggle"]=true},["druid.prowl"]={["noToggle"]=true,["aura"]="player"},["druid.faerieFireFeral"]={["auraName"]="Faerie Fire"},["druid.markOfTheWild"]={["aura"]="player"},["druid.thorns"]={["aura"]="player"},["druid.barkskin"]={["aura"]="player"},["druid.frenziedRegeneration"]={["aura"]="player"},["druid.enrage"]={["aura"]="player"},["druid.innervate"]={["aura"]="player"},["druid.naturesSwiftness"]={["aura"]="player"},["druid.healingTouchEfficient"]={["pinnedSpellID"]=5188}}
+-- Build/rank filter identities witnessed on Mike's 70938 client: manual Rake
+-- and Rip produced native positives; Rake expiry/reapplication also matched.
+-- This certifies the filter identity only; current native pixels still own
+-- presence/absence. Other builds/ranks retain first-presence verification.
+spellOverrides["druid.rake"]={nativeAuraIDs={["70938"]={[1822]=1822}}}
+spellOverrides["druid.rip"]={nativeAuraIDs={["70938"]={[9492]=9492}}}
 for _,spec in ipairs(H.specs) do for field,value in pairs(spellOverrides[spec.key] or {}) do spec[field]=value end end
 H.healingSpecs={H.specs[2],H.specs[25],H.specs[26],H.specs[27],H.specs[28],H.specs[38]}
 H.buffSpecs={H.specs[30],H.specs[31]}
