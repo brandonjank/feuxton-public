@@ -45,7 +45,7 @@ function M.current(entry)
         and bindingAction(entry.key,false)=="" and bindingAction(entry.key,true)==entry.action
         and (not entry.petAbility or ns.features.PetSupport and ns.features.PetSupport.current(entry))
 end
--- Two auxiliary guild controls share the safe-key reservations without joining
+-- Auxiliary controls share the safe-key reservations without joining
 -- class-spell refresh ownership. Each family allocates once per addon session;
 -- a conflict pauses that control instead of lending its key to another action.
 function M.auxiliaryCurrent(family,buttonName,key)
@@ -195,6 +195,14 @@ function M.catalog()
     if ns.features.Potions then for _,potion in ipairs(ns.features.Potions.candidates())do candidates[#candidates+1]=potion end end
     return candidates,class
 end
+local function freeManagedKey(pool)
+    for _,key in ipairs(pool)do
+        if not M.reserved[key]and not ns.keyPolicy.reason(key)and bindingAction(key,false)==""and bindingAction(key,true)==""then return key end
+    end
+end
+local function fallbackKeys(candidate)
+    return candidate.itemID~=nil or candidate.stopCasting or candidate.cancelForm or candidate.cancelFury or candidate.skull or candidate.petCommand
+end
 function M.refresh()
     if not M.available() or S.readableCall(InCombatLockdown)~=false or M.refreshing then return false end
     M.refreshing=true
@@ -208,8 +216,20 @@ function M.refresh()
         signature[#signature+1]=(candidate.managedName or candidate.name)..":"..candidate.id..":"..candidate.unit..":"..tostring(candidate.startAttack==true)..":"..tostring(candidate.petAttack==true)..":"..tostring(candidate.petCommand==true)..":"..tostring(candidate.itemID or 0)..":"..tostring(candidate.cancelForm==true)..":"..tostring(candidate.noToggle==true)..":"..tostring(candidate.groundAtCursor==true)..":"..tostring(candidate.stopAttack==true)..":"..tostring(candidate.petActionSlot or 0)..":"..(candidate.petIdentity or "")..":"..(player and (player.action..":"..player.slot..":"..player.id..":"..player.key..":"..player.kind) or "managed")
     end
     signature=table.concat(signature,"|")
-    local changed=signature~=M.signature or M.retry
+    local changed=signature~=M.signature
+    local retry=M.retry
     M.retry=false
+    if retry and not changed then
+        for _,candidate in ipairs(candidates)do
+            local family=class..":"..(candidate.managedName or candidate.name);local entry=M.entries[family]
+            if not selected[family]and entry and not entry.active then
+                -- Keep watching for a newly free shortcut without clearing
+                -- every working binding while the bounded pool is full.
+                if entry.key or freeManagedKey(keys)or fallbackKeys(candidate)and freeManagedKey(M.itemKeys)then changed=true;break end
+                M.retry=true
+            end
+        end
+    end
     for _,entry in pairs(M.entries) do if entry.active and not M.current(entry) then changed=true end end
     if changed then
         ClearOverrideBindings(M.owner)
@@ -236,14 +256,9 @@ function M.refresh()
             if entry then
                 if entry.key and (ns.keyPolicy.reason(entry.key) or bindingAction(entry.key,false)~="" or bindingAction(entry.key,true)~="") then entry.key=nil end
                 if not entry.key then
-                    for _,key in ipairs(keys) do
-                        if not M.reserved[key] and not ns.keyPolicy.reason(key) and bindingAction(key,false)=="" and bindingAction(key,true)=="" then entry.key=key;M.reserved[key]=family;break end
-                    end
-                    if not entry.key and (candidate.itemID~=nil or candidate.stopCasting or candidate.cancelForm or candidate.cancelFury or candidate.skull or candidate.petCommand)then
-                        for _,key in ipairs(M.itemKeys)do
-                            if not M.reserved[key] and not ns.keyPolicy.reason(key) and bindingAction(key,false)=="" and bindingAction(key,true)=="" then entry.key=key;M.reserved[key]=family;break end
-                        end
-                    end
+                    entry.key=freeManagedKey(keys)
+                    if not entry.key and fallbackKeys(candidate)then entry.key=freeManagedKey(M.itemKeys)end
+                    if entry.key then M.reserved[entry.key]=family end
                 end
                 entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.stopAttack=candidate.stopAttack;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelForm=candidate.cancelForm;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID;entry.skull=candidate.skull;entry.petCommand=candidate.petCommand
                 entry.petAbility=candidate.petAbility;entry.petActionSlot=candidate.petActionSlot;entry.petIdentity=candidate.petIdentity

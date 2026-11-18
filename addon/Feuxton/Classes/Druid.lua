@@ -18,9 +18,26 @@ H.buffAbilityKeys={};for i,spec in ipairs(H.buffSpecs)do H.buffAbilityKeys[i]=sp
 H.targetingSpecs={};for i,spec in ipairs(H.healingSpecs)do H.targetingSpecs[i]=spec end
 for i,spec in ipairs(H.buffSpecs)do spec.deliverySlot=5+i;H.targetingSpecs[6+i]=spec end
 H.auraSpecs={};for i,spec in ipairs(H.specs)do H.auraSpecs[i]=spec end
-H.auraSpecs[39]={key="druid.clearcasting",name="Clearcasting",auraName="Clearcasting",aura="player",nativeAuraCandidates={16870}}
+H.auraSpecs[40]={key="druid.clearcasting",name="Clearcasting",auraName="Clearcasting",aura="player",nativeAuraCandidates={16870}}
 local function integer(S,value,low,high)
  return not S.isSecret(value) and type(value)=="number" and value==math.floor(value) and value>=low and value<=high and value or nil
+end
+function H.biteMinimum(S,id,known)
+ if known~=true then return nil end
+ local locale=S.readableCall(GetLocale)
+ if locale~="enUS"and locale~="enGB"then return nil end
+ local text=S.setupString(S.readableCall(S.spellAPI.GetSpellDescription or GetSpellDescription,id))
+ if not text or #text>512 then return nil end
+ text=text:gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r","")
+ local values,count={},0
+ for point,low,high in text:gmatch("([1-5])%s+points?%s*:%s*([%d,]+)%s*%-%s*([%d,]+)%s+damage")do
+  point=tonumber(point);low=tonumber((low:gsub(",","")));high=tonumber((high:gsub(",","")))
+  if values[point]or not low or not high or low<1 or high<low or high>1000000000 then return nil end
+  values[point]=low;count=count+1
+ end
+ if count~=5 then return nil end
+ for point=2,5 do if values[point]<values[point-1]then return nil end end
+ return values
 end
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext;local R=ns.features.RangeTracking;local B=ns.features.SpellBridge
@@ -34,7 +51,7 @@ function H.initializePreview()
  for i,power in ipairs({0,1,3})do resources[i]=resource(12+(i-1)*164,106);resources[i].powerType=power end
  local combo=resource(504,106);H.combo=combo
  local stacks=resource(504,112);H.stacks=stacks
- local clearcastingBackground=dot(508,70);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
+ local clearcastingBackground=dot(554,70);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
  local attackerDots={};H.attackerDots=attackerDots
  for i=1,40 do attackerDots[i]={dot(12+(i-1)*6,144),dot(280+(i-1)*6,144)}end
  H.recipientDots={};H.recipientBridges={};H.recipientSpecs={}
@@ -92,7 +109,7 @@ function H.initializePreview()
    B.renderPowerCost(bridge.tiles[i].manaCost,r.id,known==true,spec.powerType or 0)
   end
   local auraReads={};for i,spec in ipairs(H.specs)do auraReads[i]=readings[i]end
-  auraReads[39]={id=16870,learned={status="observed",value=true}}
+  auraReads[40]={id=16870,learned={status="observed",value=true}}
   B.auras(bridge,H.auraSpecs,auraReads)
   local combat=G.read(UnitAffectingCombat,1,"player");bool(combatDot,UnitAffectingCombat("player"))
   local form=G.read(GetShapeshiftForm,1);local caster,formID={},4294967295
@@ -122,7 +139,7 @@ function H.initializePreview()
   end
   local stealth=G.read(IsStealthed,1);if stealth.status~="observed"then stealth=readings[11].aura or{}end
   local attacking=G.read(S.spellAPI.IsCurrentSpell or IsCurrentSpell,1,6603)
-  local states=G.code(stealth)+G.code(readings[1].aura)*4+G.code(readings[3].aura)*16+G.code(auraReads[39].aura)*64+G.code(attacking)*256+(settled and bridge.configured and bridge.configured[39]and 1024 or 0)+(settled and bridge.absence and bridge.absence[39]and 2048 or 0)
+  local states=G.code(stealth)+G.code(readings[1].aura)*4+G.code(readings[3].aura)*16+G.code(auraReads[40].aura)*64+G.code(attacking)*256+(settled and bridge.configured and bridge.configured[40]and 1024 or 0)+(settled and bridge.absence and bridge.absence[40]and 2048 or 0)
   local targetLevel=integer(S,S.readableCall(UnitLevel,"target"),-1,100);targetLevel=targetLevel==-1 and 65534 or targetLevel or 65535
   local classification=G.text(G.read(UnitClassification,1,"target"),20);local types={normal=1,elite=2,rareelite=3,rare=4,worldboss=5,trivial=6,minus=7}
   local age=H.behindAt and H.behindGeneration==S.auraGeneration and math.min(65534,math.max(0,math.floor((GetTime()-H.behindAt)*1000)))or 65535
@@ -130,6 +147,8 @@ function H.initializePreview()
   local function binding(name)local e=S.managedSpells and S.managedSpells.entries["DRUID:"..name];return S.bindingsValid and S.managedSpells.current(e)and S.compactBindingCode(e.key)or 0 end
   local activeID,activeKind=ns.features.CastTracking.activityIdentity()
   packet=packet..S.executionBytes(2)..S.bytes(G.code(combat),1)..S.bytes(G.code(caster),1)..S.bytes(formID,4)..S.bytes(power,1)..S.bytes(states,2)..S.bytes(targetLevel,2)..S.bytes(types[classification]or 0,1)..S.bytes(bridge.auraRevision or 0,4)..S.bytes(H.behindSequence or 0,4)..S.bytes(age,2)..S.bytes(G.code(maul),1)..S.bytes(binding("Feuxton Stop Casting"),2)..S.bytes(binding("Feuxton Cancel Form"),2)..S.bytes(activeID,4)..S.bytes(activeKind,1)
+  local bite=readings[18];local minimum=H.biteMinimum(S,bite.id,formID==768 and bite.learned.status=="observed"and bite.learned.value)
+  for point=1,5 do packet=packet..S.bytes(minimum and minimum[point]or 4294967295,4)end
   local sum=S.adler32(packet);for i,d in ipairs(bridge.stamp)do local value=math.floor(sum/256^(i-1))%256/255;d:SetColorTexture(value,value,value,1)end
   S.publishTransportPacket(12,packet..S.bytes(sum,4))
  end

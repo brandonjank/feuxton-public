@@ -14,6 +14,12 @@ function B.invalidateNativeCosts()
  local native=B.nativeCosts;if not native then return end
  native.marker:SetVertexColor(0,0,0,1)
  for _,cell in ipairs(native.stamp)do cell:SetVertexColor(0,0,0,1)end
+ -- These out-of-combat bars share rows with combat-only observations.
+ -- Clearing the certificate alone leaves the opaque bars on screen.
+ if native.visible then
+  for _,widget in ipairs(native.widgets)do widget.bar:Hide();widget.valid:Hide()end
+  native.visible=false
+ end
 end
 local function renderNativeCosts(packet,readings)
  local S=ns.state;local F=ns.features.Healing;local bridge=ns.features.SpellBridge
@@ -29,7 +35,12 @@ local function renderNativeCosts(packet,readings)
   for i=1,3 do native.widgets[i]=bridge.createManaCost(panel,326+(i-1)*98,24,88)end
   for i=1,4 do native.stamp[i]=cell(626+(i-1)*6)end
  end
- for i,reading in ipairs(readings)do bridge.renderManaCost(native.widgets[i],reading.id,reading.learned)end
+ for i,reading in ipairs(readings)do
+  local widget=native.widgets[i]
+  bridge.renderManaCost(widget,reading.id,reading.learned)
+  if not native.visible then widget.bar:Show();widget.valid:Show()end
+ end
+ native.visible=true
  -- Publish the certificate last. A failed/partial render remains ineligible.
  for i=1,4 do local value=packet:byte(#packet-4+i)/255;native.stamp[i]:SetVertexColor(value,value,value,1)end
  native.marker:SetVertexColor(0,1,1,1)

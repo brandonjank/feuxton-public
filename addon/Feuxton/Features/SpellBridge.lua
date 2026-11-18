@@ -19,7 +19,7 @@ local function manaStatus(widget,status)
         widget.feuxtonManaStatus=status
     end
 end
-function B.renderPowerCost(widget,id,learned,powerType)
+function B.renderPowerCost(widget,id,learned,powerType,allowResolvedFree)
     local S=ns.state
     if learned~=true or type(id)~="number" or id<=0 then manaStatus(widget,0);return end
     local zero=false
@@ -28,9 +28,10 @@ function B.renderPowerCost(widget,id,learned,powerType)
         if type(api)~="function" then error("Cost API unavailable") end
         local queried,costs=pcall(api,id)
         if not queried then error("Cost query failed") end
-        -- Nil can mean either no resource costs or an unresolved spell. It
-        -- cannot certify zero; an explicit empty cost table can.
+        -- A successful nil result can represent no resource cost for callers
+        -- that have independently verified the exact learned spell.
         if S.isSecret(costs) then error("Cost unavailable") end
+        if costs==nil and allowResolvedFree==true then zero=true;return end
         if costs==nil then error("Cost unavailable") end
         if type(costs)~="table" or #costs>8 then error("Cost unavailable") end
         local cost,found=0,false
@@ -58,7 +59,7 @@ function B.renderPowerCost(widget,id,learned,powerType)
     end)
     manaStatus(widget,ok and (zero and 2 or 1) or 0)
 end
-function B.renderManaCost(widget,id,learned) return B.renderPowerCost(widget,id,learned,0) end
+function B.renderManaCost(widget,id,learned,allowResolvedFree) return B.renderPowerCost(widget,id,learned,0,allowResolvedFree) end
 -- Public proc counts only. An incomplete/restricted scan cannot prove zero.
 -- This also serves class bridges which do not use the shared native tiles.
 function B.stackCount(unit,name,maximum)

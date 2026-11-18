@@ -4,8 +4,16 @@ local paladin={}
 ns.classes.PALADIN=paladin
 paladin.denseBridgeLayout={key="paladin-slim-v1",height=263,nativeVitalsTop=118,nativeVitalsHeight=87,nativeSignalsTop=205,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=20,activity=14,headerActivity=true,resources=68,setup=88,grid=88,roster=88,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
 paladin.specs=ns.spellCatalog.PALADIN.specs
+local buildOK,_,buildID,_,interface=pcall(GetBuildInfo)
+local clientBuild=buildOK and interface==16001 and tonumber(buildID)
+-- The launch rules replaced the self reset with a targeted Seal attack.
+local swiftUnleashesSeal=type(clientBuild)=="number" and clientBuild>=70938
+local holyShieldRanks={[20925]=true,[20927]=true,[20928]=true}
 -- Stop melee swings before selected-target incapacitation; recovery owns any follow-up.
-for _,spec in ipairs(paladin.specs) do if spec.key=="paladin.repentance" then spec.stopAttack=true end end
+for _,spec in ipairs(paladin.specs) do
+    if spec.key=="paladin.repentance" then spec.stopAttack=true end
+    if spec.key=="paladin.swiftJudgement" and swiftUnleashesSeal then spec.unit="target" end
+end
 function paladin.capture()
     local group=ns.features.GroupContext
     local S=ns.state
@@ -85,6 +93,9 @@ end
 paladin.previewKeys={};paladin.packetKeys={}
 for i,key in ipairs(ns.spellCatalog.PALADIN.previewKeys) do paladin.previewKeys[i]=key:match("%.(.+)") end
 for i,key in ipairs(ns.spellCatalog.PALADIN.packetKeys) do paladin.packetKeys[i]=key:match("%.(.+)") end
+local protectionKeys={unpack(paladin.packetKeys)}
+for _,key in ipairs(ns.spellCatalog.PALADIN.protectionKeys) do protectionKeys[#protectionKeys+1]=key:match("%.(.+)") end
+local baseSlots=#paladin.packetKeys
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
 -- never compares or serializes it. Orange means no supported rendering path.
@@ -188,6 +199,7 @@ local function initializeNative(S)
     end
     paladin.shieldSource=panel:CreateTexture(nil,"OVERLAY");paladin.shieldSource:SetSize(4,4);paladin.shieldSource:SetPoint("TOPLEFT",342,-25);paladin.shieldSource:SetColorTexture(0,0,0,1)
     paladin.shieldAura=panel:CreateTexture(nil,"ARTWORK");paladin.shieldAura:SetSize(8,8);paladin.shieldAura:SetPoint("TOPLEFT",330,-23);paladin.shieldAura:SetColorTexture(0,0.25,1,1)
+    local holyShield=panel:CreateTexture(nil,"ARTWORK");holyShield:SetSize(8,8);holyShield:SetPoint("TOPLEFT",578,-23);holyShield:SetColorTexture(0,0.25,1,1)
     paladin.nativeStamp={};paladin.nativeTiles={}
     paladin.castIdentityCells={}
     for i=1,3 do
@@ -233,6 +245,22 @@ local function initializeNative(S)
         -- marker would overlap two columns of this tile's cooldown renderer.
         useButton.useDot:ClearAllPoints()
         useButton.useDot:SetPoint("TOPRIGHT",tile.icon,"TOPRIGHT",0,0)
+    end
+    paladin.protectionTiles={}
+    for i,key in ipairs(ns.spellCatalog.PALADIN.protectionKeys) do
+        local x=350+(i-1)*72
+        local function cell(layer,size,dx,y)
+            local region=panel:CreateTexture(nil,layer);region:SetSize(size,size);region:SetPoint("TOPLEFT",x+dx,-y);return region
+        end
+        local tile={icon=cell("ARTWORK",8,0,23),dial=cell("BACKGROUND",8,10,23),visualSignals={}}
+        tile.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial)
+        tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
+        for j=1,4 do
+            local dot=cell("OVERLAY",4,22+(j-1)*6,25);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot
+        end
+        tile.manaCost=ns.features.SpellBridge.createManaCost(panel,x,36,28)
+        local use=S.attachSpellUse(panel,tile.icon,key);use.useDot:ClearAllPoints();use.useDot:SetPoint("TOPRIGHT",tile.icon,"TOPRIGHT",0,0)
+        paladin.protectionTiles[i]=tile
     end
 end
 
@@ -287,19 +315,19 @@ local function refreshNativeAuras(readings,S)
         container=CreateFrame("AuraContainer",nil,S.paladinNativePanel,"CustomAuraContainerTemplate");container:SetAllPoints(S.paladinNativePanel)
         local mask,absence=0,0
         for i,reading in ipairs(readings) do
-            if (auraSlots[i] or i==19) and reading.learned==true then
+            if (auraSlots[i] or i==19 or i==20) and reading.learned==true then
                 local ids={[reading.bound]=true}
                 for _,spell in ipairs(S.setupKnownSpells or {}) do if spell.name==reading.name then ids[spell.id]=true end end
                 -- A public player aura identifies this server's actual aura ID,
                 -- which can differ from the cast ID. Include it in the native
                 -- filter before certifying its blue background as absence.
                 if reading.auraID then ids[reading.auraID]=true;absence=absence+2^(i-1) end
-                local slotX=i==19 and 330 or i==17 and 214 or 12+(i-1)*46+36
-                local auraKey=i==19 and "paladin.divineShield" or "paladin."..paladin.packetKeys[i]
+                local slotX=i==20 and 578 or i==19 and 330 or i==17 and 214 or 12+(i-1)*46+36
+                local auraKey=i==20 and "paladin.holyShield" or i==19 and "paladin.divineShield" or "paladin."..paladin.packetKeys[i]
                 local signalIndex
-                if i~=19 and ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,paladin,"paladin."..paladin.packetKeys[i],"player",paladin.signalAuraRevision,"HELPFUL",reading.auraID and 2 or 1);if declared then signalIndex=index end end
+                if ns.declareNativeSignalAura and i~=19 then local declared,index=pcall(ns.declareNativeSignalAura,paladin,auraKey,"player",paladin.signalAuraRevision,"HELPFUL",reading.auraID and 2 or 1);if declared then signalIndex=index end end
                 container:AddAuraSlot(auraKey,"HELPFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
-                    button:SetSize(8,8);button:SetPoint("TOPLEFT",container,"TOPLEFT",slotX,(i==17 or i==19) and -23 or -6);button:EnableMouse(false)
+                    button:SetSize(8,8);button:SetPoint("TOPLEFT",container,"TOPLEFT",slotX,(i==17 or i>=19) and -23 or -6);button:EnableMouse(false)
                     local icon=button:CreateTexture(nil,"ARTWORK");icon:SetAllPoints(button);button:SetIcon(icon)
                     local signal=button:CreateTexture(nil,"OVERLAY");signal:SetAllPoints(button);signal:SetColorTexture(0,1,0,1)
                     if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end
@@ -341,9 +369,12 @@ function paladin.initializePreview()
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
         local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
-        local packet="HHPD"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.bindingsValid and 2 or 0,1)
+        local swiftMode=swiftUnleashesSeal and 4 or 0
+        local packet="HHPD"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes((S.bindingsValid and 2 or 0)+swiftMode,1)
         -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
+        local protection=S.paladinProtectionActive==true
         local auras,auraIDs,complete={},{},false
+        local holyShieldCount
         if type(C_UnitAuras)=="table" and type(C_UnitAuras.GetAuraDataByIndex)=="function" then
             for i=1,40 do
                 local ok,aura=pcall(C_UnitAuras.GetAuraDataByIndex,"player",i,"HELPFUL")
@@ -353,10 +384,14 @@ function paladin.initializePreview()
                 if name=="" then break end;auras[name]=true
                 local auraID=group.field(aura,"spellId")
                 if auraID.status=="observed" and type(auraID.value)=="number" and auraID.value>0 and auraID.value<2147483648 and math.floor(auraID.value)==auraID.value then auraIDs[name]=auraID.value end
+                if protection and name=="Holy Shield" then
+                    local count=group.field(aura,"applications")
+                    if count.status=="observed" and publicNumber(S,count.value,0,32) and math.floor(count.value)==count.value then holyShieldCount=count.value end
+                end
             end
         end
-        paladin.rangeSpecs={};local nativeReadings={}
-        for index,shortKey in ipairs(paladin.packetKeys) do
+        paladin.rangeSpecs={};local nativeReadings={};local protectionRecords={}
+        for index,shortKey in ipairs(protection and protectionKeys or paladin.packetKeys) do
             local spec
             for _,entry in ipairs(paladin.specs) do if entry.key=="paladin."..shortKey then spec=entry;break end end
             local ok,info=pcall(api.GetSpellInfo or function() end,spec.name)
@@ -390,13 +425,28 @@ function paladin.initializePreview()
             local aura=auras[spec.name] and {status="observed",value=true} or complete and {status="observed",value=false} or {}
             local flags=0
             for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
-            packet=packet..S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
-            renderNative(paladin.nativeTiles[index],bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
-            if index<=16 or index==18 then ns.features.SpellBridge.renderManaCost(paladin.nativeTiles[index].manaCost,bound,learned.status=="observed" and learned.value==true) end
+            local record=S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
+            local extension=index-baseSlots
+            if extension>0 then protectionRecords[extension]=record else packet=packet..record end
+            local tile=extension>0 and paladin.protectionTiles[extension] or paladin.nativeTiles[index]
+            renderNative(tile,bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
+            local isLearned=learned.status=="observed" and learned.value==true
+            if tile.manaCost then
+                local freeIfNoCostRecord=shortKey=="swiftJudgement" and bound==1310994 and bound==id
+                ns.features.SpellBridge.renderManaCost(tile.manaCost,bound,isLearned,freeIfNoCostRecord)
+            end
             paladin.verifiedAuraIDs=paladin.verifiedAuraIDs or {}
             local family=spec.key..":"..bound
             if learned.status=="observed" and learned.value==true and auraIDs[spec.name] and S.readableCall(InCombatLockdown)==false then paladin.verifiedAuraIDs[family]=auraIDs[spec.name] end
-            nativeReadings[index]={name=spec.name,bound=bound,learned=learned.status=="observed" and learned.value or false,auraID=paladin.verifiedAuraIDs[family]}
+            local auraID=paladin.verifiedAuraIDs[family]
+            if extension==1 and isLearned and not auraID and holyShieldRanks[bound] and bound==id and S.safeField(info,"name")==spec.name then
+                -- These exact ranks self-apply their own spell ID. The native
+                -- slot must still demonstrate presence or absence each frame.
+                auraID=bound
+            end
+            local reading={name=spec.name,bound=bound,learned=isLearned,auraID=auraID}
+            if extension<=0 then nativeReadings[index]=reading
+            elseif extension==1 then paladin.protectionShield=reading end
             if spec.healing and bound>0 and learned.value==true then paladin.rangeSpecs[#paladin.rangeSpecs+1]={id=bound,name=spec.name} end
         end
         -- Aura-only capability: no new binding, spell slot, packet bytes or
@@ -408,6 +458,7 @@ function paladin.initializePreview()
         local shieldBound=shieldID.status=="observed" and type(shieldID.value)=="number" and shieldID.value>0 and shieldID.value<2147483648 and math.floor(shieldID.value)==shieldID.value and shieldID.value or 0
         local shieldKnown=shieldBound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,shieldBound) or {}
         nativeReadings[19]={name=shieldSpec.name,bound=shieldBound,learned=shieldKnown.status=="observed" and shieldKnown.value==true}
+        if protection then nativeReadings[20]=paladin.protectionShield end
         local movement=group.read(GetUnitSpeed,1,"player");movement=movement.status=="observed" and type(movement.value)=="number" and {status="observed",value=movement.value>0} or {}
         packet=packet..S.bytes(group.code(movement),1)..S.bytes(group.code(group.read(UnitAffectingCombat,1,"player")),1)..S.bytes(group.code(group.read(IsMounted,1)),1)..S.bytes(group.code(group.read(UnitOnTaxi,1,"player")),1)
         refreshNativeAuras(nativeReadings,S)
@@ -460,6 +511,19 @@ function paladin.initializePreview()
         local classification=group.text(group.read(UnitClassification,1,"target"),20)
         local classifications={normal=1,elite=2,rareelite=3,rare=4,worldboss=5,trivial=6,minus=7}
         packet=packet..S.bytes(targetLevel==-1 and 65534 or targetLevel or 65535,2)..S.bytes(classifications[classification] or 0,1)..paladin.swingClockBytes()
+        if protection then
+            local shield=paladin.protectionShield
+            local count=holyShieldCount or (complete and not auras["Holy Shield"] and 0 or 255)
+            local proof=math.floor(auraMask/524288)%2+2*(math.floor(absenceMask/524288)%2)
+            if not shield or not shield.learned then count=255;proof=0 end
+            local protectionUsage=0
+            for index,key in ipairs(ns.spellCatalog.PALADIN.protectionKeys) do protectionUsage=protectionUsage+S.spellUseCode(key)*4^(index-1) end
+            packet=packet..table.concat(protectionRecords)..S.bytes(count,1)..S.bytes(proof,1)..S.bytes(protectionUsage,1)
+        elseif S.paladinProtectionPending then
+            -- The former active tree was invalidated. Hold dispatch until
+            -- the locally refreshed tree settles, even as setup pages lag.
+            packet=packet..S.bytes(1,1)
+        end
         local checksum=S.adler32(packet)
         local activeID,activeKind=ns.features.CastTracking.activityIdentity()
         local active=S.bytes(activeID,4)..S.bytes(activeKind,1)

@@ -2,7 +2,7 @@
 ## Title: Feuxton
 ## Notes: Modular HUD and pixel data bridge for Feuxton.
 ## Author: Feuxton
-## Version: 0.81.88
+## Version: 0.81.96
 ## SavedVariables: FeuxtonDB
 
 Feuxton.lua
@@ -32,6 +32,8 @@ Features\RangeTracking.lua
 Features\Totems.lua
 Features\SpellBridge.lua
 Features\Consumables.lua
+Features\Equipment.lua
+Features\Fishing.lua
 Features\Bandages.lua
 Features\Potions.lua
 Features\Racials.lua

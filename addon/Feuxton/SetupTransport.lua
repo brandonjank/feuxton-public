@@ -85,7 +85,7 @@ function S.loadedAddonPacket(tick)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI7",[10]="HHX6",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI4",[27]="HGQ1",[28]="MGS1"}
+local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI7",[10]="HHX6",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI4",[27]="HGQ1",[28]="MGS1",[29]="HFE2",[30]="HFF1"}
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
@@ -139,6 +139,11 @@ function S.denseStatePacket(now,tick)
         S.transportPackets[9]=ok and {packet=packet,at=now} or nil
         ids[#ids+1]=9
     end
+    if ns.features.Equipment then
+        local ok,packet=pcall(ns.features.Equipment.packet,tick)
+        S.transportPackets[29]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=29
+    else S.transportPackets[29]=nil end
     if ns.features.ControlEffects then
         local ok,packet=pcall(ns.features.ControlEffects.packet,tick)
         S.transportPackets[10]=ok and {packet=packet,at=now} or nil
@@ -190,7 +195,7 @@ function S.denseStatePacket(now,tick)
         S.transportPackets[26]=ok and packet and {packet=packet,at=now} or nil
         ids[#ids+1]=26
     else S.transportPackets[26]=nil end
-    local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk,interruptChunk,bandageChunk,potionChunk,guildChunk;local liveBytes=23;local selectedInterruptActive=false
+    local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk,interruptChunk,bandageChunk,potionChunk,guildChunk,equipmentChunk;local liveBytes=23;local selectedInterruptActive=false
     local restIndex,restBaseChunk,restFullChunk,restOffers
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
@@ -207,6 +212,7 @@ function S.denseStatePacket(now,tick)
             elseif id==24 then bandageChunk=chunk
             elseif id==25 then potionChunk=chunk
             elseif id==26 then guildChunk=chunk
+            elseif id==29 then equipmentChunk=chunk
             else
                 chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk
                 if id==8 and age<=S.updateRateMs+50 and entry.packet:byte(13)==S.auraGeneration then
@@ -249,8 +255,23 @@ function S.denseStatePacket(now,tick)
     -- Idle observations retain courtesy precedence. An actually observed enemy
     -- cast may temporarily yield courtesy/buff pages to interrupt evidence.
     -- Both paths preserve core rows and the once-per-four setup opportunity.
+    -- Optional equipment never invalidates existing core/recovery sources.
+    -- Prefer its small current observation over paged optional offers while
+    -- retaining the existing once-per-four minimal setup opportunity.
+    local equipmentSetupBudget=setupChunk and tick%4==0 and 27 or 0
+    S.equipmentPageDeferred=equipmentChunk~=nil and liveBytes+#equipmentChunk+equipmentSetupBudget>2304
+    if equipmentChunk and not S.equipmentPageDeferred then chunks[#chunks+1]=equipmentChunk;count=count+1;liveBytes=liveBytes+#equipmentChunk end
     local courtesyBudget=courtesyChunk and liveBytes+#courtesyChunk<=2304 and #courtesyChunk or 0
     local setupBudget=setupChunk and tick%4==0 and 27 or 0
+    local equipped=S.transportPackets[29] and S.transportPackets[29].packet
+    if ns.features.Fishing and equipped and equipped:byte(18)==2 and equipped:byte(19)==20
+            and count<22 and liveBytes+courtesyBudget+setupBudget+40<=2304 then
+        local ok,page=pcall(ns.features.Fishing.packet,tick)
+        if ok and page then
+            local body=packedSource(30,page,classID);local piece=S.bytes(30,1)..S.bytes(0,2)..S.bytes(#body,2)..body
+            chunks[#chunks+1]=piece;count=count+1;liveBytes=liveBytes+#piece
+        end
+    end
     local reserveCourtesy=S.interruptPageUrgent and 0 or courtesyBudget
     S.interruptPageDeferred=interruptChunk~=nil and liveBytes+reserveCourtesy+setupBudget+#interruptChunk>2304
     S.interruptPageDeferredReason=S.interruptPageDeferred and (S.interruptPageUrgent and "mandatory-and-setup-budget" or "courtesy-and-setup-budget") or nil
@@ -286,7 +307,7 @@ function S.denseStatePacket(now,tick)
         local ok,page=pcall(recruitment.monitorPacket,tick,math.min(499,remaining+3))
         if ok and page then
             local body=packedSource(27,page,classID)
-            if #body+5<=remaining then chunks[#chunks+1]=S.bytes(27,1)..S.bytes(0,2)..S.bytes(#body,2)..body;count=count+1 end
+            if #body+5<=remaining and count<24 then chunks[#chunks+1]=S.bytes(27,1)..S.bytes(0,2)..S.bytes(#body,2)..body;count=count+1 end
         end
     end
     S.setupPageDeferred=setupChunk~=nil and selectedSetup==nil
@@ -608,6 +629,18 @@ function S.collectSetup()
         end
     end
     S.setupTalentsAvailable=talentAvailable
+    -- Publish only committed, complete totals. The fast Paladin frame can
+    -- follow a spec swap before the multi-page spellbook transfer finishes.
+    S.paladinProtectionActive=false
+    S.paladinProtectionPending=false
+    S.paladinTalentModeKnown=false
+    if class=="PALADIN" and talentAvailable and #trees==3 then
+        local holy,protection,ret=unpack(S.setupTalentPoints,1,3)
+        if holy and protection and ret then
+            S.paladinTalentModeKnown=true
+            S.paladinProtectionActive=protection>holy and protection>ret
+        end
+    end
     -- Forever's specialization API may return the localized class name. The
     -- committed branch totals identify the build without any class-name map.
     if not specName or specName==className or class and specName:upper()==class:upper() then
@@ -681,6 +714,10 @@ for _,event in ipairs({"PLAYER_LOGIN","PLAYER_ENTERING_WORLD","PLAYER_LEVEL_UP",
     pcall(S.setupEvents.RegisterEvent,S.setupEvents,event)
 end
 S.setupEvents:SetScript("OnEvent",function(_,event,unit)
+    if event=="ACTIVE_TALENT_GROUP_CHANGED" or event=="PLAYER_TALENT_UPDATE" or event=="TRAIT_CONFIG_UPDATED" or event=="PLAYER_ENTERING_WORLD" then
+        if S.paladinTalentModeKnown then S.paladinProtectionPending=true end
+        S.paladinProtectionActive=false
+    end
     if event=="UNIT_STATS" or event=="UNIT_AURA" or event=="UNIT_SPELL_HASTE" then
         if S.isSecret(unit) or unit~="player" then return end
     end

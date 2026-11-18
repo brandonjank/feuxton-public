@@ -41,14 +41,23 @@ local function publicValue(value,kind)
     if kind=="number" and (value<=0 or value~=math.floor(value)) then return nil end
     return value
 end
+local function clearPolledIdle(state)state.idleFromPoll=nil;state.pollIdleFresh=nil end
+local function activityIdentity(state)
+    if not state then return 0,0 end
+    if state.mode=="cast" and state.cast==true then return state.id or 0,2 end
+    if state.mode=="channel" and state.channel==true then return state.id or 0,3 end
+    if state.cast==false and state.channel==false and (not state.idleFromPoll or state.pollIdleFresh==true) then return 0,1 end
+    return 0,0
+end
 function P.activityEvent(state,event,guid,id)
     guid=publicValue(guid,"string");id=publicValue(id,"number")
     if event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_DEAD" then
         advanceActivity(state)
-        state.cast=nil;state.channel=nil;state.mode=nil;state.guid=nil;state.id=nil;return true
+        clearPolledIdle(state);state.cast=nil;state.channel=nil;state.mode=nil;state.guid=nil;state.id=nil;return true
     end
     if event=="UNIT_SPELLCAST_START" or event=="UNIT_SPELLCAST_CHANNEL_START" then
         advanceActivity(state)
+        clearPolledIdle(state)
         state.mode=event=="UNIT_SPELLCAST_START" and "cast" or "channel"
         state.cast=state.mode=="cast";state.channel=state.mode=="channel"
         state.guid=guid;state.id=id;return true
@@ -56,7 +65,7 @@ function P.activityEvent(state,event,guid,id)
     if not state.mode then
         if event=="UNIT_SPELLCAST_STOP" or event=="UNIT_SPELLCAST_CHANNEL_STOP" then
             if state.cast~=nil or state.channel~=nil then advanceActivity(state) end
-            state.cast=nil;state.channel=nil;return true
+            clearPolledIdle(state);state.cast=nil;state.channel=nil;return true
         end
         return false
     end
@@ -68,31 +77,51 @@ function P.activityEvent(state,event,guid,id)
     elseif id and state.id then matches=id==state.id end
     if matches==true then
         advanceActivity(state)
-        state.cast=false;state.channel=false;state.mode=nil;state.guid=nil;state.id=nil;return true
+        clearPolledIdle(state);state.cast=false;state.channel=false;state.mode=nil;state.guid=nil;state.id=nil;return true
     end
     -- Unidentified failure is not an end-of-cast observation. An unidentified
     -- STOP becomes unknown until a readable API poll resolves it.
     if matches==nil and (event=="UNIT_SPELLCAST_STOP" or event=="UNIT_SPELLCAST_CHANNEL_STOP") then
         advanceActivity(state)
-        state[state.mode]=nil;state.mode=nil;state.guid=nil;state.id=nil;return true
+        clearPolledIdle(state);state[state.mode]=nil;state.mode=nil;state.guid=nil;state.id=nil;return true
     end
     return false
 end
+local function activityFallback(state,mode)
+    -- A previous poll is not current evidence when the API becomes unreadable.
+    -- Retained public event state keeps its existing fallback semantics.
+    if state.idleFromPoll then return nil end
+    return state[mode]
+end
 function P.activityFlag(state,fn,mode)
-    if type(fn)~="function" then return state[mode] end
+    if ns.state.isSecret(fn) or type(fn)~="function" then return activityFallback(state,mode) end
     local ok,name=pcall(fn,"player")
-    if not ok or ns.state.isSecret(name) then return state[mode] end
+    if not ok or ns.state.isSecret(name) then return activityFallback(state,mode) end
     return name~=nil
+end
+local function publicIdle(fn)
+    if ns.state.isSecret(fn) or type(fn)~="function" then return false end
+    local ok,name=pcall(fn,"player")
+    return ok and not ns.state.isSecret(name) and name==nil
+end
+function P.reconcileActivityIdle(state,castingInfo,channelInfo)
+    if not state or state.mode~=nil or state.cast==true or state.channel==true then return false end
+    local beforeID,beforeKind=activityIdentity(state)
+    local castIdle,channelIdle=publicIdle(castingInfo),publicIdle(channelInfo)
+    if castIdle and channelIdle then
+        if state.cast~=false or state.channel~=false or state.idleFromPoll then
+            state.cast=false;state.channel=false;state.mode=nil;state.guid=nil;state.id=nil
+            state.idleFromPoll=true;state.pollIdleFresh=true
+        end
+    elseif state.idleFromPoll then state.pollIdleFresh=false end
+    local id,kind=activityIdentity(state)
+    if id~=beforeID or kind~=beforeKind then advanceActivity(state);return true end
+    return false
 end
 -- Public identity from the current START lifecycle. A secret/new START clears
 -- the previous ID; no retained receipt is treated as the current cast.
 function P.activityIdentity()
-    local state=P.currentActivity
-    if not state then return 0,0 end
-    if state.mode=="cast" and state.cast==true then return state.id or 0,2 end
-    if state.mode=="channel" and state.channel==true then return state.id or 0,3 end
-    if state.cast==false and state.channel==false then return 0,1 end
-    return 0,0
+    return activityIdentity(P.currentActivity)
 end
 -- A small independent lifecycle source joins diagnostic native timers to the
 -- same completed main frame. It never supplies cast activity to execution.
@@ -101,7 +130,11 @@ function P.activityRecord()
     return state and state.serial or 0,kind,id
 end
 function P.activityPacket()
-    local S=ns.state;local serial,kind,id=P.activityRecord()
+    local S=ns.state
+    -- Reconcile before the completed PCS1 source is consumed by FHS3. Only two
+    -- successful public nil reads establish idle; no fallback enters this join.
+    P.reconcileActivityIdle(P.currentActivity,UnitCastingInfo,UnitChannelInfo)
+    local serial,kind,id=P.activityRecord()
     local packet="PCS1"..S.bytes(S.setupSession,4)..S.bytes(serial,4)..S.bytes(kind,1)..S.bytes(id,4)
     return packet..S.bytes(S.adler32(packet),4)
 end
