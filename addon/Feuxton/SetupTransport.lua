@@ -80,17 +80,16 @@ do
 end
 function S.loadedAddonPacket(tick)
     if not loadedAddonBytes or type(tick)~="number" or tick<0 or tick>4294967295 or tick~=math.floor(tick) then return nil end
-    local packet="HHV1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..loadedAddonBytes
+    local packet=ns.wire.schemas.loadedAddon..S.bytes(S.setupSession,4)..S.bytes(tick,4)..loadedAddonBytes
     return packet..S.bytes(S.adler32(packet),4)
 end
 -- Completed guarded producer packets feed one current HHD3 envelope.
 S.transportPackets={}
-local sourceSchemas={[1]="HHF4",[2]="HHG7",[3]="HHPD",[4]="HHB3",[5]="HHM1",[6]="SHS2",[7]="HHT5",[8]="HHE2",[9]="HHI7",[10]="HHX6",[11]="WLS5",[12]="DRS2",[13]="PCS1",[14]="HHV1",[15]="HHJ1",[22]="HHU1",[23]="HHK2",[24]="HHA1",[25]="HHQ1",[26]="HGI4",[27]="HGQ1",[28]="MGS1",[29]="HFE2",[30]="HFF1"}
+local wire,source=ns.wire,ns.wire.ids
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
 local function packedSource(id,packet,classID)
-    local schema=sourceSchemas[id]
-    if id>=16 and id<=21 then schema=classID==7 and "HHR8" or classID==2 and "HHR4" or classID==5 and "HHR7" or "HHR1" end
+    local schema=wire.sourceSchema(classID,id)
     assert(schema and type(packet)=="string" and #packet>=12 and packet:sub(1,4)==schema and packet:sub(5,8)==sourceSessionBytes,"Invalid current source context")
     -- Schema and session are determined by this checksummed envelope. Keep
     -- the original source checksum so the decoder still validates producer
@@ -112,7 +111,7 @@ local function setupFragmentChunk(entry,tick,budget)
     local original=entry and entry.packet
     local payload=S.setupPayload
     if budget<27 or type(payload)~="string" or #payload==0 or #payload>65536 or not original or #original<29
-        or original:sub(1,4)~="HHM1" or original:byte(11)~=0 or unsignedAt(original,18,4)~=#payload then return nil end
+        or original:sub(1,4)~=ns.wire.schemas.setup or original:byte(11)~=0 or unsignedAt(original,18,4)~=#payload then return nil end
     if payload~=setupFragmentPayload then setupFragmentPayload=payload;setupFragmentTick=nil;setupFragmentOffset=0;setupFragmentLength=0 end
     if setupFragmentTick~=tick then
         if setupFragmentTick~=nil then setupFragmentOffset=(setupFragmentOffset+setupFragmentLength)%#payload end
@@ -121,118 +120,122 @@ local function setupFragmentChunk(entry,tick,budget)
     local length=math.min(328,budget-26,#payload-setupFragmentOffset)
     if length<1 then return nil end
     setupFragmentLength=length
-    local packet="HHM1"..original:sub(5,10)..S.bytes(2,1)..S.bytes(setupFragmentOffset,2)..S.bytes(0,2)
+    local packet=ns.wire.schemas.setup..original:sub(5,10)..S.bytes(2,1)..S.bytes(setupFragmentOffset,2)..S.bytes(0,2)
         ..S.bytes(length,2)..original:sub(18,25)..payload:sub(setupFragmentOffset+1,setupFragmentOffset+length)
     packet=packet..S.bytes(S.adler32(packet),4)
-    local body=packedSource(5,packet,0)
-    return S.bytes(5,1)..S.bytes(0,2)..S.bytes(#body,2)..body
+    local body=packedSource(source.setup,packet,0)
+    return S.bytes(source.setup,1)..S.bytes(0,2)..S.bytes(#body,2)..body
 end
 function S.denseStatePacket(now,tick)
     if sourceSession~=S.setupSession then sourceSession=S.setupSession;sourceSessionBytes=S.bytes(sourceSession,4) end
-    local core=S.transportPackets[1];local classID=core and string.byte(core.packet,11) or 0
-    local ids={1};if classID==1 then ids[#ids+1]=2 elseif classID==7 then ids[#ids+1]=3 elseif classID==2 then ids[#ids+1]=6 elseif classID==4 then ids[#ids+1]=11 elseif classID==5 then ids[#ids+1]=12 elseif classID==9 then ids[#ids+1]=28 end
-    for id=16,21 do ids[#ids+1]=id end
-    if classID==7 then ids[#ids+1]=4 end -- optional public courtesy recipients
-    ids[#ids+1]=5;if classID==7 or classID==2 or classID==5 then ids[#ids+1]=7 end;if classID==7 or classID==2 or classID==1 or classID==4 or classID==5 or classID==9 then ids[#ids+1]=8 end -- setup, recipients and shared enemy cast
+    local core=S.transportPackets[source.core];local classID=core and string.byte(core.packet,11) or 0
+    local ids={source.core}
+    local preview=wire.previewByClass[classID]
+    if preview then ids[#ids+1]=preview end
+    for id=source.rosterFirst,source.rosterLast do ids[#ids+1]=id end
+    if wire.sourceSchema(classID,source.courtesyBlessings) then ids[#ids+1]=source.courtesyBlessings end
+    ids[#ids+1]=source.setup
+    if wire.sourceSchema(classID,source.recipientTargeting) then ids[#ids+1]=source.recipientTargeting end
+    if wire.sourceSchema(classID,source.enemyCast) then ids[#ids+1]=source.enemyCast end
     if ns.features.Consumables then
         local ok,packet=pcall(ns.features.Consumables.packet,tick)
-        S.transportPackets[9]=ok and {packet=packet,at=now} or nil
-        ids[#ids+1]=9
+        S.transportPackets[source.consumables]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.consumables
     end
     if ns.features.Equipment then
         local ok,packet=pcall(ns.features.Equipment.packet,tick)
-        S.transportPackets[29]=ok and packet and {packet=packet,at=now} or nil
-        ids[#ids+1]=29
-    else S.transportPackets[29]=nil end
+        S.transportPackets[source.equipment]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.equipment
+    else S.transportPackets[source.equipment]=nil end
     if ns.features.ControlEffects then
         local ok,packet=pcall(ns.features.ControlEffects.packet,tick)
-        S.transportPackets[10]=ok and {packet=packet,at=now} or nil
-        ids[#ids+1]=10
+        S.transportPackets[source.sharedSupport]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.sharedSupport
     end
     if ns.features.CastTracking and type(ns.features.CastTracking.activityPacket)=="function" then
         local ok,packet=pcall(ns.features.CastTracking.activityPacket)
-        S.transportPackets[13]=ok and {packet=packet,at=now} or nil
-        ids[#ids+1]=13
+        S.transportPackets[source.playerLifecycle]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.playerLifecycle
     end
     do
         local packet=S.loadedAddonPacket(tick)
-        S.transportPackets[14]=packet and {packet=packet,at=now} or nil
-        ids[#ids+1]=14
+        S.transportPackets[source.loadedAddon]=packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.loadedAddon
     end
     do
         local ok,packet=pcall(ns.features.CastTracking.feedbackPacket,tick,now)
-        S.transportPackets[15]=ok and {packet=packet,at=now} or nil
-        ids[#ids+1]=15
+        S.transportPackets[source.gameCastFeedback]=ok and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.gameCastFeedback
     end
-    if ns.features.BuffCoverage and (classID==7 or classID==5) then
+    if ns.features.BuffCoverage and wire.sourceSchema(classID,source.buffCoverage) then
         if not buffPublication or buffPublication.session~=S.setupSession or buffPublication.classID~=classID or buffPublication.tick~=tick or buffPublication.now~=now then
             local ok,packet=pcall(ns.features.BuffCoverage.packet,now,tick)
             buffPublication={session=S.setupSession,classID=classID,tick=tick,now=now,entry=ok and packet and {packet=packet,at=now} or nil}
         end
-        S.transportPackets[22]=buffPublication.entry
-        ids[#ids+1]=22
-    else buffPublication=nil;S.transportPackets[22]=nil end
-    if classID==7 and ns.features.Interrupts and type(ns.features.Interrupts.extraPacket)=="function" then
+        S.transportPackets[source.buffCoverage]=buffPublication.entry
+        ids[#ids+1]=source.buffCoverage
+    else buffPublication=nil;S.transportPackets[source.buffCoverage]=nil end
+    if wire.sourceSchema(classID,source.interruptTargets) and ns.features.Interrupts and type(ns.features.Interrupts.extraPacket)=="function" then
         local ok,packet=pcall(ns.features.Interrupts.extraPacket,tick)
-        S.transportPackets[23]=ok and packet and {packet=packet,at=now} or nil
-        ids[#ids+1]=23
-    else S.transportPackets[23]=nil end
+        S.transportPackets[source.interruptTargets]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.interruptTargets
+    else S.transportPackets[source.interruptTargets]=nil end
     local bandages=ns.features.Bandages
     if bandages and type(bandages.packet)=="function" then
         local ok,packet=pcall(bandages.packet,tick)
-        S.transportPackets[24]=ok and packet and {packet=packet,at=now} or nil
-        ids[#ids+1]=24
-    else S.transportPackets[24]=nil end
+        S.transportPackets[source.bandages]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.bandages
+    else S.transportPackets[source.bandages]=nil end
     local potions=ns.features.Potions
     if potions and type(potions.packet)=="function" then
         local ok,packet=pcall(potions.packet,now,tick)
-        S.transportPackets[25]=ok and packet and {packet=packet,at=now} or nil
-        ids[#ids+1]=25
-    else S.transportPackets[25]=nil end
+        S.transportPackets[source.potions]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.potions
+    else S.transportPackets[source.potions]=nil end
     local recruitment=ns.features.GuildRecruitment
     if recruitment and type(recruitment.packet)=="function" then
         local ok,packet=pcall(recruitment.packet,tick)
-        S.transportPackets[26]=ok and packet and {packet=packet,at=now} or nil
-        ids[#ids+1]=26
-    else S.transportPackets[26]=nil end
+        S.transportPackets[source.guildRecruitment]=ok and packet and {packet=packet,at=now} or nil
+        ids[#ids+1]=source.guildRecruitment
+    else S.transportPackets[source.guildRecruitment]=nil end
     local chunks,count={},0;local setupChunk,courtesyChunk,buffChunk,interruptChunk,bandageChunk,potionChunk,guildChunk,equipmentChunk;local liveBytes=23;local selectedInterruptActive=false
     local restIndex,restBaseChunk,restFullChunk,restOffers
     for _,id in ipairs(ids) do
         local entry=S.transportPackets[id];local age=entry and now and math.floor((now-entry.at)*1000)
-        local maxAge=2*S.updateRateMs+100+(id==5 and math.max(250,2*S.updateRateMs) or 0)
+        local maxAge=2*S.updateRateMs+100+(id==source.setup and math.max(250,2*S.updateRateMs) or 0)
         -- A session transition cannot relabel a cached old producer packet.
         -- Wait for that producer's new packet; missing remains unavailable.
         if age and age>=0 and age<=maxAge and entry.packet:sub(5,8)==sourceSessionBytes then
             local body=packedSource(id,entry.packet,classID)
             local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#body,2)..body
-            if id==5 then setupChunk=chunk
-            elseif id==4 then courtesyChunk=chunk
-            elseif id==22 then buffChunk=chunk
-            elseif id==23 then interruptChunk=chunk
-            elseif id==24 then bandageChunk=chunk
-            elseif id==25 then potionChunk=chunk
-            elseif id==26 then guildChunk=chunk
-            elseif id==29 then equipmentChunk=chunk
+            if id==source.setup then setupChunk=chunk
+            elseif id==source.courtesyBlessings then courtesyChunk=chunk
+            elseif id==source.buffCoverage then buffChunk=chunk
+            elseif id==source.interruptTargets then interruptChunk=chunk
+            elseif id==source.bandages then bandageChunk=chunk
+            elseif id==source.potions then potionChunk=chunk
+            elseif id==source.guildRecruitment then guildChunk=chunk
+            elseif id==source.equipment then equipmentChunk=chunk
             else
                 chunks[#chunks+1]=chunk;count=count+1;liveBytes=liveBytes+#chunk
-                if id==8 and age<=S.updateRateMs+50 and entry.packet:byte(13)==S.auraGeneration then
+                if id==source.enemyCast and age<=S.updateRateMs+50 and entry.packet:byte(13)==S.auraGeneration then
                     local nameSize=entry.packet:byte(18)
                     selectedInterruptActive=nameSize~=nil and entry.packet:byte(19+nameSize)==2
                 end
-                if id==9 and #entry.packet>35 then
+                if id==source.consumables and #entry.packet>35 then
                     -- Rest offers are optional. The same HHI7 producer can
                     -- retain its complete original recovery prefix alone.
                     local base=entry.packet:sub(1,31)
                     base=base..S.bytes(S.adler32(base),4)
-                    local body=packedSource(9,base,classID)
+                    local body=packedSource(source.consumables,base,classID)
                     restIndex=#chunks;restFullChunk=chunk
-                    restBaseChunk=S.bytes(9,1)..S.bytes(age,2)..S.bytes(#body,2)..body
+                    restBaseChunk=S.bytes(source.consumables,1)..S.bytes(age,2)..S.bytes(#body,2)..body
                     restOffers=entry.packet:byte(40)>0
                 end
             end
         end
     end
-    local extra=S.transportPackets[23]
+    local extra=S.transportPackets[source.interruptTargets]
     local hoverCombat=S.readableCall(UnitAffectingCombat,"player")==true
     S.interruptPageUrgent=interruptChunk~=nil and (selectedInterruptActive or hoverCombat and extra and extra.packet:byte(36)==2) or false
     S.restPageDeferred=false
@@ -263,13 +266,15 @@ function S.denseStatePacket(now,tick)
     if equipmentChunk and not S.equipmentPageDeferred then chunks[#chunks+1]=equipmentChunk;count=count+1;liveBytes=liveBytes+#equipmentChunk end
     local courtesyBudget=courtesyChunk and liveBytes+#courtesyChunk<=2304 and #courtesyChunk or 0
     local setupBudget=setupChunk and tick%4==0 and 27 or 0
-    local equipped=S.transportPackets[29] and S.transportPackets[29].packet
+    local equipped=S.transportPackets[source.equipment] and S.transportPackets[source.equipment].packet
     if ns.features.Fishing and equipped and equipped:byte(18)==2 and equipped:byte(19)==20
-            and count<22 and liveBytes+courtesyBudget+setupBudget+40<=2304 then
+            and count<22 and liveBytes+courtesyBudget+setupBudget+45<=2304 then
         local ok,page=pcall(ns.features.Fishing.packet,tick)
         if ok and page then
-            local body=packedSource(30,page,classID);local piece=S.bytes(30,1)..S.bytes(0,2)..S.bytes(#body,2)..body
-            chunks[#chunks+1]=piece;count=count+1;liveBytes=liveBytes+#piece
+            local body=packedSource(source.fishing,page,classID);local piece=S.bytes(source.fishing,1)..S.bytes(0,2)..S.bytes(#body,2)..body
+            if liveBytes+courtesyBudget+setupBudget+#piece<=2304 then
+                chunks[#chunks+1]=piece;count=count+1;liveBytes=liveBytes+#piece
+            end
         end
     end
     local reserveCourtesy=S.interruptPageUrgent and 0 or courtesyBudget
@@ -297,7 +302,7 @@ function S.denseStatePacket(now,tick)
         if 2304-liveBytes<27 and courtesyChunk and not S.courtesyDeferred and tick%4==0 then
             chunks[#chunks]=nil;count=count-1;liveBytes=liveBytes-#courtesyChunk;S.courtesyDeferred=true
         end
-        selectedSetup=setupFragmentChunk(S.transportPackets[5],tick,2304-liveBytes)
+        selectedSetup=setupFragmentChunk(S.transportPackets[source.setup],tick,2304-liveBytes)
     end
     if selectedSetup then chunks[#chunks+1]=selectedSetup;count=count+1 end
     -- Read-only guild monitoring uses leftovers only: never evict gameplay,
@@ -306,14 +311,14 @@ function S.denseStatePacket(now,tick)
         local remaining=2304-liveBytes-(selectedSetup and #selectedSetup or 0)
         local ok,page=pcall(recruitment.monitorPacket,tick,math.min(499,remaining+3))
         if ok and page then
-            local body=packedSource(27,page,classID)
-            if #body+5<=remaining and count<24 then chunks[#chunks+1]=S.bytes(27,1)..S.bytes(0,2)..S.bytes(#body,2)..body;count=count+1 end
+            local body=packedSource(source.guildQueue,page,classID)
+            if #body+5<=remaining and count<24 then chunks[#chunks+1]=S.bytes(source.guildQueue,1)..S.bytes(0,2)..S.bytes(#body,2)..body;count=count+1 end
         end
     end
     S.setupPageDeferred=setupChunk~=nil and selectedSetup==nil
     S.setupPageFragmented=selectedSetup~=nil and selectedSetup~=setupChunk
     local payload=table.concat(chunks)
-    local packet="HHD3"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
+    local packet=ns.wire.schemas.dense..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(classID,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(count,1)..S.bytes(#payload,2)..payload
     packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=2304,"dense packet capacity exceeded: "..#packet)
     return packet
 end
@@ -349,7 +354,8 @@ function S.beginPacketUpdate()
     S.packetUpdateActive=true;S.packetUpdateStamps={}
     local bridge=S.denseBridge
     if bridge and bridge.enabled and bridge.stamp then
-        for _,id in ipairs({1,2,16,17,18,19,20,21}) do bridge.stamp(id,nil) end
+        bridge.stamp(source.core,nil);bridge.stamp(source.guide,nil)
+        for id=source.rosterFirst,source.rosterLast do bridge.stamp(id,nil) end
     end
 end
 function S.endPacketUpdate(ok,reason)
@@ -632,6 +638,7 @@ function S.collectSetup()
     -- Publish only committed, complete totals. The fast Paladin frame can
     -- follow a spec swap before the multi-page spellbook transfer finishes.
     S.paladinProtectionActive=false
+    S.paladinRetributionActive=false
     S.paladinProtectionPending=false
     S.paladinTalentModeKnown=false
     if class=="PALADIN" and talentAvailable and #trees==3 then
@@ -639,6 +646,7 @@ function S.collectSetup()
         if holy and protection and ret then
             S.paladinTalentModeKnown=true
             S.paladinProtectionActive=protection>holy and protection>ret
+            S.paladinRetributionActive=ret>holy and ret>protection
         end
     end
     -- Forever's specialization API may return the localized class name. The
@@ -702,11 +710,11 @@ function S.renderSetupPage()
     local published=#S.setupPayload>0
     local payload=published and (S.setupPages[S.setupPage+1] or "") or ""
     local count=published and #S.setupPages or 1
-    local header="HHM1"..S.bytes(S.setupSession,4)..S.bytes(S.setupPublishedRevision,2)..S.bytes(published and 0 or 1,1)
+    local header=ns.wire.schemas.setup..S.bytes(S.setupSession,4)..S.bytes(S.setupPublishedRevision,2)..S.bytes(published and 0 or 1,1)
         ..S.bytes(S.setupPage,2)..S.bytes(count,2)..S.bytes(#payload,2)..S.bytes(#S.setupPayload,4)..S.bytes(S.adler32(S.setupPayload),4)
     local packet=header..payload
     packet=packet..S.bytes(S.adler32(packet),4)
-    S.publishTransportPacket(5,packet)
+    S.publishTransportPacket(ns.wire.ids.setup,packet)
     if published then S.setupPage=(S.setupPage+1)%count end
 end
 S.setupEvents=CreateFrame("Frame")
@@ -717,6 +725,7 @@ S.setupEvents:SetScript("OnEvent",function(_,event,unit)
     if event=="ACTIVE_TALENT_GROUP_CHANGED" or event=="PLAYER_TALENT_UPDATE" or event=="TRAIT_CONFIG_UPDATED" or event=="PLAYER_ENTERING_WORLD" then
         if S.paladinTalentModeKnown then S.paladinProtectionPending=true end
         S.paladinProtectionActive=false
+        S.paladinRetributionActive=false
     end
     if event=="UNIT_STATS" or event=="UNIT_AURA" or event=="UNIT_SPELL_HASTE" then
         if S.isSecret(unit) or unit~="player" then return end

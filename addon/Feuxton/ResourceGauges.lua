@@ -95,10 +95,6 @@ do
         -- Keep the absolute Sting budget at its proven 250-pixel precision.
         point(S.stingBudget,340,top+12)
         for i,dot in ipairs({S.stingBudgetReady,S.stingBudgetMarkerA,S.stingBudgetMarkerB,S.stingBudgetDamage,S.stingBudgetID,S.stingBudgetDirect}) do point(dot,596+(i-1)*8,top+12) end
-        if profile.guideStamp then
-            point(S.tiles[21],126,114)
-            for i,dot in ipairs(S.tiles[21].visualSignals) do dot:ClearAllPoints();dot:SetPoint("TOPLEFT",S.tiles[21],"TOPLEFT",30+(i-1)*7,-34) end
-        end
     end
 end
 

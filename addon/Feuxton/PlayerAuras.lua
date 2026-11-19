@@ -5,44 +5,48 @@ local S = ns.state
 -- Optional player-buff extension. Native widgets render the player's auras;
 -- no aura contents or protected visibility are inspected by addon Lua.
 do
+    local hunter=ns.classes.HUNTER
     local panel=CreateFrame("Frame",nil,S.hud)
     S.playerPanel=panel
-    panel:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-248); panel:SetSize(668,68)
+    panel:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-hunter.nativeLayout.player); panel:SetSize(668,28)
     S.hud:SetClampRectInsets(0,0,0,-202)
     local bg=panel:CreateTexture(nil,"BACKGROUND"); bg:SetAllPoints(); bg:SetColorTexture(0,0,0,1)
     for i,color in ipairs({{0,1,1},{1,1,0},{1,0,1}}) do
         local dot=panel:CreateTexture(nil,"OVERLAY"); dot:SetSize(4,4)
         dot:SetPoint("TOPLEFT",4+(i-1)*6,0); dot:SetColorTexture(color[1],color[2],color[3],1)
     end
-    local combat=panel:CreateTexture(nil,"OVERLAY"); combat:SetSize(8,8); combat:SetPoint("TOPLEFT",12,-14)
-    local moving=panel:CreateTexture(nil,"OVERLAY"); moving:SetSize(8,8); moving:SetPoint("TOPLEFT",94,-14)
+    local combat=panel:CreateTexture(nil,"OVERLAY"); combat:SetSize(8,8); combat:SetPoint("TOPLEFT",640,-4)
+    local moving=panel:CreateTexture(nil,"OVERLAY"); moving:SetSize(8,8); moving:SetPoint("TOPLEFT",652,-4)
     for i,name in ipairs({"COMBAT","MOVING"}) do
         local label=panel:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
     S.bridgeLabel(label)
         label:SetPoint("TOPLEFT",24+(i-1)*82,-14); label:SetText(name)
     end
-    local readyDot=panel:CreateTexture(nil,"OVERLAY"); readyDot:SetSize(4,4); readyDot:SetPoint("TOPLEFT",638,-16)
+    local readyDot=panel:CreateTexture(nil,"OVERLAY"); readyDot:SetSize(4,4); readyDot:SetPoint("TOPLEFT",638,-14)
     local nonce=math.random(1,16777215)
-    local sessionDot=panel:CreateTexture(nil,"OVERLAY"); sessionDot:SetSize(4,4); sessionDot:SetPoint("TOPLEFT",648,-16)
+    local sessionDot=panel:CreateTexture(nil,"OVERLAY"); sessionDot:SetSize(4,4); sessionDot:SetPoint("TOPLEFT",648,-14)
     sessionDot:SetColorTexture(math.floor(nonce/65536)/255,math.floor(nonce/256)%256/255,nonce%256/255,1)
     local specs=ns.spellCatalog.HUNTER.aspects
-    for i,spec in ipairs(specs) do spec.x=200+(i-1)*140 end
+    for i,spec in ipairs(specs) do spec.x,spec.y=hunter.nativeTile(#S.tiles+i) end
     ns.playerBuffSpecs=specs
+    local function aspectPoint(widget,spec,x,y)
+        widget:SetPoint("TOPLEFT",S.hud,"TOPLEFT",spec.x+x,-(spec.y+y))
+    end
     for _,spec in ipairs(specs) do
-        spec.icon=panel:CreateTexture(nil,"ARTWORK"); spec.icon:SetSize(24,24); spec.icon:SetPoint("TOPLEFT",spec.x,-12)
+        spec.icon=panel:CreateTexture(nil,"ARTWORK"); spec.icon:SetSize(24,24); aspectPoint(spec.icon,spec,0,0)
         spec.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-        local backing=panel:CreateTexture(nil,"ARTWORK"); backing:SetSize(12,12); backing:SetPoint("TOPLEFT",spec.x+28,-12)
+        local backing=panel:CreateTexture(nil,"ARTWORK"); backing:SetSize(12,12); aspectPoint(backing,spec,0,24)
         backing:SetColorTexture(0,0.25,1,1)
-        spec.learnedDot=panel:CreateTexture(nil,"OVERLAY"); spec.learnedDot:SetSize(4,4); spec.learnedDot:SetPoint("TOPLEFT",spec.x+128,-16)
+        spec.learnedDot=panel:CreateTexture(nil,"OVERLAY"); spec.learnedDot:SetSize(4,4); aspectPoint(spec.learnedDot,spec,49,1)
         local label=panel:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall"); label:SetPoint("TOPLEFT",spec.x+44,-12); label:SetText(spec.short)
     S.bridgeLabel(label)
         spec.binding=panel:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall"); spec.binding:SetPoint("TOPLEFT",spec.x+44,-26); spec.binding:SetText("--")
         -- Keep the readiness dial above the panel backdrop; the native cooldown draws its swipe above it.
-        spec.dial=panel:CreateTexture(nil,"ARTWORK"); spec.dial:SetSize(22,22); spec.dial:SetPoint("TOPLEFT",spec.x+104,-13)
+        spec.dial=panel:CreateTexture(nil,"ARTWORK"); spec.dial:SetSize(22,22); aspectPoint(spec.dial,spec,26,5)
         spec.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate"); spec.cooldown:SetAllPoints(spec.dial)
         spec.cooldown:SetDrawEdge(false); spec.cooldown:SetDrawSwipe(true); spec.cooldown:SetSwipeColor(0,0,0,1); spec.cooldown:SetHideCountdownNumbers(true)
-        spec.warning=panel:CreateTexture(nil,"OVERLAY"); spec.warning:SetSize(4,4); spec.warning:SetPoint("TOPLEFT",spec.x+28,-30)
-        spec.warningSource=panel:CreateTexture(nil,"OVERLAY"); spec.warningSource:SetSize(4,4); spec.warningSource:SetPoint("TOPLEFT",spec.x+34,-30)
+        spec.warning=panel:CreateTexture(nil,"OVERLAY"); spec.warning:SetSize(4,4); aspectPoint(spec.warning,spec,30,28)
+        spec.warningSource=panel:CreateTexture(nil,"OVERLAY"); spec.warningSource:SetSize(4,4); aspectPoint(spec.warningSource,spec,36,28)
         ns.features.RangeTracking.initialize(spec.warning,1,.65,0,1)
         ns.features.RangeTracking.initialize(spec.warningSource,1,.65,0,1)
     end
@@ -52,7 +56,7 @@ do
     local settledAt=GetTime()+0.6
     local ok,err=pcall(function()
         native=CreateFrame("AuraContainer",nil,panel,"CustomAuraContainerTemplate")
-        native:SetPoint("TOPLEFT",12,-40); native:SetSize(624,24)
+        native:SetPoint("TOPLEFT",12,-2); native:SetSize(624,24)
         local layout={elementWidth=24,elementHeight=24,elementSpacing=2,lineSpacing=2}
         native:AddAuraGroup("playerBuffs","HELPFUL",{maxFrameCount=24,candidateFilters={},layout=layout,
             initializeFrame=function(button)
@@ -67,11 +71,11 @@ do
         filtered:SetAllPoints(panel)
         for _,spec in ipairs(specs) do
             local ids={}; for _,id in ipairs(spec.ids) do ids[id]=true end
-            local slotX=spec.x+28
+            local slotX,slotY=spec.x,hunter.nativeLayout.player-spec.y-24
             local signalIndex
             if ns.declareNativeSignalAura then local declared,index=pcall(ns.declareNativeSignalAura,specs,spec.key,"player",nonce,"HELPFUL",1);if declared then signalIndex=index end end
             filtered:AddAuraSlot(spec.key,"HELPFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
-                button:SetSize(12,12); button:SetPoint("TOPLEFT",filtered,"TOPLEFT",slotX,-12); button:EnableMouse(false)
+                button:SetSize(12,12); button:SetPoint("TOPLEFT",filtered,"TOPLEFT",slotX,slotY); button:EnableMouse(false)
                 local icon=button:CreateTexture(nil,"ARTWORK"); icon:SetAllPoints(button); button:SetIcon(icon)
                 local signal=button:CreateTexture(nil,"OVERLAY"); signal:SetAllPoints(button); signal:SetColorTexture(0,1,0,1)
                 if signalIndex and ns.attachNativeSignalAura then pcall(ns.attachNativeSignalAura,signalIndex,button) end

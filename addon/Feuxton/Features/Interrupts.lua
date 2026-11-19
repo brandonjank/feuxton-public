@@ -109,7 +109,7 @@ local function extraHoverClock(state,current,channel)
     -- The FHS3 row's left gutter is unused telemetry space. Its existing
     -- calibration font owns recognition; the separate HHK2 stamp owns unit/time.
     local footer=ns.nativeSignals
-    if not state.hoverTimer and footer and footer.frame then state.hoverTimer=ns.rendering.numberFont(footer.frame,8,22,70,18) end
+    if not state.hoverTimer and footer and footer.frame then state.hoverTimer=ns.rendering.numberFont(footer.frame,8,footer.auraRow,70,18) end
     if not state.hoverTimer then return {status=0,value=0},false end
     local getter=channel==true and UnitChannelDuration or UnitCastingDuration
     return ns.rendering.nativeTimer(state.hoverTimer,getter,"mouseover",current==true and type(channel)=="boolean")
@@ -171,7 +171,7 @@ function I.extraPacket(tick)
     elseif bandageA.status=="observed" and bandageB.status=="observed" then bandage={status="observed",value=false}
     else bandage={} end
     local auraProof=extraNativeAuras(state)+G.code(extraPublicAura("target",20066,"Repentance","HARMFUL"))+4*G.code(bandage)
-    local packet="HHK2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(S.setupRevision or 0,4)..S.bytes(target.id,4)..S.bytes(binding(targetSpec),2)..S.bytes(binding(hoverSpec),2)..S.bytes(use,1)..S.bytes(spellFlags,1)..S.bytes(G.code(target.range)+G.code(hover.range)*4,1)..S.bytes(G.code(humanoid("target")),1)..S.bytes(state.generation,4)..S.bytes(flags,2)..S.bytes(current==true and 2 or current==false and 1 or 0,1)..S.bytes(channel==true and 2 or channel==false and 1 or 0,1)..S.bytes(state.sequence,2)..S.bytes(id,4)..S.bytes(lead,2)..S.bytes(remaining,4)..S.bytes(hoverClock.status,1)..S.bytes(assigned and 1 or 0,1)..S.bytes(hoverClock.value,4)..S.bytes(auraProof,1)..S.bytes(#identity,1)..identity..S.bytes(#name,1)..name
+    local packet=ns.wire.schemas.interruptTargets..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(S.setupRevision or 0,4)..S.bytes(target.id,4)..S.bytes(binding(targetSpec),2)..S.bytes(binding(hoverSpec),2)..S.bytes(use,1)..S.bytes(spellFlags,1)..S.bytes(G.code(target.range)+G.code(hover.range)*4,1)..S.bytes(G.code(humanoid("target")),1)..S.bytes(state.generation,4)..S.bytes(flags,2)..S.bytes(current==true and 2 or current==false and 1 or 0,1)..S.bytes(channel==true and 2 or channel==false and 1 or 0,1)..S.bytes(state.sequence,2)..S.bytes(id,4)..S.bytes(lead,2)..S.bytes(remaining,4)..S.bytes(hoverClock.status,1)..S.bytes(assigned and 1 or 0,1)..S.bytes(hoverClock.value,4)..S.bytes(auraProof,1)..S.bytes(#identity,1)..identity..S.bytes(#name,1)..name
     packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=134,"alternate interrupt source capacity exceeded")
     for _,p in ipairs(state.auraSignals) do R.paintColor(p,0,.25,1,1) end
     for _,p in ipairs(state.cells) do R.paintColor(p,1,.65,0,1) end
@@ -207,7 +207,7 @@ function I.packet(tick,body)
     local S=ns.state
     -- Keep the HHG7 body unchanged. HHE2 alone adds cast type, timing lead,
     -- and optional public remaining milliseconds; restricted timing stays native.
-    local packet="HHE2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..body..I.timingBytes
+    local packet=ns.wire.schemas.enemyCast..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..body..I.timingBytes
     local checksum=S.adler32(packet)
     for i,p in ipairs(I.stamp or {}) do local c=math.floor(checksum/256^(i-1))%256/255;p:SetColorTexture(c,c,c,1) end
     return packet..S.bytes(checksum,4)

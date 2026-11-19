@@ -1,6 +1,6 @@
 -- Mage catalog, current MGS1 packet and native widgets. Rotation/input remain app-owned.
 local _,ns=...
-local H={coreSlotCount=2,denseBridgeLayout={key="mage-slim-v1",requiredSignals=true,height=345,nativeVitalsTop=200,nativeVitalsHeight=87,nativeSignalsTop=287,nativeSignalsHeight=58,gauges=150,units=150,unitHeight=20,activity=14,headerActivity=true,resources=150,setup=170,grid=170,roster=170,coreStamp=108,targetStamp=122,marker={140/255,191/255,1}}}
+local H={coreSlotCount=2,denseBridgeLayout={key="mage-slim-v1",requiredSignals=true,gauges=102,units=102,unitHeight=20,activity=14,headerActivity=true,resources=102,setup=122,grid=122,roster=122,coreStamp=108,targetStamp=122,marker={140/255,191/255,1}}}
 ns.classes.MAGE=H
 H.specs=ns.spellCatalog.MAGE.specs
 local function obs(value) if type(value)=="boolean" then return {status="observed",value=value} end;return {} end
@@ -45,10 +45,9 @@ function H.extraCandidates()
 end
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext;if G.text(G.read(UnitClass,2,"player"),16)~="MAGE" then return end
- local B=ns.features.SpellBridge;local bridge=B.create(S.hud,H.specs);H.bridge=bridge;S.mageNativePanel=bridge.panel
- local combatDot=bridge.panel:CreateTexture(nil,"OVERLAY");combatDot:SetSize(6,6);combatDot:SetPoint("TOPLEFT",bridge.panel,"TOPLEFT",219,-105)
- local wandDot=bridge.panel:CreateTexture(nil,"OVERLAY");wandDot:SetSize(6,6);wandDot:SetPoint("TOPLEFT",bridge.panel,"TOPLEFT",231,-105)
- for i,tile in ipairs(bridge.tiles) do tile.manaCost=B.createManaCost(bridge.panel,12+(i-1)%14*46+18,24+math.floor((i-1)/14)*32,16) end
+ local B=ns.features.SpellBridge;local bridge=B.create(S.hud,H.specs,true);H.bridge=bridge;S.mageNativePanel=bridge.panel
+ local combatDot=bridge.panel:CreateTexture(nil,"OVERLAY");combatDot:SetSize(6,6);combatDot:SetPoint("TOPLEFT",bridge.panel,"TOPLEFT",120,-52)
+ local wandDot=bridge.panel:CreateTexture(nil,"OVERLAY");wandDot:SetSize(6,6);wandDot:SetPoint("TOPLEFT",bridge.panel,"TOPLEFT",132,-52)
  local tick,elapsed=0,0
  local function render()
   if not S.executionBytes then return end
@@ -73,7 +72,7 @@ function H.initializePreview()
    if not spec.itemID and not spec.passive then B.render(bridge,i,r.id,r.learned.value,spec,a,b,c,d,e,f,g);B.renderManaCost(bridge.tiles[i].manaCost,r.id,r.learned.value==true) end
   end
   B.auras(bridge,H.specs,readings)
-  local packet="MGS1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local packet=ns.wire.schemas.magePreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
    local r=readings[i];local M=S.managedSpells;local entry
    if spec.itemID then entry=M and M.entries["MAGE:Feuxton "..spec.name];if not (entry and entry.itemID==r.itemID and entry.id==r.id and M.current(entry)) then entry=nil end
@@ -101,8 +100,8 @@ function H.initializePreview()
   local stopKey=S.bindingsValid and S.managedSpells.current(stop) and S.compactBindingCode(stop.key) or 0
   packet=packet..S.bytes(food or 65535,2)..S.bytes(water or 65535,2)..S.bytes(stopKey,2)..S.bytes(bridge.auraRevision or 0,4)
   local sum=S.adler32(packet);for i,dot in ipairs(bridge.stamp) do local v=math.floor(sum/256^(i-1))%256/255;dot:SetColorTexture(v,v,v,1) end
-  S.publishTransportPacket(28,packet..S.bytes(sum,4))
+  S.publishTransportPacket(ns.wire.ids.magePreview,packet..S.bytes(sum,4))
  end
- bridge.panel:SetScript("OnUpdate",function(_,dt) elapsed=elapsed+dt;if elapsed<S.updateInterval() then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err) or nil;if not ok then S.publishTransportPacket(28,nil) end end)
+ bridge.panel:SetScript("OnUpdate",function(_,dt) elapsed=elapsed+dt;if elapsed<S.updateInterval() then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err) or nil;if not ok then S.publishTransportPacket(ns.wire.ids.magePreview,nil) end end)
  S.profileScript(bridge.panel,"OnUpdate","Mage bridge")
 end

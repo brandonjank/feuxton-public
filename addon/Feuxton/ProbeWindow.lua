@@ -66,9 +66,9 @@ function ns.initializeDenseBridge()
         cells[1]:SetColorTexture(a/255,b/255,c/255,1);cells[2]:SetColorTexture(d/255,0,0,1)
     end
     function bridge.stamp(id,packet)
-        if id==1 then stamp(bridge.coreStamp,packet)
-        elseif id==2 then stamp(bridge.guideStamp,packet)
-        elseif id>=16 and id<=21 then stamp(bridge.rosterStamps[id-15],packet) end
+        if id==ns.wire.ids.core then stamp(bridge.coreStamp,packet)
+        elseif id==ns.wire.ids.guide then stamp(bridge.guideStamp,packet)
+        elseif id>=ns.wire.ids.rosterFirst and id<=ns.wire.ids.rosterLast then stamp(bridge.rosterStamps[id-ns.wire.ids.rosterFirst+1],packet) end
     end
     function bridge.publishState(now)
         bridge.tick=(bridge.tick+1)%4294967296
@@ -136,6 +136,8 @@ do
     -- Production health/power footer. Public metadata names the completed HHD3
     -- frame; native glyphs are assigned before the metadata/checksum commit.
     -- No event handler, update callback, cached maximum or lab state is shared.
+    local nativeVitalsHeight=70
+    ns.nativeVitalsHeight=nativeVitalsHeight
     local productionUnits={"player","target","pet","focus","party1","party2","party3","party4","mouseover"}
     local productionGetters={"UnitHealth","UnitHealthMax","UnitHealthMissing","UnitPower","UnitPowerMax"}
     local function guidFor(unit)
@@ -152,23 +154,28 @@ do
         if ns.productionVitals then return ns.productionVitals end
         local state={enabled=false,rows={},cells={},colors={},blocks={},stamp={},paintedCells=0,maximumPacketBytes=nativeVitalsMaximumBytes}
         local frame=CreateFrame("Frame",nil,S.hud);state.frame=frame
-        frame:SetSize(668,87);frame:EnableMouse(false)
+        frame:SetSize(668,nativeVitalsHeight);frame:EnableMouse(false)
         local back=frame:CreateTexture(nil,"BACKGROUND");back:SetAllPoints();back:SetColorTexture(0,0,0,1)
-        local function patch(x,y,width,height)
-            local cell=frame:CreateTexture(nil,"ARTWORK");cell:SetSize(width,height);cell:SetPoint("TOPLEFT",x,-y)
+        local header=CreateFrame("Frame",nil,S.hud);state.header=header
+        header:SetSize(668,20);header:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,0);header:EnableMouse(false)
+        local function patch(parent,x,y,width,height)
+            local cell=parent:CreateTexture(nil,"ARTWORK");cell:SetSize(width,height);cell:SetPoint("TOPLEFT",x,-y)
             cell:SetColorTexture(1,1,1,1);cell:SetVertexColor(0,0,0,1);return cell
         end
-        for index=0,nativeVitalsCellCount-1 do state.cells[index+1]=patch(6+(index%328)*2,math.floor(index/328)*2,2,2);state.colors[index+1]=0 end
-        for digit=0,9 do font(frame,8+digit*11,4,10,18):SetFormattedText("%d",digit) end
-        state.stamp[1]=patch(126,8,4,4);state.stamp[2]=patch(130,8,4,4)
+        for index=0,nativeVitalsCellCount-1 do state.cells[index+1]=patch(frame,6+(index%328)*2,math.floor(index/328)*2,2,2);state.colors[index+1]=0 end
+        -- Vitals and timing use these same-image digit references. Their
+        -- independent commit stamps still certify only their own packets.
+        for digit=0,9 do font(header,176+digit*11,1,10,18):SetFormattedText("%d",digit) end
+        font(header,286,1,8,18):SetText(".")
+        state.stamp[1]=patch(header,294,8,4,4);state.stamp[2]=patch(header,298,8,4,4)
         for index,unit in ipairs(productionUnits) do
             local row={unit=unit,fields={}};state.rows[index]=row
             for col=1,5 do
                 local flat=(index-1)*5+col-1
-                row.fields[col]=font(frame,10+flat%9*72,22+math.floor(flat/9)*13,72,13)
+                row.fields[col]=font(frame,10+flat%9*72,4+math.floor(flat/9)*13,72,13)
             end
         end
-        frame:Hide();ns.productionVitals=state;return state
+        frame:Hide();header:Hide();ns.productionVitals=state;return state
     end
     function ns.clearProductionVitals(reason)
         local state=ns.productionVitals;if not state then return end
@@ -182,14 +189,14 @@ do
         state.colors={};state.blocks={};state.extent=0;state.paintedCells=0
     end
     function ns.configureProductionVitals(profile)
-        if not profile or number(profile.nativeVitalsTop,65535)==nil or profile.nativeVitalsHeight~=87 then
+        if not profile or number(profile.nativeVitalsTop,65535)==nil or profile.nativeVitalsHeight~=nativeVitalsHeight then
             local state=ns.productionVitals
-            if state then state.enabled=false;ns.clearProductionVitals();state.frame:Hide() end
+            if state then state.enabled=false;ns.clearProductionVitals();state.frame:Hide();state.header:Hide() end
             return
         end
         local state=productionState();state.enabled=false;ns.clearProductionVitals()
         state.frame:ClearAllPoints();state.frame:SetPoint("TOPLEFT",S.hud,"TOPLEFT",0,-profile.nativeVitalsTop)
-        state.enabled=true;state.frame:Show()
+        state.enabled=true;state.frame:Show();state.header:Show()
     end
     local function paintProduction(state,packet)
         assert(#packet<=state.maximumPacketBytes,"Native metadata schema maximum exceeded")
@@ -203,7 +210,7 @@ do
     end
     function ns.refreshProductionVitals(tick,outer)
         local state=ns.productionVitals;if not state or not state.enabled then return end
-        assert(type(outer)=="string" and #outer>=23 and outer:sub(1,4)=="HHD3","Native health envelope unavailable")
+        assert(type(outer)=="string" and #outer>=23 and outer:sub(1,4)==ns.wire.schemas.dense,"Native health envelope unavailable")
         local session=number(S.setupSession,4294967295);local targetGeneration=number(S.auraGeneration,255)
         local outerChecksum=unsignedLE(outer,#outer-3,4);local classID=string.byte(outer,13)
         assert(session and targetGeneration and number(tick,4294967295) and unsignedLE(outer,5,4)==session
@@ -273,7 +280,7 @@ do
             and productionMouseoverGeneration(classID)==mouseoverGeneration,"Native health context changed during rendering")
         local body=S.bytes(session,4)..S.bytes(tick,4)..S.bytes(outerChecksum,4)..S.bytes(targetGeneration,1)
             ..S.bytes(mouseoverGeneration,4)..S.bytes(9,1)..table.concat(rows)..table.concat(tail)
-        local packet="FHV3"..S.bytes(4+2+#body+4,2)..body
+        local packet=ns.wire.schemas.nativeVitals..S.bytes(4+2+#body+4,2)..body
         packet=packet..S.bytes(S.adler32(packet),4)
         paintProduction(state,packet)
         local a,b,c,d=string.byte(packet,#packet-3,#packet)
@@ -286,26 +293,27 @@ do
     -- also inhibits cancelling a nearly completed heal and remains mandatory.
     local signalUnits={player=1,target=2,mouseover=3}
     local signalFilters={HELPFUL=1,HARMFUL=2,["HELPFUL|PLAYER"]=3,["HARMFUL|PLAYER"]=4}
+    ns.nativeSignalsHeight=40
+    local clockRow,auraRow=3,21
     local function signalState()
         if ns.nativeSignals then return ns.nativeSignals end
         local state={enabled=false,entries={},byKey={},revision=0,page=-1,cells={},colors={},blocks={},stamp={},fast={},paintedCells=0,cooldownIDs={},cooldownRevision=0,cooldownSignature="",cooldownTexts={},maximumPacketBytes=nativeSignalsMaximumBytes}
-        local frame=CreateFrame("Frame",nil,S.hud);state.frame=frame;frame:SetSize(668,58);frame:EnableMouse(false)
+        local frame=CreateFrame("Frame",nil,S.hud);state.frame=frame;state.auraRow=auraRow;frame:SetSize(668,ns.nativeSignalsHeight);frame:EnableMouse(false)
         local back=frame:CreateTexture(nil,"BACKGROUND");back:SetAllPoints();back:SetColorTexture(0,0,0,1)
-        local function patch(x,y,w,h)
-            local p=frame:CreateTexture(nil,"ARTWORK");p:SetSize(w,h);p:SetPoint("TOPLEFT",x,-y);p:SetColorTexture(1,1,1,1);p:SetVertexColor(0,0,0,1);return p
+        local function patch(x,y,w,h,parent)
+            local p=(parent or frame):CreateTexture(nil,"ARTWORK");p:SetSize(w,h);p:SetPoint("TOPLEFT",x,-y);p:SetColorTexture(1,1,1,1);p:SetVertexColor(0,0,0,1);return p
         end
         for index=0,nativeSignalsCellCount-1 do state.cells[index+1]=patch(6+index%328*2,math.floor(index/328)*2,2,2);state.colors[index+1]=0 end
-        for digit=0,9 do font(frame,8+digit*11,4,10,18):SetFormattedText("%d",digit) end
-        font(frame,118,4,6,18):SetText(".")
-        state.stamp[1]=patch(126,8,4,4);state.stamp[2]=patch(130,8,4,4)
-        font(frame,480,4,48,18):SetText("GCD")
-        state.gcdText=font(frame,528,4,112,18)
-        state.gcdEligibility=patch(648,8,4,4);state.gcdEligibility:SetVertexColor(1,.65,0,1)
-        for i=1,5 do state.fast[i]=font(frame,80+(i-1)*112,22,112,18) end
-        for i=1,3 do state.cooldownTexts[i]=font(frame,144+(i-1)*112,4,112,18);state.cooldownTexts[i]:Show() end
+        state.stamp[1]=patch(306,8,4,4,S.hud);state.stamp[2]=patch(310,8,4,4,S.hud)
+        -- The nine clocks share one row and use the vitals digit calibration.
+        -- The timing packet still publishes its own independent checksum stamp.
+        state.gcdText=font(frame,10+8*72,clockRow,72,18)
+        state.gcdEligibility=patch(660,4,4,4);state.gcdEligibility:SetVertexColor(1,.65,0,1)
+        for i=1,5 do state.fast[i]=font(frame,10+(i-1)*72,clockRow,72,18) end
+        for i=1,3 do state.cooldownTexts[i]=font(frame,10+(4+i)*72,clockRow,72,18);state.cooldownTexts[i]:Show() end
         -- Ordinary diagnostic text only; never adopted by an aura button or
         -- used as a native data field. It remains readable after invalidation.
-        state.errorText=font(frame,8,22,652,18)
+        state.errorText=font(frame,8,auraRow,652,18)
         frame:Hide();ns.nativeSignals=state;return state
     end
     local function hideSignalWrappers(state,strict)
@@ -339,6 +347,7 @@ do
     function ns.beginNativeCooldownBatch()
         local state=ns.nativeSignals;if not state or not state.enabled then return end
         state.cooldownCollecting=true;state.cooldownBatchReady=false;state.cooldownSeen={};state.cooldownSeenCount=0;state.cooldownOverflow=false
+        state.retAuraPage=nil;state.retCooldowns=nil
         state.packet=nil
         for _,stamp in ipairs(state.stamp) do stamp:SetVertexColor(0,0,0,1) end
         clearText(state.gcdText)
@@ -354,11 +363,30 @@ do
         if state.cooldownSeenCount>128 then state.cooldownOverflow=true;return end
         state.cooldownSeen[id]=true
     end
+    function ns.setPaladinCombatSignalPage(auraPage,ids)
+        local state=ns.nativeSignals
+        if not state or not state.enabled or not state.cooldownCollecting then return end
+        state.retAuraPage=auraPage
+        state.retCooldowns=ids
+    end
     function ns.commitNativeCooldownBatch()
         local state=ns.nativeSignals;if not state or not state.enabled then return end
         local ids={}
         if state.cooldownCollecting and not state.cooldownOverflow then for id in pairs(state.cooldownSeen) do ids[#ids+1]=id end end
         table.sort(ids)
+        if #ids>3 and state.retCooldowns and #state.retCooldowns>0 then
+            local first,used={},{}
+            for _,id in ipairs(state.retCooldowns) do
+                if state.cooldownSeen[id] and not used[id] then first[#first+1]=id;used[id]=true end
+            end
+            for _,id in ipairs(ids) do
+                if #first>=3 then break end
+                if not used[id] then first[#first+1]=id;used[id]=true end
+            end
+            table.sort(first)
+            for _,id in ipairs(ids) do if not used[id] then first[#first+1]=id end end
+            ids=first
+        end
         local signature=table.concat(ids,",")
         if state.cooldownSignature~=signature then state.cooldownRevision=(state.cooldownRevision+1)%4294967296;state.cooldownSignature=signature end
         state.cooldownIDs=ids;state.cooldownBatchReady=state.cooldownCollecting==true;state.cooldownCollecting=false;state.cooldownSeen=nil
@@ -369,7 +397,7 @@ do
         if state.cooldownCollecting then state.cooldownCollecting=false;state.cooldownBatchReady=false;state.cooldownSeen=nil end
     end
     function ns.configureNativeSignals(profile)
-        if not profile or profile.extendedSignals~=true or number(profile.nativeSignalsTop,65535)==nil or profile.nativeSignalsHeight~=58 then
+        if not profile or profile.extendedSignals~=true or number(profile.nativeSignalsTop,65535)==nil then
             local state=ns.nativeSignals;if state then state.enabled=false;ns.clearNativeSignals();state.frame:Hide() end;return
         end
         local state=signalState();state.enabled=false;ns.clearNativeSignals()
@@ -413,8 +441,10 @@ do
             -- These ordinary wrappers/fonts must remain descendants of the
             -- AuraButton. Their anchors never change after native adoption.
             local wrapper=CreateFrame("Frame",nil,button);entry.wrapper=wrapper
-            wrapper:SetSize(112,18);wrapper:SetPoint("TOPLEFT",state.frame,"TOPLEFT",x,-40);wrapper:SetAlpha(0);wrapper:EnableMouse(false)
-            local presence=wrapper:CreateTexture(nil,"OVERLAY");presence:SetSize(4,4);presence:SetPoint("TOPLEFT",8+(entry.index-1)%5*10-x,-7);presence:SetColorTexture(0,1,0,1)
+            wrapper:SetSize(112,18);wrapper:SetPoint("TOPLEFT",state.frame,"TOPLEFT",x,-auraRow);wrapper:SetAlpha(0);wrapper:EnableMouse(false)
+            local slot=(entry.index-1)%5
+            local presence=wrapper:CreateTexture(nil,"OVERLAY");presence:SetSize(4,4)
+            presence:SetPoint("TOPLEFT",644+slot%2*6-x,-2-math.floor(slot/2)*6);presence:SetColorTexture(0,1,0,1)
             entry.duration=font(wrapper,0,0,80,18);entry.stacks=font(wrapper,80,0,32,18)
             local durationOK=pcall(function()button:SetDurationText(entry.duration,{textFormatter=numberFormatter("%.1f")})end)
             local countOK=pcall(function()button:SetApplicationCount(entry.stacks,{formatter=numberFormatter("%.0f")})end)
@@ -433,7 +463,7 @@ do
             -- two sources this footer consumes, preserving their original
             -- checksums and lifecycle ownership rather than reading packed
             -- body offsets as if they were full standalone packets.
-            local schema=id==13 and "PCS1" or id==8 and "HHE2" or nil
+            local schema=id==ns.wire.ids.playerLifecycle and ns.wire.schemas.playerLifecycle or id==ns.wire.ids.enemyCast and ns.wire.schemas.enemyCast or nil
             if schema then
                 assert(not result[id],"Native signal main source duplicated")
                 local source=schema..outer:sub(5,8)..outer:sub(at+5,at+4+length)
@@ -496,16 +526,16 @@ do
     function ns.refreshNativeSignals(tick,outer)
         local state=ns.nativeSignals;if not state or not state.enabled then return end
         local vitals=ns.productionVitals
-        assert(vitals and vitals.packet and vitals.tick==tick and vitals.packet:sub(1,4)=="FHV3","Native signals await current vitals")
+        assert(vitals and vitals.packet and vitals.tick==tick and vitals.packet:sub(1,4)==ns.wire.schemas.nativeVitals,"Native signals await current vitals")
         local session=number(S.setupSession,4294967295);local generation=number(S.auraGeneration,255)
-        assert(type(outer)=="string" and outer:sub(1,4)=="HHD3" and unsignedLE(outer,5,4)==session and unsignedLE(outer,9,4)==tick and string.byte(outer,16)==generation,"Native signal envelope context changed")
-        local sources=outerSources(outer);local lifecycle=sources[13]
-        assert(lifecycle and #lifecycle==21 and lifecycle:sub(1,4)=="PCS1" and unsignedLE(lifecycle,5,4)==session,"Native signal lifecycle source unavailable")
+        assert(type(outer)=="string" and outer:sub(1,4)==ns.wire.schemas.dense and unsignedLE(outer,5,4)==session and unsignedLE(outer,9,4)==tick and string.byte(outer,16)==generation,"Native signal envelope context changed")
+        local sources=outerSources(outer);local lifecycle=sources[ns.wire.ids.playerLifecycle]
+        assert(lifecycle and #lifecycle==21 and lifecycle:sub(1,4)==ns.wire.schemas.playerLifecycle and unsignedLE(lifecycle,5,4)==session,"Native signal lifecycle source unavailable")
         local serial,kind,id=unsignedLE(lifecycle,9,4),string.byte(lifecycle,13),unsignedLE(lifecycle,14,4)
         local currentSerial,currentKind,currentID=ns.features.CastTracking.activityRecord()
         assert(serial==currentSerial and kind==currentKind and id==currentID,"Native signal player lifecycle changed")
-        local enemy=sources[8];local targetSequence,targetChecksum,targetLead,targetKind=0,0,0,0
-        if enemy and enemy:sub(1,4)=="HHE2" and unsignedLE(enemy,5,4)==session and string.byte(enemy,13)==generation then
+        local enemy=sources[ns.wire.ids.enemyCast];local targetSequence,targetChecksum,targetLead,targetKind=0,0,0,0
+        if enemy and enemy:sub(1,4)==ns.wire.schemas.enemyCast and unsignedLE(enemy,5,4)==session and string.byte(enemy,13)==generation then
             local n=string.byte(enemy,18)
             if n and #enemy==32+n then
                 targetSequence=unsignedLE(enemy,20+n,2);targetChecksum=unsignedLE(enemy,#enemy-3,4);targetLead=unsignedLE(enemy,23+n,2)
@@ -529,11 +559,11 @@ do
         local pages=math.max(1,math.ceil(#state.entries/5))
         local cdIDs=state.cooldownBatchReady and state.cooldownIDs or {}
         local cdPages=math.max(1,math.ceil(#cdIDs/3))
-        state.cooldownPage=((state.cooldownPage or -1)+1)%cdPages
+        state.cooldownPage=state.retCooldowns and #state.retCooldowns>0 and 0 or ((state.cooldownPage or -1)+1)%cdPages
         local cdPage=state.cooldownPage
         local pageKind=3
         if query(InCombatLockdown)==false then
-            state.page=(state.page+1)%pages
+            state.page=number(state.retAuraPage,pages-1) or (state.page+1)%pages
             local configured=hideSignalWrappers(state,false)
             if configured then
                 for index=state.page*5+1,math.min(state.page*5+5,#state.entries) do
@@ -586,7 +616,7 @@ do
         body=body..S.bytes(mask,1)..S.bytes(comboMax,1)..table.concat(records)
         body=body..S.bytes(pageKind,1)..S.bytes(gcdID,4)..S.bytes(gcd.status,1)..S.bytes(gcd.value,4)..S.bytes(gcdValid and 1 or 0,1)
             ..S.bytes(state.cooldownRevision,4)..S.bytes(cdPage,1)..S.bytes(cdPages,1)..S.bytes(#cooldownRecords,1)..table.concat(cooldownRecords)
-        local packet="FHS3"..S.bytes(4+2+#body+4,2)..body;packet=packet..S.bytes(S.adler32(packet),4)
+        local packet=ns.wire.schemas.nativeSignals..S.bytes(4+2+#body+4,2)..body;packet=packet..S.bytes(S.adler32(packet),4)
         paintProduction(state,packet)
         local a,b,c,d=string.byte(packet,#packet-3,#packet)
         state.stamp[1]:SetVertexColor(a/255,b/255,c/255,1);state.stamp[2]:SetVertexColor(d/255,0,0,1)

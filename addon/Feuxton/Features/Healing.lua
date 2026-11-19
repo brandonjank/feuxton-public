@@ -324,7 +324,7 @@ do
         local G=ns.features.GroupContext;local S=ns.state
         local ids={candidate("target"),candidate("mouseover")}
         if ids[1]=="" and ids[2]=="" then return nil end
-        local packet="HHB3"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(F.revision,4)
+        local packet=ns.wire.schemas.courtesyBlessings..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(F.revision,4)
         for _,spec in ipairs(F.actions) do
             local spell=F.spell(spec,"player");local flags=S.spellUseCode(spec.key)*256
             for i,v in ipairs({spell.learned,spell.usable,spell.mana,spell.ready}) do flags=flags+G.code(v)*4^(i-1) end

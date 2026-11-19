@@ -177,13 +177,13 @@ function feature.initialize()
                     ranges=ranges+feature.code(range)*4^(i-1)
                 end
                 if not friendly or not (friendly.shaman or friendly.druid) then for _,dot in ipairs(display.healRanges) do dot:Hide() end end
-                local packet=(friendly and (friendly.druid and "HHR7" or friendly.shaman and "HHR4" or "HHR8") or "HHR1")..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
+                local packet=(friendly and (friendly.druid and ns.wire.schemas.druidRoster or friendly.shaman and ns.wire.schemas.shamanRoster or ns.wire.schemas.roster) or ns.wire.schemas.rosterDefault)..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index,1)..S.bytes(raid,1)..S.bytes(count,1)..S.bytes(flags,3)..S.bytes(roleID,1)..S.bytes(classID,1)..S.bytes(#guid,1)..guid..S.bytes(#name,1)..name..S.bytes(ranges,1)..S.bytes(rendered and 2 or 0,1)
                 if friendly then packet=packet..friendly.memberBytes(index,unit,guid,class,role,now,spells) end
                 packet=packet..S.bytes(S.adler32(packet),4);assert(#packet<=(friendly and friendly.druid and 256 or 198))
-                S.publishTransportPacket(15+index,packet,true)
+                S.publishTransportPacket(ns.wire.ids.rosterFirst+index-1,packet,true)
             end)
             S.groupRowErrors=S.groupRowErrors or {};S.groupRowErrors[index]=not ok and S.describe(rowError) or nil
-            if not ok then S.publishTransportPacket(15+index,nil,true) end -- bad rows never retain old identity/health
+            if not ok then S.publishTransportPacket(ns.wire.ids.rosterFirst+index-1,nil,true) end -- bad rows never retain old identity/health
         end
         -- Publish after all six rows, avoiding transient mixed roster sequences.
         local courtesy
@@ -191,10 +191,10 @@ function feature.initialize()
             local ok,packet=pcall(friendly.courtesy.packet,now,tick)
             if ok then courtesy=packet end
         end
-        S.publishTransportPacket(4,courtesy,true)
+        S.publishTransportPacket(ns.wire.ids.courtesyBlessings,courtesy,true)
         local targeting
         if friendly then local ok,packet=pcall(ns.features.RecipientTargeting.packet,now,tick);if ok then targeting=packet end end
-        S.publishTransportPacket(7,targeting,true)
+        S.publishTransportPacket(ns.wire.ids.recipientTargeting,targeting,true)
         S.refreshTransportPacketState()
     end)
     S.profileScript(panel,"OnUpdate","group")

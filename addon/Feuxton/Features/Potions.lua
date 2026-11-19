@@ -165,7 +165,7 @@ function P.packet(now,tick)
         end
     end
     if mask==0 then return nil end
-    local packet="HHQ1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(mask,1)..table.concat(rows)
+    local packet=ns.wire.schemas.potions..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(mask,1)..table.concat(rows)
     assert(#packet==26 or #packet==39,"potion packet capacity")
     return packet..S.bytes(S.adler32(packet),4)
 end

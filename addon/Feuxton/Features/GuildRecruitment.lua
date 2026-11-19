@@ -622,7 +622,7 @@ function B.packet(tick)
     local configKey=keyCurrent("configuration",B.configurationKey)and S.compactBindingCode(B.configurationKey)or 0
     local chat=nativeChatState(t)
     local milestoneStatus,milestonePending,announcements,confirmed,promoted=M.statistics()
-    local packet="HGI4"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(t and t.action or 0,4)..S.bytes(t and t.kind or 0,1)..S.bytes(status,1)..S.bytes(expires,2)
+    local packet=ns.wire.schemas.guildRecruitment..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(t and t.action or 0,4)..S.bytes(t and t.kind or 0,1)..S.bytes(status,1)..S.bytes(expires,2)
         ..S.bytes(math.min(10,#(ledger.attempts or {})),1)..S.bytes(integer(ledger.totalInvites)or 0,4)..S.bytes(integer(ledger.totalJoins)or 0,4)..S.bytes(integer(ledger.totalDeclines)or 0,4)
         ..S.bytes(flag(invite)+flag(canChat)*4+flag(call(CanGuildPromote))*16,1)..S.bytes(focus==true and 1 or t and t.stage or 0,1)..S.bytes(t and t.messageChecksum or 0,4)
         ..S.bytes(cfg and cfg.checksum or 0,4)..S.bytes(B.configurationNonce,4)..S.bytes(t and t.messageIndex or 0,1)..S.bytes(actionKey,2)..S.bytes(configKey,2)..S.bytes(flag(focus)+flag(empty)*4,1)
@@ -686,7 +686,7 @@ function B.monitorPacket(tick,maximum)
     end
     if offset<#view.rows and #entries==0 then return nil end
     local S=ns.state
-    local packet="HGQ1"..S.bytes(context.session,4)..S.bytes(tick,4)..S.bytes(S.adler32(B.owner),4)..S.bytes(view.revision,4)
+    local packet=ns.wire.schemas.guildQueue..S.bytes(context.session,4)..S.bytes(tick,4)..S.bytes(S.adler32(B.owner),4)..S.bytes(view.revision,4)
         ..S.bytes(#view.rows,2)..S.bytes(offset,2)..S.bytes(math.min(65535,math.floor((context.at-view.at)*1000)),2)..S.bytes(#entries,1)
         ..S.bytes(ready,2)..S.bytes(unknown,2)..S.bytes(suppressedCount,2)..S.bytes(outstanding,2)
         ..S.bytes(math.min(65535,math.ceil(inviteWait)),2)..S.bytes(math.min(65535,math.ceil(whoWait)),2)..S.bytes(stats.since,4)

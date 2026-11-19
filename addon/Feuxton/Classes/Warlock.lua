@@ -1,6 +1,6 @@
 -- Warlock leveling catalog and WLS5 class packet. No rotation or input here.
 local _,ns=...
-local H={denseBridgeLayout={key="warlock-slim-v1",height=285,nativeVitalsTop=190,nativeVitalsHeight=87,nativeSignalsTop=277,nativeSignalsHeight=58,gauges=140,units=140,unitHeight=20,activity=14,headerActivity=true,resources=140,setup=160,grid=160,roster=160,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
+local H={denseBridgeLayout={key="warlock-slim-v1",gauges=78,units=78,unitHeight=20,activity=14,headerActivity=true,resources=78,setup=98,grid=98,roster=98,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
 ns.classes.WARLOCK=H
 H.specs=ns.spellCatalog.WARLOCK.specs
 -- Class-owned native certificates, rank choices and form/queue handling.
@@ -9,24 +9,25 @@ for _,spec in ipairs(H.specs) do for field,value in pairs(spellOverrides[spec.ke
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext
  if G.text(G.read(UnitClass,2,"player"),16)~="WARLOCK" then return end
- local B=ns.features.SpellBridge;local bridge=B.create(S.hud,H.specs);H.bridge=bridge;S.warlockNativePanel=bridge.panel
- -- Costs and the possibly restricted maximum go directly to native bars.
- -- IsSpellUsable can remain true when the client rejects a low-mana cast.
- for i,tile in ipairs(bridge.tiles) do
-  local x,y=12+(i-1)%14*46,6+math.floor((i-1)/14)*32
-  tile.manaCost=B.createManaCost(bridge.panel,x+18,y+18,16)
-  tile.cost=tile.manaCost.bar;tile.costValid=tile.manaCost.valid
- end
- local petIcon=bridge.panel:CreateTexture(nil,"ARTWORK");petIcon:SetSize(16,16);petIcon:SetPoint("TOPLEFT",610,-70)
+ local B=ns.features.SpellBridge;local bridge=B.create(S.hud,H.specs,true);H.bridge=bridge;S.warlockNativePanel=bridge.panel
+ bridge.panel:SetHeight(72)
+ -- The final tile row leaves two lanes for the pet control and combat witness.
+ local petX,petY=B.tileOrigin(#H.specs+1)
+ local petIcon=bridge.panel:CreateTexture(nil,"ARTWORK");petIcon:SetSize(16,16);petIcon:SetPoint("TOPLEFT",petX,-petY)
  petIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
- pcall(SetPortraitTexture,petIcon,"pet");S.attachSpellUse(bridge.panel,petIcon,"warlock.petAttack")
- local combatDot=bridge.panel:CreateTexture(nil,"OVERLAY");combatDot:SetSize(4,4);combatDot:SetPoint("TOPLEFT",220,-106)
+ pcall(SetPortraitTexture,petIcon,"pet")
+ local petUse=S.attachSpellUse(bridge.panel,petIcon,"warlock.petAttack")
+ petUse.useDot:ClearAllPoints();petUse.useDot:SetPoint("TOPRIGHT",petIcon,"TOPRIGHT",0,0)
+ local combatX,combatY=B.tileOrigin(#H.specs+2)
+ local combatDot=bridge.panel:CreateTexture(nil,"OVERLAY");combatDot:SetSize(4,4);combatDot:SetPoint("TOPLEFT",combatX,-combatY)
+ -- The two lower-right gauge rows are empty on Warlock. Keep all three
+ -- restricted bars at full width and leave player, pet and target gauges alone.
  local hoverHealth=CreateFrame("StatusBar",nil,bridge.panel)
- hoverHealth:SetPoint("TOPLEFT",300,-82);hoverHealth:SetSize(128,4);hoverHealth:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8");hoverHealth:SetStatusBarColor(0,1,0,1)
+ hoverHealth:SetPoint("TOPLEFT",340,-64);hoverHealth:SetSize(128,4);hoverHealth:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8");hoverHealth:SetStatusBarColor(0,1,0,1)
  local hoverBackground=hoverHealth:CreateTexture(nil,"BACKGROUND");hoverBackground:SetAllPoints();hoverBackground:SetColorTexture(.18,.18,.18,1)
- local hoverHealthValid=bridge.panel:CreateTexture(nil,"OVERLAY");hoverHealthValid:SetSize(4,4);hoverHealthValid:SetPoint("TOPLEFT",432,-82)
+ local hoverHealthValid=bridge.panel:CreateTexture(nil,"OVERLAY");hoverHealthValid:SetSize(4,4);hoverHealthValid:SetPoint("TOPLEFT",472,-64)
  H.mouseoverHealth=hoverHealth;H.mouseoverHealthValid=hoverHealthValid
- local channelCosts={B.createManaCost(bridge.panel,300,90,128),B.createManaCost(bridge.panel,300,98,128)}
+ local channelCosts={B.createManaCost(bridge.panel,504,64,128),B.createManaCost(bridge.panel,340,68,128)}
  H.channelCosts=channelCosts
  local function channelCostStatus(widget,valid,zero)
   if not valid then widget.valid:SetColorTexture(1,.65,0,1) else widget.valid:SetColorTexture(0,1,zero and 1 or 0,1) end
@@ -123,7 +124,7 @@ function H.initializePreview()
   end
   if healthOK then hoverHealthValid:SetColorTexture(0,1,0,1) else hoverHealth:SetMinMaxValues(0,1);hoverHealth:SetValue(0);hoverHealthValid:SetColorTexture(1,.65,0,1) end
   local hellfire=readings[33];renderChannelCosts(hellfire.id,hellfire.learned.status=="observed" and hellfire.learned.value==true)
-  local packet="WLS5"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local packet=ns.wire.schemas.warlockPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
    local r=readings[i];local M=S.managedSpells;local family=spec.managedName or spec.name
    local entry=M and M.entries["WARLOCK:"..family]
@@ -162,8 +163,8 @@ function H.initializePreview()
   if sacrifice.petIdentity~=ns.features.PetSupport.identity() or sacrifice.petActionSlot>0 and (not petAction or petAction.id~=sacrifice.id or petAction.slot~=sacrifice.petActionSlot) then error("Pet action changed during Warlock update") end
   packet=packet..S.bytes(sacrifice.petActionSlot,1)..S.bytes(#petIdentity,1)..petIdentity
   local sum=S.adler32(packet);for i,dot in ipairs(bridge.stamp) do local v=math.floor(sum/256^(i-1))%256/255;dot:SetColorTexture(v,v,v,1) end
-  S.publishTransportPacket(11,packet..S.bytes(sum,4))
+  S.publishTransportPacket(ns.wire.ids.warlockPreview,packet..S.bytes(sum,4))
  end
- bridge.panel:SetScript("OnUpdate",function(self,dt) elapsed=elapsed+dt;if elapsed<S.updateInterval() then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err) or nil;if not ok then S.publishTransportPacket(11,nil) end end)
+ bridge.panel:SetScript("OnUpdate",function(self,dt) elapsed=elapsed+dt;if elapsed<S.updateInterval() then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err) or nil;if not ok then S.publishTransportPacket(ns.wire.ids.warlockPreview,nil) end end)
  S.profileScript(bridge.panel,"OnUpdate","Warlock bridge")
 end

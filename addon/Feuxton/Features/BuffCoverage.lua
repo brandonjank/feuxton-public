@@ -14,8 +14,7 @@ function B.invalidateNativeCosts()
  local native=B.nativeCosts;if not native then return end
  native.marker:SetVertexColor(0,0,0,1)
  for _,cell in ipairs(native.stamp)do cell:SetVertexColor(0,0,0,1)end
- -- These out-of-combat bars share rows with combat-only observations.
- -- Clearing the certificate alone leaves the opaque bars on screen.
+ -- Clear the certificate and hide the previous publication together.
  if native.visible then
   for _,widget in ipairs(native.widgets)do widget.bar:Hide();widget.valid:Hide()end
   native.visible=false
@@ -23,17 +22,20 @@ function B.invalidateNativeCosts()
 end
 local function renderNativeCosts(packet,readings)
  local S=ns.state;local F=ns.features.Healing;local bridge=ns.features.SpellBridge
- if not F or F.classKey~="PALADIN" or F.druid or not S.paladinNativePanel or not bridge or #readings~=3 then return end
+ if not F or F.classKey~="PALADIN" or F.druid or not S.resourcePanel or not bridge or #readings~=3 then return end
  local native=B.nativeCosts
  if not native then
-  local panel=S.paladinNativePanel
+  -- The right half of the lower resource row is reserved for Hunter's
+  -- Sting budget. On Paladin it keeps blessing costs clear of the spell tiles.
+  local panel=S.resourcePanel
+  local row=12
   local function cell(x)
-   local texture=panel:CreateTexture(nil,"OVERLAY");texture:SetSize(4,4);texture:SetPoint("TOPLEFT",x,-24)
+   local texture=panel:CreateTexture(nil,"OVERLAY");texture:SetSize(4,4);texture:SetPoint("TOPLEFT",x,-row)
    texture:SetColorTexture(1,1,1,1);texture:SetVertexColor(0,0,0,1);return texture
   end
-  native={widgets={},stamp={},marker=cell(620)};B.nativeCosts=native
-  for i=1,3 do native.widgets[i]=bridge.createManaCost(panel,326+(i-1)*98,24,88)end
-  for i=1,4 do native.stamp[i]=cell(626+(i-1)*6)end
+  native={widgets={},stamp={},marker=cell(636)};B.nativeCosts=native
+  for i=1,3 do native.widgets[i]=bridge.createManaCost(panel,340+(i-1)*98,row,88)end
+  for i=1,4 do native.stamp[i]=cell(642+(i-1)*6)end
  end
  for i,reading in ipairs(readings)do
   local widget=native.widgets[i]
@@ -192,18 +194,18 @@ function B.packet(now,tick)
  local index,guid=choose();if not index then return nil end
  local unit=units[index];local values,at,coverage=B.scan(unit,guid,now)
  if not at or now<at or now-at>1 then return nil end
- local roster=S.transportPackets[16];if not roster then return nil end
+ local roster=S.transportPackets[ns.wire.ids.rosterFirst];if not roster then return nil end
  local rosterTick=0;for i=0,3 do rosterTick=rosterTick+roster.packet:byte(9+i)*256^i end
  local function providerIndex(guid)
   if not guid or guid==""then return 7 end
-  for source=0,4 do local row=S.transportPackets[16+source];local wire=row and row.packet
+  for source=0,4 do local row=S.transportPackets[ns.wire.ids.rosterFirst+source];local wire=row and row.packet
    if wire and wire:sub(9,12)==roster.packet:sub(9,12)then local size=wire:byte(21);if size and size<=40 and wire:sub(22,21+size)==guid then return source end end
   end
   return 7
  end
  local level=G.read(UnitLevel,1,unit);level=level.status=="observed" and number(level.value,1,100) or 255
  if level~=math.floor(level)then level=255 end
- local packet="HHU1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index-1,1)..S.bytes(rosterTick,4)..S.bytes(F.revision,4)..S.bytes(level,1)..S.bytes(math.floor((now-at)*1000),2)..S.bytes(G.code(F.cache[unit]and F.cache[unit].slotProtected),1)..S.bytes(#guid,1)..guid..S.bytes(#definitions,1)
+ local packet=ns.wire.schemas.buffCoverage..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(index-1,1)..S.bytes(rosterTick,4)..S.bytes(F.revision,4)..S.bytes(level,1)..S.bytes(math.floor((now-at)*1000),2)..S.bytes(G.code(F.cache[unit]and F.cache[unit].slotProtected),1)..S.bytes(#guid,1)..guid..S.bytes(#definitions,1)
  local costReadings={}
  for i,spec in ipairs(definitions)do
   local sample=F.spell(spec,unit);local delivery=F.delivery(spec);local id=delivery and delivery.id or 0

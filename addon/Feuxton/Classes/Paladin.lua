@@ -2,7 +2,7 @@
 local _, ns = ...
 local paladin={}
 ns.classes.PALADIN=paladin
-paladin.denseBridgeLayout={key="paladin-slim-v1",height=263,nativeVitalsTop=118,nativeVitalsHeight=87,nativeSignalsTop=205,nativeSignalsHeight=58,gauges=68,native=28,units=68,unitHeight=20,activity=14,headerActivity=true,resources=68,setup=88,grid=88,roster=88,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
+paladin.denseBridgeLayout={key="paladin-slim-v1",gauges=68,native=28,units=68,unitHeight=20,activity=14,headerActivity=true,resources=68,setup=88,grid=88,roster=88,coreStamp=108,targetStamp=122,marker={1,0.25,0.5}}
 paladin.specs=ns.spellCatalog.PALADIN.specs
 local buildOK,_,buildID,_,interface=pcall(GetBuildInfo)
 local clientBuild=buildOK and interface==16001 and tonumber(buildID)
@@ -95,6 +95,8 @@ for i,key in ipairs(ns.spellCatalog.PALADIN.previewKeys) do paladin.previewKeys[
 for i,key in ipairs(ns.spellCatalog.PALADIN.packetKeys) do paladin.packetKeys[i]=key:match("%.(.+)") end
 local protectionKeys={unpack(paladin.packetKeys)}
 for _,key in ipairs(ns.spellCatalog.PALADIN.protectionKeys) do protectionKeys[#protectionKeys+1]=key:match("%.(.+)") end
+local retKeys={unpack(paladin.packetKeys)}
+retKeys[#retKeys+1]="hammerWrath"
 local baseSlots=#paladin.packetKeys
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
@@ -294,8 +296,13 @@ local function renderNative(tile,bound,learned,chosen,info,S,rangeRead,rangeRaw,
     if not usableOK then R.paintColor(tile.visualSignals[3],1,.65,0,1) end
 end
 
+local function retSignalContext(S)
+    local echoes=S.setupTalentNames and S.setupTalentNames["Unsealed Wrath"]==true
+    return not S.paladinProtectionActive and not S.paladinProtectionPending and (S.paladinRetributionActive or echoes),echoes
+end
 local function refreshNativeAuras(readings,S)
-    local signature={tostring(S.setupKnownSpellRevision or 0),S.setupBookAvailable==true and "complete" or "partial"}
+    local retTiming,echoes=retSignalContext(S)
+    local signature={tostring(S.setupKnownSpellRevision or 0),S.setupBookAvailable==true and "complete" or "partial",echoes and "echoes" or "no echoes",retTiming and "ret" or "ordinary"}
     for i,reading in ipairs(readings) do signature[#signature+1]=reading.name..":"..reading.bound..":"..tostring(reading.learned)..":"..tostring(reading.auraID or 0) end
     signature=table.concat(signature,"|")
     if signature==paladin.auraSignature then return end
@@ -305,6 +312,7 @@ local function refreshNativeAuras(readings,S)
     end
     paladin.auraSignature=signature;paladin.auraMask=0;paladin.auraAbsenceMask=0;paladin.auraSettledAt=GetTime()+0.6
     paladin.signalAuraRevision=((paladin.signalAuraRevision or 0)+1)%4294967296
+    paladin.retAuraPage=nil
     if ns.retireNativeSignalAuras then pcall(ns.retireNativeSignalAuras,paladin) end
     if paladin.nativeAuras then
         pcall(paladin.nativeAuras.SetEnabled,paladin.nativeAuras,false);pcall(paladin.nativeAuras.SetUnit,paladin.nativeAuras,nil);pcall(paladin.nativeAuras.Hide,paladin.nativeAuras)
@@ -314,6 +322,21 @@ local function refreshNativeAuras(readings,S)
     local ok=pcall(function()
         container=CreateFrame("AuraContainer",nil,S.paladinNativePanel,"CustomAuraContainerTemplate");container:SetAllPoints(S.paladinNativePanel)
         local mask,absence=0,0
+        local echoFilters={{"paladin.echoFury",1311701},{"paladin.echoRighteousness",1311704}}
+        -- Register these keys before any other Paladin aura. A placeholder has
+        -- no button or identity proof, so it cannot confirm absent stacks.
+        local _,page=pcall(function()
+            local wanted
+            for _,key in ipairs({"paladin.sealRighteousness","paladin.sealFury",echoFilters[1][1],echoFilters[2][1]}) do
+                local index=ns.declareNativeSignalAura(paladin,key,"player",paladin.signalAuraRevision,"HELPFUL",0)
+                if not index then return nil end
+                local candidate=math.floor((index-1)/5)
+                if wanted and candidate~=wanted then return nil end
+                wanted=candidate
+            end
+            return wanted
+        end)
+        if retTiming and type(page)=="number" then paladin.retAuraPage=page end
         for i,reading in ipairs(readings) do
             if (auraSlots[i] or i==19 or i==20) and reading.learned==true then
                 local ids={[reading.bound]=true}
@@ -335,10 +358,23 @@ local function refreshNativeAuras(readings,S)
                 mask=mask+2^(i-1)
             end
         end
+        -- Exact Forever aura IDs. Restricted counts stay on the existing
+        -- native application-count widget; no raw aura value is inspected.
+        if retTiming and echoes and ns.declareNativeSignalAura and ns.attachNativeSignalAura then
+            for _,echo in ipairs(echoFilters) do
+                local key,id=echo[1],echo[2]
+                local declared,signalIndex=pcall(ns.declareNativeSignalAura,paladin,key,"player",paladin.signalAuraRevision,"HELPFUL",2)
+                if declared and signalIndex then pcall(container.AddAuraSlot,container,key,"HELPFUL",{candidateFilters={includeSpellIDs={[id]=true}},initializeFrame=function(button)
+                    button:SetSize(1,1);button:SetPoint("TOPLEFT",container,"TOPLEFT",0,0);button:EnableMouse(false)
+                    local icon=button:CreateTexture(nil,"ARTWORK");icon:SetAllPoints(button);icon:SetAlpha(0);button:SetIcon(icon)
+                    pcall(ns.attachNativeSignalAura,signalIndex,button)
+                end}) end
+            end
+        end
         container:SetUnit("player");container:SetEnabled(true);paladin.auraMask=mask;paladin.auraAbsenceMask=absence
     end)
     if ok then paladin.nativeAuras=container
-    elseif container then pcall(container.SetEnabled,container,false);pcall(container.Hide,container) end
+    else paladin.retAuraPage=nil;if container then pcall(container.SetEnabled,container,false);pcall(container.Hide,container) end end
 end
 
 function paladin.initializePreview()
@@ -363,14 +399,14 @@ function paladin.initializePreview()
         if group.text(group.read(UnitClass,2,"player"),16)=="PALADIN" then pcall(paladin.refreshWeapon) end
     end)
     local function render()
-        if group.text(group.read(UnitClass,2,"player"),16)~="PALADIN" then S.publishTransportPacket(3,nil);S.paladinNativePanel:Hide();return end
+        if group.text(group.read(UnitClass,2,"player"),16)~="PALADIN" then S.publishTransportPacket(ns.wire.ids.paladinPreview,nil);S.paladinNativePanel:Hide();return end
         S.paladinNativePanel:Show()
         if GetTime()>=weaponRetry and (paladin.weaponDelayMs or 0)==0 and S.readableCall(InCombatLockdown)==false then paladin.refreshWeapon();weaponRetry=GetTime()+1 end
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
         local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
         local swiftMode=swiftUnleashesSeal and 4 or 0
-        local packet="HHPD"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes((S.bindingsValid and 2 or 0)+swiftMode,1)
+        local packet=ns.wire.schemas.paladinPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes((S.bindingsValid and 2 or 0)+swiftMode,1)
         -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
         local protection=S.paladinProtectionActive==true
         local auras,auraIDs,complete={},{},false
@@ -391,7 +427,10 @@ function paladin.initializePreview()
             end
         end
         paladin.rangeSpecs={};local nativeReadings={};local protectionRecords={}
-        for index,shortKey in ipairs(protection and protectionKeys or paladin.packetKeys) do
+        local retTiming=retSignalContext(S)
+        local retClocks=retTiming and {} or nil
+        local records=protection and protectionKeys or retTiming and retKeys or paladin.packetKeys
+        for index,shortKey in ipairs(records) do
             local spec
             for _,entry in ipairs(paladin.specs) do if entry.key=="paladin."..shortKey then spec=entry;break end end
             local ok,info=pcall(api.GetSpellInfo or function() end,spec.name)
@@ -427,10 +466,13 @@ function paladin.initializePreview()
             for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
             local record=S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
             local extension=index-baseSlots
+            if extension>0 and not protection then extension=2 end -- Reuse the Hammer tile's calibration.
             if extension>0 then protectionRecords[extension]=record else packet=packet..record end
             local tile=extension>0 and paladin.protectionTiles[extension] or paladin.nativeTiles[index]
             renderNative(tile,bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
             local isLearned=learned.status=="observed" and learned.value==true
+            if retClocks and isLearned and (shortKey=="judgement" or shortKey=="holyStrike" or shortKey=="hammerWrath") then retClocks[#retClocks+1]=bound end
+            if extension==2 and not protection and not isLearned then protectionRecords[2]=nil end
             if tile.manaCost then
                 local freeIfNoCostRecord=shortKey=="swiftJudgement" and bound==1310994 and bound==id
                 ns.features.SpellBridge.renderManaCost(tile.manaCost,bound,isLearned,freeIfNoCostRecord)
@@ -523,6 +565,8 @@ function paladin.initializePreview()
             -- The former active tree was invalidated. Hold dispatch until
             -- the locally refreshed tree settles, even as setup pages lag.
             packet=packet..S.bytes(1,1)
+        elseif protectionRecords[2] then
+            packet=packet..protectionRecords[2]..S.bytes(S.spellUseCode("paladin.hammerWrath"),1)
         end
         local checksum=S.adler32(packet)
         local activeID,activeKind=ns.features.CastTracking.activityIdentity()
@@ -532,12 +576,13 @@ function paladin.initializePreview()
         for i,dot in ipairs(paladin.castIdentityCells) do dot:SetColorTexture(string.byte(active,(i-1)*3+1)/255,string.byte(active,(i-1)*3+2)/255,string.byte(active,(i-1)*3+3)/255,1) end
         for i,dot in ipairs(paladin.nativeStamp) do local value=math.floor(checksum/256^(i-1))%256/255;dot:SetColorTexture(value,value,value,1) end
         packet=packet..S.bytes(checksum,4);assert(#packet<=357)
-        S.publishTransportPacket(3,packet)
+        S.publishTransportPacket(ns.wire.ids.paladinPreview,packet)
+        if retClocks and ns.setPaladinCombatSignalPage then ns.setPaladinCombatSignalPage(paladin.retAuraPage,retClocks) end
     end
     panel:SetScript("OnUpdate",function(self,elapsed)
         total=total+elapsed;if total<S.updateInterval() then return end;total=0
         local ok,err=pcall(render);paladin.lastPreviewError=not ok and S.describe(err) or nil
-        if not ok then S.publishTransportPacket(3,nil);S.paladinNativePanel:Hide() end
+        if not ok then S.publishTransportPacket(ns.wire.ids.paladinPreview,nil);S.paladinNativePanel:Hide() end
     end)
     S.profileScript(panel,"OnUpdate","paladin preview")
 end

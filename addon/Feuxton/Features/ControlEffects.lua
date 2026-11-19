@@ -478,10 +478,10 @@ function X.packet(tick)
  local class=value(function()local _,c=UnitClass("player");return c end)
  local race=value(function()local _,r=UnitRace("player");return r end) or ""
  if #race>32 then race="" end
- local roster=S.transportPackets[16];local rosterTick=roster and string.byte(roster.packet,9) and 0 or nil
+ local roster=S.transportPackets[ns.wire.ids.rosterFirst];local rosterTick=roster and string.byte(roster.packet,9) and 0 or nil
  if roster then for i=0,3 do rosterTick=rosterTick+string.byte(roster.packet,9+i)*256^i end end
  local revision=F.revision or 0
- local packet="HHX6"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
+ local packet=ns.wire.schemas.sharedSupport..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
  local contexts={value(IsFalling),value(IsStealthed),value(UnitIsPlayer,"target"),value(UnitIsDeadOrGhost,"target"),value(UnitAffectingCombat,"player")}
  local corpseType=value(UnitCreatureType,"target")
  contexts[6]=(corpseType=="Humanoid" or corpseType=="Undead") and true or type(corpseType)=="string" and false or nil

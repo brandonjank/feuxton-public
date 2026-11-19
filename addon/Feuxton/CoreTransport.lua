@@ -13,7 +13,7 @@ function S.renderFastSetup()
     local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
     if level<0 or level>100 then level=0 end
     local count=ns.classes[class] and ns.classes[class].coreSlotCount or 10
-    local packet="HHF4"..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(classID,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(count,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
+    local packet=ns.wire.schemas.core..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(classID,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(count,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
     if classID~=1 then
         -- Positional placeholders match the registered class contract; current
         -- non-Hunter spell observations come from the class-owned packet.
@@ -32,7 +32,7 @@ function S.renderFastSetup()
     end
     packet=packet..S.bytes(classID==1 and (S.spellUseCode("hunter.aspectHawk")+S.spellUseCode("hunter.aspectCheetah")*4+S.spellUseCode("hunter.aspectMonkey")*16) or 0,1)
     packet=packet..S.bytes(S.adler32(packet),4)
-    S.publishTransportPacket(1,packet)
+    S.publishTransportPacket(ns.wire.ids.core,packet)
 end
 S.fastElapsed=0
 S.fastFrame:SetScript("OnUpdate",function(self,elapsed)
@@ -40,7 +40,7 @@ S.fastFrame:SetScript("OnUpdate",function(self,elapsed)
     if S.fastElapsed>=S.updateInterval() then
         S.fastElapsed=0
         local ok=pcall(S.renderFastSetup)
-        if not ok then S.publishTransportPacket(1,nil) end
+        if not ok then S.publishTransportPacket(ns.wire.ids.core,nil) end
     end
 end)
 S.fastInitialOK=pcall(S.renderFastSetup)

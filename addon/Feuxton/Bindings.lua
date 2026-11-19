@@ -203,6 +203,19 @@ end
 local function fallbackKeys(candidate)
     return candidate.itemID~=nil or candidate.stopCasting or candidate.cancelForm or candidate.cancelFury or candidate.skull or candidate.petCommand
 end
+local paladinSelfSeals={
+    ["paladin.sealCommand"]=true,["paladin.sealRighteousness"]=true,
+    ["paladin.sealCrusader"]=true,["paladin.sealFury"]=true,
+}
+local function isSelfSeal(candidate)
+    return candidate.unit=="player" and paladinSelfSeals[candidate.abilityKey]==true
+end
+local function availableManagedKey(candidate,keys)
+    return freeManagedKey(keys)
+        or (isSelfSeal(candidate) and freeManagedKey(M.extendedKeys))
+        or (fallbackKeys(candidate) and freeManagedKey(M.itemKeys))
+        or nil
+end
 function M.refresh()
     if not M.available() or S.readableCall(InCombatLockdown)~=false or M.refreshing then return false end
     M.refreshing=true
@@ -225,7 +238,7 @@ function M.refresh()
             if not selected[family]and entry and not entry.active then
                 -- Keep watching for a newly free shortcut without clearing
                 -- every working binding while the bounded pool is full.
-                if entry.key or freeManagedKey(keys)or fallbackKeys(candidate)and freeManagedKey(M.itemKeys)then changed=true;break end
+                if entry.key or availableManagedKey(candidate,keys)then changed=true;break end
                 M.retry=true
             end
         end
@@ -256,8 +269,7 @@ function M.refresh()
             if entry then
                 if entry.key and (ns.keyPolicy.reason(entry.key) or bindingAction(entry.key,false)~="" or bindingAction(entry.key,true)~="") then entry.key=nil end
                 if not entry.key then
-                    entry.key=freeManagedKey(keys)
-                    if not entry.key and fallbackKeys(candidate)then entry.key=freeManagedKey(M.itemKeys)end
+                    entry.key=availableManagedKey(candidate,keys)
                     if entry.key then M.reserved[entry.key]=family end
                 end
                 entry.id=candidate.id;entry.spellID=candidate.id;entry.name=candidate.name;entry.unit=candidate.unit;entry.invalidated=nil;entry.stopAttack=candidate.stopAttack;entry.startAttack=candidate.startAttack;entry.stopCasting=candidate.stopCasting;entry.cancelForm=candidate.cancelForm;entry.cancelFury=candidate.cancelFury;entry.petAttack=candidate.petAttack;entry.friendly=candidate.friendly;entry.itemID=candidate.itemID;entry.skull=candidate.skull;entry.petCommand=candidate.petCommand
@@ -464,11 +476,13 @@ selectPlayerMapping=function(candidate,mappings)
     -- Friendly delivery needs our secure recipient routing and exact receipt
     -- hooks. Augmented actions also retain their pet/start/stop/non-toggle
     -- semantics; matching only a displayed spell ID would lose that behavior.
-    if not candidate or candidate.id<=0 or candidate.unit~="target" or candidate.friendly or candidate.healing or candidate.support or candidate.buff or candidate.pinnedSpellID or candidate.managedName or candidate.name=="Lay on Hands" or
+    if not candidate or candidate.id<=0 then return nil end
+    local selfSeal=isSelfSeal(candidate)
+    if (candidate.unit~="target" and not selfSeal) or candidate.friendly or candidate.healing or candidate.support or candidate.buff or candidate.pinnedSpellID or candidate.managedName or candidate.name=="Lay on Hands" or
         candidate.itemID or candidate.startAttack or candidate.petAttack or candidate.noToggle or candidate.groundAtCursor or candidate.stopAttack or candidate.petCommand or candidate.petAbility then return nil end
     local chosen
     for _,mapping in ipairs(mappings or {})do
-        if mapping.id==candidate.id and not mapping.specialIndex and mapping.selectedMacro~=false and playerMappingCurrent(mapping) and
+        if mapping.id==candidate.id and not mapping.specialIndex and (not selfSeal or mapping.kind=="spell") and mapping.selectedMacro~=false and playerMappingCurrent(mapping) and
             (not chosen or chosen.kind~="spell" and mapping.kind=="spell")then chosen=mapping end
     end
     if chosen then chosen.unit=candidate.unit;chosen.abilityKey=candidate.abilityKey end

@@ -220,7 +220,7 @@ function B.packet(time,tick)
  if #snapshot.peers>0 then B.cursor=B.cursor%#snapshot.peers+1;row=snapshot.peers[B.cursor]end
  row=row or {providerGuid=context.localGuid,providerBoot=S.setupSession,sequence=0,familyKey=nil,ageMs=0,intentUnit=255,intentRemainingMs=0}
  local family=row.familyKey and ns.buffCatalog.byFamily[row.familyKey]
- local packet="HHU1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(128,1)..S.bytes((snapshot.enabled and 1 or 0)+(row.intentOnly and 2 or 0),1)..S.bytes(context.group,4)..S.bytes(context.epoch,4)..S.bytes(row.providerBoot,4)..S.bytes(row.sequence,4)..S.bytes(math.min(14999,row.ageMs),2)..S.bytes(family and family.code or 0,1)..S.bytes(#row.providerGuid,1)..row.providerGuid..S.bytes(row.intentUnit,1)..S.bytes(row.intentIdentity and S.adler32(row.intentIdentity)or 0,4)..S.bytes(math.min(2000,row.intentRemainingMs),2)..S.bytes(context.rosterTick,4)
+ local packet=ns.wire.schemas.buffCoverage..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(128,1)..S.bytes((snapshot.enabled and 1 or 0)+(row.intentOnly and 2 or 0),1)..S.bytes(context.group,4)..S.bytes(context.epoch,4)..S.bytes(row.providerBoot,4)..S.bytes(row.sequence,4)..S.bytes(math.min(14999,row.ageMs),2)..S.bytes(family and family.code or 0,1)..S.bytes(#row.providerGuid,1)..row.providerGuid..S.bytes(row.intentUnit,1)..S.bytes(row.intentIdentity and S.adler32(row.intentIdentity)or 0,4)..S.bytes(math.min(2000,row.intentRemainingMs),2)..S.bytes(context.rosterTick,4)
  packet=packet..S.bytes(S.adler32(packet),4)
  return #packet<=110 and packet or nil
 end

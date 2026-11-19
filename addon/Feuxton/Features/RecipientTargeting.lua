@@ -69,7 +69,7 @@ function T.packet(now,tick)
  local identity=G.text(G.read(UnitGUID,1,"target"),40)
  -- HHT5 advertises the shared beneficial-button self fallback. Every class
  -- supplies its own bounded spell list; no recipient/spell key permutations.
- local packet="HHT5"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(F.revision,4)..S.bytes(flags,2)..S.bytes(#identity,1)..identity
+ local packet=ns.wire.schemas.recipientTargeting..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(S.auraGeneration,1)..S.bytes(F.revision,4)..S.bytes(flags,2)..S.bytes(#identity,1)..identity
  local existing=0
  for i=1,9 do local e=T.entries[i];local valid=T.current(e)
   packet=packet..S.bytes(valid and S.compactBindingCode(e.key) or 0,2)

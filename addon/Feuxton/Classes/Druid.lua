@@ -1,6 +1,6 @@
 -- Druid observations. Shared app policies own decisions, forms and delivery.
 local _,ns=...
-local H={coreSlotCount=2,denseBridgeLayout={key="druid-slim-v1",height=309,nativeVitalsTop=214,nativeVitalsHeight=87,nativeSignalsTop=301,nativeSignalsHeight=58,gauges=148,units=148,unitHeight=20,activity=14,headerActivity=true,resources=148,setup=184,grid=184,roster=184,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
+local H={coreSlotCount=2,denseBridgeLayout={key="druid-slim-v1",gauges=106,units=106,unitHeight=20,activity=14,headerActivity=true,resources=106,setup=126,grid=126,roster=126,coreStamp=108,targetStamp=122,marker={1,.5,.25}}}
 ns.classes.DRUID=H
 H.specs=ns.spellCatalog.DRUID.specs
 -- Class-owned native certificates, rank choices and form/queue handling.
@@ -18,7 +18,7 @@ H.buffAbilityKeys={};for i,spec in ipairs(H.buffSpecs)do H.buffAbilityKeys[i]=sp
 H.targetingSpecs={};for i,spec in ipairs(H.healingSpecs)do H.targetingSpecs[i]=spec end
 for i,spec in ipairs(H.buffSpecs)do spec.deliverySlot=5+i;H.targetingSpecs[6+i]=spec end
 H.auraSpecs={};for i,spec in ipairs(H.specs)do H.auraSpecs[i]=spec end
-H.auraSpecs[40]={key="druid.clearcasting",name="Clearcasting",auraName="Clearcasting",aura="player",nativeAuraCandidates={16870}}
+H.auraSpecs[40]={key="druid.clearcasting",name="Clearcasting",auraName="Clearcasting",aura="player",nativeAuraCandidates={16870},auraX=448,auraY=58}
 local function integer(S,value,low,high)
  return not S.isSecret(value) and type(value)=="number" and value==math.floor(value) and value>=low and value<=high and value or nil
 end
@@ -42,25 +42,24 @@ end
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext;local R=ns.features.RangeTracking;local B=ns.features.SpellBridge
  if G.text(G.read(UnitClass,2,"player"),16)~="DRUID" then return end
- local bridge=B.create(S.hud,H.specs);H.bridge=bridge;S.druidNativePanel=bridge.panel;bridge.panel:SetHeight(190)
- for i,tile in ipairs(bridge.tiles) do tile.manaCost=B.createManaCost(bridge.panel,12+(i-1)%14*46+18,24+math.floor((i-1)/14)*32,16) end
+ local bridge=B.create(S.hud,H.specs,true);H.bridge=bridge;S.druidNativePanel=bridge.panel;bridge.panel:SetHeight(80)
  local function dot(x,y)local d=bridge.panel:CreateTexture(nil,"OVERLAY");d:SetSize(4,4);d:SetPoint("TOPLEFT",x,-y);R.initialize(d,1,.65,0,1);return d end
- local combatDot=dot(650,116);H.combatDot=combatDot
+ local combatDot=dot(460,58);H.combatDot=combatDot
  local resources={};H.resources=resources
  local function resource(x,y)local widget=B.createManaCost(bridge.panel,x,y,128);R.initialize(widget.valid,1,.65,0,1);return widget end
- for i,power in ipairs({0,1,3})do resources[i]=resource(12+(i-1)*164,106);resources[i].powerType=power end
- local combo=resource(504,106);H.combo=combo
- local stacks=resource(504,112);H.stacks=stacks
- local clearcastingBackground=dot(554,70);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
+ for i,power in ipairs({0,1,3})do resources[i]=resource(120+(i-1)*164,52);resources[i].powerType=power end
+ local combo=resource(120,58);H.combo=combo
+ local stacks=resource(284,58);H.stacks=stacks
+ local clearcastingBackground=dot(H.auraSpecs[40].auraX,H.auraSpecs[40].auraY);clearcastingBackground:SetSize(8,8);R.paintColor(clearcastingBackground,0,.25,1,1)
  local attackerDots={};H.attackerDots=attackerDots
- for i=1,40 do attackerDots[i]={dot(12+(i-1)*6,144),dot(280+(i-1)*6,144)}end
+ for i=1,40 do attackerDots[i]={dot(120+(i-1)*6,64),dot(388+(i-1)*6,64)}end
  H.recipientDots={};H.recipientBridges={};H.recipientSpecs={}
  for index,unit in ipairs(G.tokens)do
-  local x=12+(index-1)*104;local group={range={},geometry={dot(x+48,152),dot(x+54,152)}};H.recipientDots[index]=group
-  for action=1,6 do group.range[action]=dot(x+(action-1)*6,152)end
-  for _,offset in ipairs({36,42})do local background=dot(x+offset,152);R.paintColor(background,0,.25,1,1)end
+  local x=12+(index-1)*104;local group={range={},geometry={dot(x+48,76),dot(x+54,76)}};H.recipientDots[index]=group
+  for action=1,6 do group.range[action]=dot(x+(action-1)*6,76)end
+  for _,offset in ipairs({36,42})do local background=dot(x+offset,76);R.paintColor(background,0,.25,1,1)end
   H.recipientBridges[unit]={panel=bridge.panel,verifiedAuras={},onlySpecifiedAuras=true}
-  H.recipientSpecs[unit]={{key="druid.rejuvenation",name="Rejuvenation",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+36,auraY=152,auraSize=4},{key="druid.regrowth",name="Regrowth",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+42,auraY=152,auraSize=4}}
+  H.recipientSpecs[unit]={{key="druid.rejuvenation",name="Rejuvenation",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+36,auraY=76,auraSize=4},{key="druid.regrowth",name="Regrowth",aura=unit,auraFilter="HELPFUL|PLAYER",auraX=x+42,auraY=76,auraSize=4}}
  end
  local function bool(d,value)local ok,painted=pcall(R.paintBoolean,d,value,{0,1,0,1},{1,0,0,1});if not ok or painted~=true then R.paintColor(d,1,.65,0,1)end end
  local function gauge(widget,current,maximum)
@@ -128,7 +127,7 @@ function H.initializePreview()
     if probe>0 and reach>0 and reach<=8 then local ok,value=X.readMeleeRange(unit,probe);if ok then near=value end end
    end;bool(pair[1],onPlayer);bool(pair[2],near)
   end
-  local packet="DRS2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local packet=ns.wire.schemas.druidPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   local settled=GetTime()>=(bridge.settledAt or math.huge)
   for i,spec in ipairs(H.specs)do
    local r=readings[i];local entry=S.managedSpells and S.managedSpells.delivery("DRUID",spec.managedName or spec.name);local key=S.bindingsValid and S.managedSpells.deliveryCurrent(entry)and S.compactBindingCode(entry.key)or 0
@@ -150,8 +149,8 @@ function H.initializePreview()
   local bite=readings[18];local minimum=H.biteMinimum(S,bite.id,formID==768 and bite.learned.status=="observed"and bite.learned.value)
   for point=1,5 do packet=packet..S.bytes(minimum and minimum[point]or 4294967295,4)end
   local sum=S.adler32(packet);for i,d in ipairs(bridge.stamp)do local value=math.floor(sum/256^(i-1))%256/255;d:SetColorTexture(value,value,value,1)end
-  S.publishTransportPacket(12,packet..S.bytes(sum,4))
+  S.publishTransportPacket(ns.wire.ids.druidPreview,packet..S.bytes(sum,4))
  end
- bridge.panel:SetScript("OnUpdate",function(_,dt)elapsed=elapsed+dt;if elapsed<S.updateInterval()then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err)or nil;if not ok then S.publishTransportPacket(12,nil)end end)
+ bridge.panel:SetScript("OnUpdate",function(_,dt)elapsed=elapsed+dt;if elapsed<S.updateInterval()then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err)or nil;if not ok then S.publishTransportPacket(ns.wire.ids.druidPreview,nil)end end)
  S.profileScript(bridge.panel,"OnUpdate","Druid bridge")
 end

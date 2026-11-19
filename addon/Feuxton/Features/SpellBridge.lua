@@ -85,22 +85,27 @@ function B.stackCount(unit,name,maximum)
     end
     return 255
 end
-function B.create(parent,specs)
-    local S=ns.state;local panel=CreateFrame("Frame",nil,parent);panel:SetSize(668,120);panel:SetPoint("TOPLEFT",0,-26)
+function B.tileOrigin(index)
+    return 12+(index-1)%18*36,4+math.floor((index-1)/18)*24
+end
+function B.create(parent,specs,withManaCost)
+    local S=ns.state;local panel=CreateFrame("Frame",nil,parent)
+    panel:SetSize(668,4+math.ceil(#specs/18)*24);panel:SetPoint("TOPLEFT",0,-26)
     local result={panel=panel,tiles={},stamp={},verifiedAuras={}}
     for i=1,4 do local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",626+(i-1)*6,0);result.stamp[i]=dot end
     for i,spec in ipairs(specs) do
-        local tile={};local x,y=12+(i-1)%14*46,6+math.floor((i-1)/14)*32
+        local tile={};local x,y=B.tileOrigin(i)
         tile.icon=panel:CreateTexture(nil,"ARTWORK");tile.icon:SetSize(16,16);tile.icon:SetPoint("TOPLEFT",x,-y)
         tile.dial=panel:CreateTexture(nil,"BACKGROUND");tile.dial:SetSize(16,16);tile.dial:SetPoint("TOPLEFT",x+18,-y)
         tile.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial);tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
-        tile.aura=panel:CreateTexture(nil,"ARTWORK");tile.aura:SetSize(8,8);tile.aura:SetPoint("TOPLEFT",x+36,-y);tile.aura:SetColorTexture(0,.25,1,1)
+        tile.aura=panel:CreateTexture(nil,"ARTWORK");tile.aura:SetSize(8,8);tile.aura:SetPoint("TOPLEFT",x,-y-16);tile.aura:SetColorTexture(0,.25,1,1)
         tile.visualSignals={}
-        for j=1,4 do local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+(j-1)*6,-y-26);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot end
-        -- The default usage dot extends past the icon's right edge into this
-        -- compact tile's cooldown sample. Keep controls below the icon instead.
+        for j=1,4 do local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",x+10+(j-1)*6,-y-16);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot end
+        -- The two rows below the icon are native evidence. Tuck the user
+        -- preference dot inside the icon and keep the same clickable target.
         local useButton=S.attachSpellUse(panel,tile.icon,spec.usageKey or spec.key)
-        useButton.useDot:ClearAllPoints();useButton.useDot:SetPoint("TOPLEFT",tile.icon,"BOTTOMLEFT",0,-2)
+        useButton.useDot:ClearAllPoints();useButton.useDot:SetPoint("TOPRIGHT",tile.icon,"TOPRIGHT",0,0)
+        if withManaCost then tile.manaCost=B.createManaCost(panel,x+10,y+20,16) end
         result.tiles[i]=tile
     end
     return result
@@ -193,7 +198,7 @@ function B.auras(bridge,specs,readings)
                 for _,known in ipairs(S.setupKnownSpells or {}) do if known.name==(spec.auraName or spec.name) then ids[known.id]=true end end
                 if actual then ids[actual]=true;certified[i]=true end
                 for _,id in ipairs(candidates(spec)) do ids[id]=true end
-                local x,y=spec.auraX or 12+(i-1)%14*46+36,spec.auraY or 6+math.floor((i-1)/14)*32
+                local x,y=B.tileOrigin(i);x,y=spec.auraX or x,spec.auraY or y+16
                 -- An unresolved alias must not create an empty filter that
                 -- the client could interpret as matching every aura.
                 local signalIndex

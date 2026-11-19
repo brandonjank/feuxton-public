@@ -98,6 +98,7 @@ if not S.filteredOK then S.filteredError=S.describe(S.filteredSetupError) end
 -- Geometry only: native aura engines retain ownership of values and visibility.
 ns.configureHeaderTargetAuras=function(profile)
     local packed=profile and profile.headerTargetAuras
+    local filteredTop=packed and ns.classes.HUNTER.nativeLayout.filteredTop or 0
     local function point(widget,parent,x,y)
         if widget then widget:ClearAllPoints();widget:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-y) end
     end
@@ -107,15 +108,15 @@ ns.configureHeaderTargetAuras=function(profile)
         point(slot.icon,S.auraMirror,12+(i-1)*26,packed and 6 or 20)
         point(slot.dot,S.auraMirror,32+(i-1)*26,packed and 1 or 15)
     end
-    point(S.filteredAuras,packed and S.hud or S.auraMirror,packed and -120 or 0,packed and 14 or 0)
+    point(S.filteredAuras,packed and S.hud or S.auraMirror,packed and -120 or 0,filteredTop)
     for _,spec in ipairs(S.filteredSpecs) do
         local parent=packed and S.hud or S.auraMirror;local x=spec.x-(packed and 120 or 0)
-        point(spec.background,parent,x,packed and 16 or 2)
-        point(spec.guard,parent,x+14,packed and 20 or 6)
+        point(spec.background,parent,x,filteredTop+2)
+        point(spec.guard,parent,x+14,filteredTop+6)
         if spec.label then if packed then spec.label:Hide() else spec.label:Show() end end
     end
     for _,entry in ipairs({{S.filteredSchema,426},{S.filteredReadyDot,438},{S.filteredSessionDot,448}}) do
-        point(entry[1],packed and S.hud or S.auraMirror,entry[2]-(packed and 120 or 0),packed and 20 or 6)
+        point(entry[1],packed and S.hud or S.auraMirror,entry[2]-(packed and 120 or 0),filteredTop+6)
     end
 end
 function S.refreshFilteredAuras()

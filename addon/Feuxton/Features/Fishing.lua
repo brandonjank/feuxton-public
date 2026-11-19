@@ -7,8 +7,16 @@ local function public(value,kind)
 end
 local function call(api,...)
     if not public(api,"function") then return end
-    local ok,a,b,c=pcall(api,...)
-    if ok then return a,b,c end
+    local ok,a,b,c,d=pcall(api,...)
+    if ok then return a,b,c,d end
+end
+local function apiField(namespace,key)
+    return public(namespace,"table") and ns.state.safeField(namespace,key) or nil
+end
+local function fishingName()
+    local name=call(GetSpellInfo,7620)
+    if not public(name,"string") then name=call(apiField(C_Spell,"GetSpellName"),7620) end
+    return name
 end
 local controlsFamily,controlsButton="fishing.controls","FeuxtonFishingControls"
 local interactAction="INTERACTTARGET"
@@ -51,14 +59,17 @@ local function observedFalse(api,...)
     local value=call(api,...)
     return public(value,"boolean") and value==false
 end
+local function observedNil(api,...)
+    if not public(api,"function") then return false end
+    local ok,value=pcall(api,...)
+    return ok and not ns.state.isSecret(value) and value==nil
+end
 local function configureControls()
     local managed=ns.state.managedSpells
     if not managed or not F.controlsKey or not managed.auxiliaryCurrent(controlsFamily,controlsButton,F.controlsKey) then return end
     if not observedFalse(InCombatLockdown) or not observedFalse(UnitAffectingCombat,"player") or
        not observedFalse(UnitIsDeadOrGhost,"player") or not observedFalse(UnitOnTaxi,"player") then return end
-    if not public(GetCurrentKeyBoardFocus,"function") then return end
-    local ok,focus=pcall(GetCurrentKeyBoardFocus)
-    if not ok or ns.state.isSecret(focus) or focus~=nil then return end
+    if not observedNil(GetCurrentKeyBoardFocus) then return end
     local state,_,classID,subclassID=ns.features.Equipment.observe()
     if state~=2 or classID~=2 or subclassID~=20 then return end
     local status,binding,changes=readControls()
@@ -92,6 +103,81 @@ function F.controlsObservation()
     end
     F.controlsKey=managed.claimAuxiliaryBinding(controlsFamily,controlsButton)
     return status,F.controlsKey or ""
+end
+-- Consumable pole enhancements, in descending skill bonus. Prefer the
+-- commonly available item when two lures give the same bonus.
+local lures={
+    {id=6533,rank=100}, -- Aquadynamic Fish Attractor (+100)
+    {id=6532,rank=100}, -- Bright Baubles (+75)
+    {id=7307,rank=100}, -- Flesh Eating Worm (+75)
+    {id=6530,rank=50}, -- Nightcrawlers (+50)
+    {id=6811,rank=50}, -- Aquadynamic Fish Lens (+50)
+    {id=6529,rank=1}, -- Shiny Bauble (+25)
+    {id=268880,rank=1}, -- Forever's conjured +25 pole lure
+}
+local function fishingRank()
+    local byID=apiField(C_SkillInfo,"GetSkillLineInfoByID")
+    if public(byID,"function") then
+        local info=call(byID,356)
+        if apiField(info,"skillID")==356 then return apiField(info,"rank") end
+        return
+    end
+    local name=fishingName()
+    local count=call(GetNumSkillLines)
+    if not public(name,"string") or name=="" or not public(count,"number") or count<1 or count>256 then return end
+    for index=1,count do
+        local skill,header,_,rank=call(GetSkillLineInfo,index)
+        if public(skill,"string") and skill==name and not ns.state.isSecret(header) and (header==nil or header==false) then return rank end
+    end
+end
+local function bestLure()
+    local state,_,classID,subclassID=ns.features.Equipment.observe()
+    if state~=2 or classID~=2 or subclassID~=20 then return end
+    local rank=fishingRank()
+    if not public(rank,"number") or rank<1 or rank~=math.floor(rank) then return end
+    local getCount=apiField(C_Item,"GetItemCount")
+    for _,lure in ipairs(lures) do
+        if rank>=lure.rank then
+            local count
+            if public(getCount,"function") then count=call(getCount,lure.id,false,false,false,false)
+            else count=call(GetItemCount,lure.id,false,false,false) end
+            if not public(count,"number") or count<0 or count~=math.floor(count) then return end
+            if count>0 then return lure end
+        end
+    end
+end
+local function armLure(button,lure,managed,down)
+    if down==false or not observedFalse(InCombatLockdown) then return end
+    button:SetAttribute("type",nil)
+    if not managed.auxiliaryCurrent(lure.family,lure.buttonName,lure.key) or
+       not observedFalse(UnitAffectingCombat,"player") or not observedFalse(UnitIsDeadOrGhost,"player") or
+       not observedFalse(UnitOnTaxi,"player") or not observedFalse(SpellIsTargeting) or
+       not observedNil(GetCurrentKeyBoardFocus) or not observedNil(UnitCastingInfo,"player") or
+       not observedNil(UnitChannelInfo,"player") or not observedFalse(GetWeaponEnchantInfo) or bestLure()~=lure then return end
+    button:SetAttribute("type","macro")
+end
+local function lureBinding()
+    local managed=ns.state.managedSpells
+    if not managed or not observedFalse(InCombatLockdown) then return end
+    local lure=bestLure()
+    if not lure then return end
+    if not lure.button then
+        lure.family,lure.buttonName="fishing.lure."..lure.id,"FeuxtonFishingLure"..lure.id
+        local button=CreateFrame("Button",lure.buttonName,UIParent,"SecureActionButtonTemplate")
+        button:SetSize(1,1)
+        button:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000)
+        button:SetAlpha(0)
+        button:RegisterForClicks("AnyDown","AnyUp")
+        button:SetAttribute("useOnKeyDown",true)
+        button:SetAttribute("macrotext","/stopmacro [combat][@player,dead]\n/use item:"..lure.id.."\n/use 16")
+        button:SetScript("PreClick",function(self,_,down) armLure(self,lure,managed,down) end)
+        button:SetScript("PostClick",function(self)
+            if observedFalse(InCombatLockdown) then self:SetAttribute("type",nil) end
+        end)
+        lure.button=button
+    end
+    lure.key=managed.claimAuxiliaryBinding(lure.family,lure.buttonName)
+    if lure.key then return lure.id,lure.key end
 end
 local function session()
     local value=ns.state.setupSession
@@ -134,8 +220,7 @@ events:SetScript("OnEvent",function(_,event,a,b,c)
     elseif event=="UI_ERROR_MESSAGE" and public(b,"string") and public(ERR_FISH_ESCAPED,"string") and b==ERR_FISH_ESCAPED and F.casts>0 and F.casts~=F.resolved then
         increment("escaped");F.resolved=F.casts
     elseif event=="CHAT_MSG_SKILL" and public(a,"string") then
-        local name=call(GetSpellInfo,7620)
-        if not public(name,"string") and public(C_Spell,"table") then name=call(ns.state.safeField(C_Spell,"GetSpellName"),7620) end
+        local name=fishingName()
         if public(name,"string") and #name>0 and a:find(name,1,true) then increment("skillups") end
     end
 end)
@@ -143,7 +228,11 @@ function F.packet(tick)
     session()
     local S=ns.state;local enchanted=call(GetWeaponEnchantInfo)
     local lure=public(enchanted,"boolean") and (enchanted and 2 or 1) or 0
-    local packet="HFF1"..S.bytes(F.session,4)..S.bytes(tick,4)..S.bytes(F.casts,4)..S.bytes(F.catches,4)..S.bytes(F.escaped,4)
+    local itemID,key
+    if lure==1 then itemID,key=lureBinding() end
+    key=key or ""
+    local packet=ns.wire.schemas.fishing..S.bytes(F.session,4)..S.bytes(tick,4)..S.bytes(F.casts,4)..S.bytes(F.catches,4)..S.bytes(F.escaped,4)
         ..S.bytes(F.items,4)..S.bytes(F.skillups,4)..S.bytes(F.lastItem,4)..S.bytes(F.lastQuantity,2)..S.bytes(lure,1)
+        ..S.bytes(itemID or 0,4)..S.bytes(#key,1)..key
     return packet..S.bytes(S.adler32(packet),4)
 end

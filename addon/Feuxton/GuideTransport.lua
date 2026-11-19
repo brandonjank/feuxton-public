@@ -78,16 +78,16 @@ do
             -- Other classes consume their own ability packet. Keep the shared
             -- enemy-cast source current without querying hidden Hunter tiles.
             probeTick=(probeTick+1)%4294967296
-            S.publishTransportPacket(2,nil,true)
+            S.publishTransportPacket(ns.wire.ids.guide,nil,true)
             if class=="PALADIN" or class=="SHAMAN" or class=="DRUID" or class=="WARLOCK" or class=="MAGE" then
                 local enemyCast=ns.features.Interrupts.bytes()
-                S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast))
-            else S.publishTransportPacket(8,nil) end
+                S.publishTransportPacket(ns.wire.ids.enemyCast,ns.features.Interrupts.packet(probeTick,enemyCast))
+            else S.publishTransportPacket(ns.wire.ids.enemyCast,nil) end
             return
         end
         local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
         if level<0 or level>100 then level=0 end
-        local packet="HHG7"..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(class=="HUNTER" and 1 or 0,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(11,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
+        local packet=ns.wire.schemas.guide..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(class=="HUNTER" and 1 or 0,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(11,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
         for tileIndex=11,21 do
             local tile=S.tiles[tileIndex]
             local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
@@ -113,17 +113,17 @@ do
         packet=packet..S.bytes(probeTick,4)..S.executionBytes(4)
         local enemyCast=ns.features.Interrupts.bytes()
         packet=packet..enemyCast
-        if class=="PALADIN" or class=="SHAMAN" or class=="HUNTER" then S.publishTransportPacket(8,ns.features.Interrupts.packet(probeTick,enemyCast),true) end
+        if class=="PALADIN" or class=="SHAMAN" or class=="HUNTER" then S.publishTransportPacket(ns.wire.ids.enemyCast,ns.features.Interrupts.packet(probeTick,enemyCast),true) end
         for _,tile in ipairs(S.tiles) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(tile),tile.known),1) end
         for _,spec in ipairs(ns.playerBuffSpecs or {}) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(spec),spec.known),1) end
         packet=packet..S.bytes(S.adler32(packet),4)
-        S.publishTransportPacket(2,packet)
+        S.publishTransportPacket(ns.wire.ids.guide,packet)
     end
     local total=0
     panel:SetScript("OnUpdate",function(self,elapsed)
         total=total+elapsed; if total<S.updateInterval() then return end; total=0
         local ok=pcall(render)
-        if not ok then S.publishTransportPacket(2,nil) end
+        if not ok then S.publishTransportPacket(ns.wire.ids.guide,nil) end
     end)
     local previous=ns.hudReport
     ns.hudReport=function(add)
@@ -132,7 +132,7 @@ do
     end
 end
 
--- The five current packed layouts share this geometry owner. Packet schemas,
+-- The current packed layouts share this geometry owner. Packet schemas,
 -- native witness ownership and secret-value guards remain unchanged.
 do
     local function point(widget,parent,x,y)
@@ -144,13 +144,11 @@ do
         dot:SetPoint("TOPLEFT",28+(i-1)*6,-3); dot:SetColorTexture(color[1],color[2],color[3],1); signature[i]=dot
     end
     local footer=CreateFrame("Frame",nil,S.hud)
-    footer:SetSize(24,8); footer:SetPoint("BOTTOMRIGHT",0,0); footer:SetFrameLevel(100)
+    footer:SetSize(8,20); footer:SetPoint("BOTTOMRIGHT",-4,0); footer:SetFrameLevel(100)
     for i,color in ipairs({{1,0,1},{0,1,1},{1,1,0}}) do
         local dot=footer:CreateTexture(nil,"OVERLAY"); dot:SetSize(4,4)
-        dot:SetPoint("TOPLEFT",16-(i-1)*6,-1); dot:SetColorTexture(color[1],color[2],color[3],1)
+        dot:SetPoint("TOPLEFT",4,-13+(i-1)*6); dot:SetColorTexture(color[1],color[2],color[3],1)
     end
-    local title=S.hud:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    title:SetPoint("TOPLEFT",70,0); title:SetText("FEUXTON v"..ns.version)
     local settingsButton=CreateFrame("Button",nil,S.hud)
     settingsButton:SetSize(60,14); settingsButton:SetPoint("TOPLEFT",576,0)
     local text=settingsButton:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
@@ -172,9 +170,13 @@ do
         -- Paladin's near-finished-heal guard always retains its cast clock.
         local profile={};for key,value in pairs(base) do profile[key]=value end
         profile.extendedSignals=base.requiredSignals==true or class=="PALADIN" or type(ns.extendedHudDiagnostics)=="function" and ns.extendedHudDiagnostics()==true
-        -- Leave a blank discovery-marker tail when the native number grid is
-        -- last; its final full-width UInt32 cell must never share marker ink.
-        profile.height=profile.nativeVitalsTop+profile.nativeVitalsHeight+(profile.extendedSignals and profile.nativeSignalsHeight or 8)
+        -- The side gutter keeps the bottom witnesses clear of the full-width
+        -- native numbers without adding a row to either diagnostics mode.
+        profile.nativeVitalsTop=profile.grid+30
+        profile.nativeVitalsHeight=ns.nativeVitalsHeight
+        profile.nativeSignalsTop=profile.nativeVitalsTop+profile.nativeVitalsHeight
+        profile.nativeSignalsHeight=ns.nativeSignalsHeight
+        profile.height=profile.nativeSignalsTop+(profile.extendedSignals and profile.nativeSignalsHeight or 0)
         if profile.extendedSignals and class~="PALADIN" then profile.key=profile.key.."-diagnostics" end
         local initial=S.hudInitialLayoutPending
         if initial then
@@ -193,22 +195,18 @@ do
         S.hudDragHandle:SetSize(548,14)
         local colors={{1,0.5,0},{0,0.5,1},profile.marker,profile.extendedSignals and {0,1,1} or {0,1,0}}
         for i,dot in ipairs(signature) do dot:SetColorTexture(unpack(colors[i]));dot:Show() end
-        footer:Show();title:Show();settingsButton:Show()
+        footer:Show();settingsButton:Show()
         S.hudTitle:Hide();S.auraTitle:Hide();S.aliveLabel:Hide()
         for _,label in ipairs(S.bridgeLabels) do label:Hide() end
         for i,dot in ipairs(S.targetFlags) do point(dot,S.hud,24+(i-1)*10,class=="HUNTER" and 16 or 18) end
         for i,probe in ipairs(S.meleeProbes) do point(probe.dot,S.hud,84+(i-1)*10,16) end
         for i,dot in ipairs(S.meleeMarkers) do point(dot,S.hud,108+(i-1)*10,18) end
-        for i,tile in ipairs(S.tiles) do
-            local x=12+((i<=10 and i-1 or i-11)*65)
-            point(tile,S.hud,x,i<=10 and 30 or 74);tile:SetSize(58,40)
-            tile.label:Hide();tile.binding:Hide();tile:EnableMouse(false)
-            for j,dot in ipairs(tile.visualSignals) do point(dot,tile,30+(j-1)*7,i==21 and 30 or 34) end
-            if i==21 then point(tile,S.hud,276,268) end
-            if class=="HUNTER" then tile:Show() else tile:Hide() end
+        if class=="HUNTER" then
+            ns.configureHunterCompact()
+        else
+            for _,tile in ipairs(S.tiles) do tile:Hide() end
         end
         for _,spec in ipairs(ns.playerBuffSpecs or {}) do spec.binding:Hide() end
-        point(S.playerPanel,S.hud,0,114);point(S.auraMirror,S.hud,0,182)
         for _,widget in ipairs({S.playerPanel,S.auraMirror,S.stingBudget,S.stingBudgetReady,S.stingBudgetMarkerA,S.stingBudgetMarkerB,S.stingBudgetDamage,S.stingBudgetID,S.stingBudgetDirect}) do
             if class=="HUNTER" then widget:Show() else widget:Hide() end
         end
@@ -224,10 +222,9 @@ do
         if S.paladinPanel then point(S.paladinPanel,S.hud,0,450) end
         if class=="PALADIN" then point(S.paladinNativePanel,S.hud,0,profile.native)
         elseif class=="SHAMAN" then
-            point(S.shamanNativePanel,S.hud,0,26);point(ns.features.Totems.panel,S.hud,0,130)
+            point(S.shamanNativePanel,S.hud,0,26);point(ns.features.Totems.panel,S.hud,552,54)
         elseif class=="WARLOCK" then point(S.warlockNativePanel,S.hud,0,26)
         elseif class=="DRUID" then point(S.druidNativePanel,S.hud,0,26) end
-        title:SetText("FEUXTON v"..ns.version.." | "..class)
         ns.configureCompactGauges(profile)
         ns.configureHeaderActivity(profile)
         ns.configureHeaderTargetAuras(profile)

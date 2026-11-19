@@ -5,12 +5,12 @@ local T={slots={}}
 ns.features.Totems=T
 function T.initialize(parent)
     if T.panel then return end
-    local panel=CreateFrame("Frame",nil,parent);panel:SetSize(228,20);panel:SetPoint("TOPLEFT",0,-144);T.panel=panel
-    T.combat=panel:CreateTexture(nil,"OVERLAY");T.combat:SetSize(4,4);T.combat:SetPoint("TOPLEFT",220,-4)
+    local panel=CreateFrame("Frame",nil,parent);panel:SetSize(108,20);panel:SetPoint("TOPLEFT",552,-54);T.panel=panel
+    T.combat=panel:CreateTexture(nil,"OVERLAY");T.combat:SetSize(4,4);T.combat:SetPoint("TOPLEFT",98,-4)
     for slot=1,4 do
-        local active=panel:CreateTexture(nil,"OVERLAY");active:SetSize(4,4);active:SetPoint("TOPLEFT",12+(slot-1)*50,-4)
+        local active=panel:CreateTexture(nil,"OVERLAY");active:SetSize(4,4);active:SetPoint("TOPLEFT",(slot-1)*24,-4)
         ns.features.RangeTracking.initialize(active,1,.65,0,1)
-        local icon=panel:CreateTexture(nil,"ARTWORK");icon:SetSize(16,16);icon:SetPoint("TOPLEFT",18+(slot-1)*50,0)
+        local icon=panel:CreateTexture(nil,"ARTWORK");icon:SetSize(16,16);icon:SetPoint("TOPLEFT",6+(slot-1)*24,0)
         T.slots[slot]={active=active,icon=icon}
     end
 end

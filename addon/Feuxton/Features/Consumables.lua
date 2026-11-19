@@ -428,7 +428,7 @@ function C.packet(tick)
     -- A corpse is not a ghost. Query the explicit public API each completed
     -- batch; missing, restricted and invalid results remain unknown.
     local ghost=flag(S.readableCall(UnitIsGhost,"player"))
-    local packet="HHI7"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(recoveryState,1)..S.bytes(ghost,1)..C.restExtension(tick,wellFed)
+    local packet=ns.wire.schemas.consumables..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534) or 65535,2)..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(S.spellUseCode("shared.healthstone"),1)..S.bytes(key,2)..S.bytes(flag(eating),1)..S.bytes(flag(drinking),1)..S.bytes(recoveryState,1)..S.bytes(ghost,1)..C.restExtension(tick,wellFed)
     assert(#packet+4<=66,"rest inventory packet capacity")
     return packet..S.bytes(S.adler32(packet),4)
 end

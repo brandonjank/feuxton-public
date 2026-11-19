@@ -39,15 +39,12 @@ end)
 S.hudBackground = S.hud:CreateTexture(nil, "BACKGROUND")
 S.hudBackground:SetAllPoints()
 S.hudBackground:SetColorTexture(0, 0, 0, 1)
--- Fixed schema markers validate both corners before desktop interpretation.
+-- The fixed header identifies the HUD. The active bridge owns the lower
+-- witness so only its current layout can mark the bottom edge.
 for index, color in ipairs({ {1,0,1}, {0,1,1}, {1,1,0} }) do
-    for _, corner in ipairs({ "TOPLEFT", "BOTTOMRIGHT" }) do
-        local marker = S.hud:CreateTexture(nil, "OVERLAY")
-        marker:SetSize(4, 4)
-        if corner == "TOPLEFT" then marker:SetPoint(corner, 4 + (index - 1) * 6, -3)
-        else marker:SetPoint(corner, -4 - (index - 1) * 6, 3) end
-        marker:SetColorTexture(color[1], color[2], color[3], 1)
-    end
+    local marker = S.hud:CreateTexture(nil, "OVERLAY")
+    marker:SetSize(4, 4); marker:SetPoint("TOPLEFT", 4 + (index - 1) * 6, -3)
+    marker:SetColorTexture(color[1], color[2], color[3], 1)
 end
 S.hudTitle = S.hud:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 S.hudTitle:SetPoint("TOPLEFT", 12, -8)

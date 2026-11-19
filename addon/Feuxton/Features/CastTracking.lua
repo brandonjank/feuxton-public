@@ -135,7 +135,7 @@ function P.activityPacket()
     -- successful public nil reads establish idle; no fallback enters this join.
     P.reconcileActivityIdle(P.currentActivity,UnitCastingInfo,UnitChannelInfo)
     local serial,kind,id=P.activityRecord()
-    local packet="PCS1"..S.bytes(S.setupSession,4)..S.bytes(serial,4)..S.bytes(kind,1)..S.bytes(id,4)
+    local packet=ns.wire.schemas.playerLifecycle..S.bytes(S.setupSession,4)..S.bytes(serial,4)..S.bytes(kind,1)..S.bytes(id,4)
     return packet..S.bytes(S.adler32(packet),4)
 end
 
@@ -245,6 +245,6 @@ function P.feedbackPacket(tick,now)
         ageMs=math.min(65534,math.floor(age*1000));flags=flags+(category>0 and 2 or 0)
         if event.associated then id=event.id;generation=event.targetGeneration;flags=flags+4 end
     end
-    local packet="HHJ1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(sequence,2)..S.bytes(code,2)..S.bytes(category,1)..S.bytes(id,4)..S.bytes(generation,1)..S.bytes(ageMs,2)..S.bytes(flags,1)
+    local packet=ns.wire.schemas.gameCastFeedback..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(sequence,2)..S.bytes(code,2)..S.bytes(category,1)..S.bytes(id,4)..S.bytes(generation,1)..S.bytes(ageMs,2)..S.bytes(flags,1)
     return packet..S.bytes(S.adler32(packet),4)
 end

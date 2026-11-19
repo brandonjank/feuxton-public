@@ -49,7 +49,7 @@ function E.packet(tick)
     local F=ns.features.Fishing
     if state==2 and classID==2 and subclassID==20 and F then controls,key=F.controlsObservation() end
     assert(#key<=24,"fishing controls key capacity")
-    local packet="HFE2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(state,1)..S.bytes(id,4)
+    local packet=ns.wire.schemas.equipment..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(state,1)..S.bytes(id,4)
         ..S.bytes(classID,1)..S.bytes(subclassID,1)..S.bytes(E.revision,4)
         ..S.bytes(controls,1)..S.bytes(#key,1)..key
     return packet..S.bytes(S.adler32(packet),4)

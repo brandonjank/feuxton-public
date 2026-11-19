@@ -1,6 +1,6 @@
 -- Adaptive Shaman catalog and SHS1 class packet. No rotation or input here.
 local _,ns=...
-local H={denseBridgeLayout={key="shaman-slim-v1",height=295,nativeVitalsTop=200,nativeVitalsHeight=87,nativeSignalsTop=287,nativeSignalsHeight=58,gauges=150,units=150,unitHeight=20,activity=14,headerActivity=true,resources=150,setup=170,grid=170,roster=170,coreStamp=108,targetStamp=122,marker={.25,.5,1}}}
+local H={denseBridgeLayout={key="shaman-slim-v1",gauges=78,units=78,unitHeight=20,activity=14,headerActivity=true,resources=78,setup=98,grid=98,roster=98,coreStamp=108,targetStamp=122,marker={.25,.5,1}}}
 ns.classes.SHAMAN=H
 H.specs=ns.spellCatalog.SHAMAN.specs
 function H.initializePreview()
@@ -19,7 +19,7 @@ function H.initializePreview()
    B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
   end
   B.auras(bridge,H.specs,readings)
-  local packet="SHS2"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local packet=ns.wire.schemas.shamanPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
    local r=readings[i];local entry=S.managedSpells and S.managedSpells.delivery("SHAMAN",spec.name)
    local key=S.bindingsValid and S.managedSpells.deliveryCurrent(entry) and S.compactBindingCode(entry.key) or 0
@@ -44,8 +44,8 @@ function H.initializePreview()
   packet=packet..S.executionBytes(2)..S.bytes(G.code(dungeon),1)..S.bytes(G.code(combat),1)..ns.features.Totems.observe(H.specs)..S.bytes(G.code(main),1)..S.bytes(G.code(off),1)..S.bytes(stopKey,2)
   packet=packet..S.bytes(B.stackCount("player","Maelstrom Weapon",5),1)
   local sum=S.adler32(packet);for i,dot in ipairs(bridge.stamp) do local v=math.floor(sum/256^(i-1))%256/255;dot:SetColorTexture(v,v,v,1) end
-  S.publishTransportPacket(6,packet..S.bytes(sum,4))
+  S.publishTransportPacket(ns.wire.ids.shamanPreview,packet..S.bytes(sum,4))
  end
- bridge.panel:SetScript("OnUpdate",function(self,dt) elapsed=elapsed+dt;if elapsed<S.updateInterval() then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err) or nil;if not ok then S.publishTransportPacket(6,nil) end end)
+ bridge.panel:SetScript("OnUpdate",function(self,dt) elapsed=elapsed+dt;if elapsed<S.updateInterval() then return end;elapsed=0;local ok,err=pcall(render);H.lastError=not ok and S.describe(err) or nil;if not ok then S.publishTransportPacket(ns.wire.ids.shamanPreview,nil) end end)
  S.profileScript(bridge.panel,"OnUpdate","Shaman bridge")
 end

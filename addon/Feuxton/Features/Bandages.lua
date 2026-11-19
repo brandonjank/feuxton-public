@@ -126,7 +126,7 @@ function B.packet(tick)
     local function flag(v)return v==true and 2 or v==false and 1 or 0 end
     -- HHA1: 4 magic + 8 owner + 8 item/use spell + 2 count + four flags +
     -- 2 key + 4 checksum. Source-age/outer-tick ownership is enforced outside.
-    local packet="HHA1"..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534)or 65535,2)
+    local packet=ns.wire.schemas.bandages..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(id,4)..S.bytes(spellID or 0,4)..S.bytes(count and math.min(count,65534)or 65535,2)
         ..S.bytes(flag(ready),1)..S.bytes(flag(usable),1)..S.bytes(flag(B.recentlyBandaged()),1)..S.bytes(S.spellUseCode(B.Key),1)..S.bytes(key,2)
     assert(#packet==28,"bandage packet capacity")
     return packet..S.bytes(S.adler32(packet),4)
