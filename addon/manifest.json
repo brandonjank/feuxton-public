@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.103",
+    "addonVersion":  "0.81.104",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v72",
-    "sourceRevision":  "af11f5850f5e0593be7d2da28e73872ebdaa9055",
+    "sourceRevision":  "85a711dbf4531b1ebbaea9c3a8d9f9d224ee6445",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -192,12 +192,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "43EFDD809D1E6AD2AF288E7323E1C5B7B8AA5BB1F57FE09292F0AF2EF41072ED",
+                      "sha256":  "3E2E5C1E5223E8066D1BA4EA29DF95197AD76FF8B9E95BF0C0A05B4F5906C2E3",
                       "size":  5394
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "DED52D4B917199836E484761A6B9073437B228311D8D0A80C320A0AA39A528B7",
+                      "sha256":  "F4F6C12AE27B21E5403F24BDEC07EB2897FF93F4ECFA38B476CBB19E22A10D5D",
                       "size":  1298
                   },
                   {
@@ -232,8 +232,8 @@
                   },
                   {
                       "path":  "ProbeWindow.lua",
-                      "sha256":  "F4B2480E4C4B3020E7993CF5A749E39D65EF93042EAC5121874F7718209E20C8",
-                      "size":  42812
+                      "sha256":  "C6A30F36F8C9B0B32E1CDF2B0070517AF1992344F2E4FE2BBF88426B63C11F7C",
+                      "size":  43438
                   },
                   {
                       "path":  "ResourceGauges.lua",
