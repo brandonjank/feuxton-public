@@ -70,23 +70,34 @@ function ns.initializeDenseBridge()
         elseif id==ns.wire.ids.guide then stamp(bridge.guideStamp,packet)
         elseif id>=ns.wire.ids.rosterFirst and id<=ns.wire.ids.rosterLast then stamp(bridge.rosterStamps[id-ns.wire.ids.rosterFirst+1],packet) end
     end
+    local function publishVitals(tick,packet)
+        local ok,err=pcall(ns.refreshProductionVitals,tick,packet)
+        bridge.errors.vitals=not ok and S.describe(err) or nil
+        if not ok and type(ns.clearProductionVitals)=="function" then pcall(ns.clearProductionVitals,bridge.errors.vitals) end
+    end
+    local function publishSignals(tick,packet)
+        local ok,err=true,nil
+        if type(ns.commitNativeCooldownBatch)=="function" then ok,err=pcall(ns.commitNativeCooldownBatch) end
+        if ok then ok,err=pcall(ns.refreshNativeSignals,tick,packet) end
+        bridge.errors.signals=not ok and S.describe(err) or nil
+        if not ok and type(ns.clearNativeSignals)=="function" then pcall(ns.clearNativeSignals,bridge.errors.signals) end
+    end
+    local profileVitals=S.profileFunction(publishVitals,"native vitals footer (FHV3)")
+    local profileSignals=S.profileFunction(publishSignals,"native timing footer (FHS3)")
     function bridge.publishState(now)
         bridge.tick=(bridge.tick+1)%4294967296
         local packet=S.denseStatePacket(now,bridge.tick);bridge.lastStatePacket=packet
         bridge.paint(bridge.stateCells,packet,24);bridge.errors.state=nil
         -- Numeric native fields are an independently stamped extension of this
         -- exact completed envelope. A footer failure cannot blank HHD3.
+        local profiling=S.performance.enabled
         if type(ns.refreshProductionVitals)=="function" then
-            local ok,err=pcall(ns.refreshProductionVitals,bridge.tick,packet)
-            bridge.errors.vitals=not ok and S.describe(err) or nil
-            if not ok and type(ns.clearProductionVitals)=="function" then pcall(ns.clearProductionVitals,bridge.errors.vitals) end
+            local publish=profiling and ns.productionVitals and ns.productionVitals.enabled and profileVitals or publishVitals
+            publish(bridge.tick,packet)
         end
         if type(ns.refreshNativeSignals)=="function" then
-            local ok,err=true,nil
-            if type(ns.commitNativeCooldownBatch)=="function" then ok,err=pcall(ns.commitNativeCooldownBatch) end
-            if ok then ok,err=pcall(ns.refreshNativeSignals,bridge.tick,packet) end
-            bridge.errors.signals=not ok and S.describe(err) or nil
-            if not ok and type(ns.clearNativeSignals)=="function" then pcall(ns.clearNativeSignals,bridge.errors.signals) end
+            local publish=profiling and ns.nativeSignals and ns.nativeSignals.enabled and profileSignals or publishSignals
+            publish(bridge.tick,packet)
         end
     end
     function bridge.setEnabled(enabled)
