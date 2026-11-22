@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.108",
+    "addonVersion":  "0.81.109",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v74",
-    "sourceRevision":  "a627323cbbf094c095e5046c4e50d09525bd9c79",
+    "sourceRevision":  "ad5aebdc73204a61181988f66a86d21f113c015d",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "62BD8C38082B9EC22CCAB16F5BC3336B68500E1FB6190864E0ED7D596FEE8BAB",
-                      "size":  46458
+                      "sha256":  "F8A4EC9CA8E4ACC41F13E03B2AD0BCADF5190D357E2BF87138A552A648D6811C",
+                      "size":  46467
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -67,8 +67,8 @@
                   },
                   {
                       "path":  "Diagnostics.lua",
-                      "sha256":  "7C2674E361340379F6C03F418D2A1B76797F10E2B9DB0FDF116E813AF68F4C92",
-                      "size":  32764
+                      "sha256":  "5AEBF976F16F1DD8172D5AEBEADFD31134D5CE521817C09448E4F7D0552DDD82",
+                      "size":  39769
                   },
                   {
                       "path":  "Features/Bandages.lua",
@@ -192,12 +192,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "4648BE86395C38DDC397D08204C0DD796E98BCD1D1EF3B8D4233D9FFFFE234A4",
+                      "sha256":  "58EE701DE0FF08118D23F98D779904CB8A6FA8A4BFCEAEB537C8F6339A2282EF",
                       "size":  5394
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "7F5BAEA1432EFF463A46EDCA47951692D7B98D6F59954509053C92A13BB012B9",
+                      "sha256":  "A91B2A66ABBA439C89C50A316D862076811C3492978A92720365599339E3500B",
                       "size":  1298
                   },
                   {
@@ -247,8 +247,8 @@
                   },
                   {
                       "path":  "SetupTransport.lua",
-                      "sha256":  "AA2C8EE272F2EB8707A2A6664E7CAC0055B92A5417CE831375E0606ADC09A9F7",
-                      "size":  46627
+                      "sha256":  "E0B12D793297C826875BF4F4FB3001048DAE68D9BBB8043F8CCB779E3E70D537",
+                      "size":  46825
                   },
                   {
                       "path":  "SpellCatalog.lua",
