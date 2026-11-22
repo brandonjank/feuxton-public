@@ -53,14 +53,14 @@ function M.auxiliaryCurrent(family,buttonName,key)
     return entry and entry.key==key and entry.buttonName==buttonName and M.reserved[key]==family and not ns.keyPolicy.reason(key)
         and bindingAction(key,false)=="" and bindingAction(key,true)==entry.action or false
 end
-function M.claimAuxiliaryBinding(family,buttonName)
+function M.claimAuxiliaryBinding(family,buttonName,pools)
     if not M.available() or S.readableCall(InCombatLockdown)~=false then return nil end
     M.auxiliary=M.auxiliary or {};local entry=M.auxiliary[family]
     if not entry then
         entry={owner=CreateFrame("Frame",nil,UIParent),buttonName=buttonName,action="CLICK "..buttonName..":LeftButton"};M.auxiliary[family]=entry
     end
     if not entry.key then
-        local pools={M.itemKeys,M.extendedKeys,M.keys}
+        pools=pools or {M.itemKeys,M.extendedKeys,M.keys}
         for _,keys in ipairs(pools)do
             for _,key in ipairs(keys)do
                 if not M.reserved[key] and not ns.keyPolicy.reason(key) and bindingAction(key,false)=="" and bindingAction(key,true)==""then entry.key=key;M.reserved[key]=family;break end

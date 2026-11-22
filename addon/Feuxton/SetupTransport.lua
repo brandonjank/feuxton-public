@@ -3,7 +3,7 @@ local _, ns = ...
 local S = ns.state
 
 -- HHM1: paged setup metadata only. All exported values are whitelisted,
--- checked for secrets, and collected outside combat. No combat timings,
+-- checked for secrets, and collected outside combat. No live combat timings,
 -- unit aura contents or macro bodies are serialized.
 S.metadataFrame=CreateFrame("Frame",nil,S.hud)
 S.metadataFrame:SetPoint("TOPLEFT",S.unitHud,"BOTTOMLEFT",0,-4)
@@ -678,7 +678,9 @@ function S.collectSetup()
     local restInventory=ns.features.Consumables and ns.features.Consumables.restMetadata and ns.features.Consumables.restMetadata()or "null"
     local payload='{"v":1,"restInventory":'..restInventory..',"character":'..character..',"bindings":['..table.concat(bindings,",")..'],"spells":['..table.concat(knownSpells,",")..'],"talents":['..table.concat(talents,",")..'],"trees":['..table.concat(trees,",")..'],"petActions":['..table.concat(petActions,",")..'],"bookAvailable":'..S.jsonValue(bookAvailable)..',"talentAvailable":'..S.jsonValue(talentAvailable)..'}'
     local performance=S.collectClientPerformance and S.collectClientPerformance()
-    if performance and #payload+#performance+22<=65536 then return payload:sub(1,-2)..',"clientPerformance":'..performance..'}'end
+    if performance and #payload+#performance+22<=65536 then payload=payload:sub(1,-2)..',"clientPerformance":'..performance..'}'end
+    local profiler=S.collectAddonProfiler and S.collectAddonProfiler()
+    if profiler and #payload+#profiler+17<=65536 then payload=payload:sub(1,-2)..',"addonProfiler":'..profiler..'}'end
     return payload
 end
 function S.refreshSetup()

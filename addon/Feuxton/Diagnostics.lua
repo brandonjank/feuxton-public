@@ -489,28 +489,177 @@ function S.profileScript(frame, script, name)
     local original=frame:GetScript(script)
     if original then frame:SetScript(script,S.profileFunction(original,name)) end
 end
+local function startProfile(at,detail)
+    local p=S.performance
+    p.stages={};p.enabled=true;p.started=at;p.stopped=nil;p.detail=detail
+    p.paint={updates=0,visits=0,writes=0,skippedBlocks=0}
+    p.paintDetail={updates=0,writes=0,setterSamples=0,controlSamples=0,setterMs=0,controlMs=0}
+end
+local function stopProfile(at)
+    S.performance.stopped=at;S.performance.enabled=false;S.performance.detail=false
+end
+local function profileNames()
+    local names={}
+    for name in pairs(S.performance.stages)do names[#names+1]=name end
+    table.sort(names)
+    return names
+end
+local function profileStatistics(stage)
+    local sorted,sum={},0
+    for _,value in ipairs(stage.samples)do sorted[#sorted+1]=value;sum=sum+value end
+    table.sort(sorted)
+    return #sorted,sum,sorted[math.ceil(#sorted*.95)]
+end
+
+-- The two fixed diagnostic actions never claim keys used by gameplay or
+-- control a locally started profile. A remote run ends even if the app exits.
+local remote={run=0,duration=180}
+local controls={
+    {family="addonperf.start",name="FeuxtonAddonProfilerStart",field="startBinding"},
+    {family="addonperf.stop",name="FeuxtonAddonProfilerStop",field="stopBinding"},
+}
+local diagnosticKeys={}
+for digit=0,9 do diagnosticKeys[#diagnosticKeys+1]="ALT-CTRL-SHIFT-"..digit end
+local diagnosticBindingPools={diagnosticKeys}
+local function finite(value,max)
+    return type(value)=="number" and value>=0 and value<=max
+end
+local function profileTime()
+    local at=S.readableCall(GetTime)
+    if finite(at,9007199254740991)then return at end
+end
+local function profileDate()
+    local at=S.readableCall(GetServerTime)
+    if finite(at,253402300799) and at>=1 and at==math.floor(at)then return at end
+end
+local function metric(value)
+    if finite(value,1000000)then return math.floor(value*1000+.5)/1000 end
+end
+local function completeRemoteProfile(at)
+    if not remote.running then return end
+    remote.running=false
+    stopProfile(at)
+    local completedAt=profileDate()
+    local elapsed=finite(at,9007199254740991) and at-S.performance.started
+    if completedAt and finite(elapsed,3600)then
+        local rows={}
+        local stages,names=S.performance.stages,profileNames()
+        if #names>24 then
+            table.sort(names,function(a,b)
+                local left,right=stages[a].totalMs,stages[b].totalMs
+                if left==right then return a<b end
+                return left>right
+            end)
+        end
+        for _,name in ipairs(names)do
+            if #rows>=24 then break end
+            local stage=stages[name]
+            local samples,sum,p95=profileStatistics(stage)
+            local mean,peak=metric(sum/samples),metric(stage.peakMs)
+            p95=metric(p95)
+            local rate=metric(elapsed>0 and stage.totalMs/elapsed or nil)
+            if #name<=64 and name:match("^[ -~]+$") and stage.calls<=4294967295 and mean and p95 and peak and rate then
+                rows[#rows+1]=S.jsonObject({name=name,calls=stage.calls,samples=samples,meanMs=mean,p95Ms=p95,maxMs=peak,cpuMsPerSecond=rate})
+            end
+        end
+        local report=S.jsonObject({elapsedMs=math.floor(elapsed*1000+.5)})
+        report=report:sub(1,-2)..',"rows":['..table.concat(rows,",")..']'
+        local p=S.performance.paint
+        if p.updates>0 and p.updates<=4294967295 then
+            local cells,writes,unchanged=metric(p.visits/p.updates),metric(p.writes/p.updates),metric(p.skippedBlocks/p.updates)
+            if cells and writes and unchanged then
+                report=report..',"paint":'..S.jsonObject({frames=p.updates,cellsPerFrame=cells,writesPerFrame=writes,unchangedPerFrame=unchanged})
+            end
+        end
+        remote.report=report..'}';remote.completedAt=completedAt
+    end
+    if ns.markSetupDirty then ns.markSetupDirty()end
+end
+local function clearFocus(api,...)
+    if type(api)~="function" then return false end
+    local ok,value=pcall(api,...)
+    return ok and not S.isSecret(value) and value==nil
+end
+local function profileControlSafe()
+    if S.readableCall(InCombatLockdown)~=false or S.readableCall(UnitAffectingCombat,"player")~=false or
+        S.readableCall(UnitIsDeadOrGhost,"player")~=false or S.readableCall(UnitOnTaxi,"player")~=false or
+        S.readableCall(GetUnitSpeed,"player")~=0 or not clearFocus(GetCurrentKeyBoardFocus) or
+        not clearFocus(UnitCastingInfo,"player") or not clearFocus(UnitChannelInfo,"player") then return false end
+    local c=ns.features.Consumables
+    if not c or c.restPauseRequested or c.lootState()~=false then return false end
+    local eating,drinking=c.recovery()
+    return eating==false and drinking==false
+end
+local function runProfileControl(control,start)
+    if start and S.performance.enabled or not start and not remote.running then return end
+    local managed=S.managedSpells
+    if not managed or not managed.auxiliaryCurrent(control.family,control.name,control.key) or not profileControlSafe()then return end
+    local at=profileTime()
+    if not at then return end
+    if not start then completeRemoteProfile(at);return end
+    if not profileDate() or not S.profileClock() then return end
+    local after=S.safeField(C_Timer,"After")
+    if type(after)~="function"then return end
+    local run=remote.run%4294967295+1
+    local scheduled,result=pcall(after,remote.duration,function()
+        if remote.running and remote.run==run then completeRemoteProfile(profileTime())end
+    end)
+    if not scheduled or S.isSecret(result) or result==false then return end
+    remote.run=run;remote.running=true;remote.report=nil;remote.completedAt=nil
+    startProfile(at,false)
+    if ns.markSetupDirty then ns.markSetupDirty()end
+end
+function S.collectAddonProfiler()
+    if type(debugprofilestop)~="function" or type(S.safeField(C_Timer,"After"))~="function" then return end
+    local managed=S.managedSpells
+    if not managed then return end
+    local phase=remote.running and "running" or S.performance.enabled and "local" or remote.run>0 and "complete" or "idle"
+    local fields={schemaVersion=1,run=remote.run,phase=phase}
+    if phase=="complete"then fields.completedAtUnixSeconds=remote.completedAt end
+    if S.readableCall(InCombatLockdown)==false then
+        for index,control in ipairs(controls)do
+            if not control.button then
+                local button=CreateFrame("Button",control.name,UIParent)
+                button:SetSize(1,1);button:SetPoint("TOPLEFT",UIParent,"TOPLEFT",-10000,10000);button:SetAlpha(0)
+                button:RegisterForClicks("AnyDown")
+                local start=index==1
+                button:SetScript("OnClick",function()runProfileControl(control,start)end)
+                control.button=button
+            end
+            if not managed.auxiliaryCurrent(control.family,control.name,control.key) then
+                control.key=managed.claimAuxiliaryBinding(control.family,control.name,diagnosticBindingPools)
+            end
+            fields[control.field]=control.key
+        end
+    end
+    local result=S.jsonObject(fields)
+    if phase=="complete" and remote.report then result=result:sub(1,-2)..',"report":'..remote.report..'}'end
+    return result
+end
 SLASH_FEUXTONPERF1="/feuxtonperf"
 SlashCmdList.FEUXTONPERF=function(message)
     message=(message or ""):lower():match("^%s*(.-)%s*$")
     if message=="on" or message=="detail" then
-        S.performance.stages={};S.performance.enabled=true;S.performance.started=S.readableCall(GetTime);S.performance.stopped=nil
-        S.performance.detail=message=="detail"
-        S.performance.paint={updates=0,visits=0,writes=0,skippedBlocks=0}
-        S.performance.paintDetail={updates=0,writes=0,setterSamples=0,controlSamples=0,setterMs=0,controlMs=0}
+        local at=S.readableCall(GetTime)
+        completeRemoteProfile(at)
+        startProfile(at,message=="detail")
+        if ns.markSetupDirty then ns.markSetupDirty()end
         print(S.performance.detail and "Feuxton: detail profiling ON. Extra clock reads perturb timing; /feuxtonperf report shows setter and clock-control totals." or "Feuxton: profiling ON. /feuxtonperf report shows due-update and event costs; nested totals include their children.")
     elseif message=="off" then
-        S.performance.stopped=S.readableCall(GetTime);S.performance.enabled=false;S.performance.detail=false;print("Feuxton: profiling OFF.")
+        local at=S.readableCall(GetTime)
+        if remote.running then completeRemoteProfile(at)else stopProfile(at)end
+        if ns.markSetupDirty then ns.markSetupDirty()end
+        print("Feuxton: profiling OFF.")
     elseif message=="report" then
         local lines={"Feuxton addon performance · "..(S.performance.enabled and "ON" or "OFF"),"Milliseconds per callback, last 120 samples. Coordinated total includes producers, assembly and painting; assembly includes support/consumables."}
         local now=S.performance.enabled and S.readableCall(GetTime) or S.performance.stopped
         local elapsed=type(now)=="number" and type(S.performance.started)=="number" and now-S.performance.started or 0
         lines[#lines+1]="Measured callback CPU ms/s is elapsed-window cost, not percent of all addon CPU. Deferred client/GPU rendering is excluded; native API call time is included."
-        local names={};for name in pairs(S.performance.stages) do names[#names+1]=name end;table.sort(names)
+        local names=profileNames()
         for _,name in ipairs(names) do
-            local stage=S.performance.stages[name];local sorted={};local sum=0
-            for _,value in ipairs(stage.samples) do sorted[#sorted+1]=value;sum=sum+value end
-            table.sort(sorted)
-            lines[#lines+1]=string.format("%s: avg %.3f / p95 %.3f ms (%d samples, %d calls)",name,sum/#sorted,sorted[math.ceil(#sorted*.95)],#sorted,stage.calls)
+            local stage=S.performance.stages[name]
+            local samples,sum,p95=profileStatistics(stage)
+            lines[#lines+1]=string.format("%s: avg %.3f / p95 %.3f ms (%d samples, %d calls)",name,sum/samples,p95,samples,stage.calls)
             if elapsed>0 then lines[#lines+1]=string.format("  window %.1fs: %.3f CPU ms/s; peak %.3f ms",elapsed,(stage.totalMs or sum)/elapsed,stage.peakMs or 0) end
         end
         local paint=S.performance.paint
