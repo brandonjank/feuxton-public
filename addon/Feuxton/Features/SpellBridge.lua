@@ -121,7 +121,7 @@ function B.render(bridge,index,id,learned,spec,rangeOK,rangeRaw,usableOK,usableR
     if not usable then R.paintColor(tile.visualSignals[3],1,.65,0,1) end
     return tile
 end
-function B.auras(bridge,specs,readings)
+function B.auras(bridge,specs,readings,observeAura)
     local S=ns.state;local G=ns.features.GroupContext;local signature={}
     -- Candidate effect IDs only configure a name-checked native filter. They
     -- do not certify absence; the app must observe the exact filter match first.
@@ -174,6 +174,7 @@ function B.auras(bridge,specs,readings)
                 scan.names[name]=true
                 local id=G.field(aura,"spellId")
                 if id.status=="observed" and type(id.value)=="number" and id.value>0 then bridge.verifiedAuras[name]=id.value end
+                if observeAura then observeAura(unit,name,aura,id) end
             end
         end
     end

@@ -1,4 +1,4 @@
--- Warlock leveling catalog and WLS5 class packet. No rotation or input here.
+-- Warlock leveling catalog and WLS6 class packet. No rotation or input here.
 local _,ns=...
 local H={denseBridgeLayout={key="warlock-slim-v1",gauges=78,units=78,unitHeight=20,activity=14,headerActivity=true,resources=78,setup=98,grid=98,roster=98,coreStamp=108,targetStamp=122,marker={.5,.25,1}}}
 ns.classes.WARLOCK=H
@@ -6,6 +6,53 @@ H.specs=ns.spellCatalog.WARLOCK.specs
 -- Class-owned native certificates, rank choices and form/queue handling.
 local spellOverrides={["warlock.agony"]={["nativeAuraIDs"]={["70338"]={[6217]=6217}}},["warlock.corruption"]={["nativeAuraIDs"]={["70338"]={[6223]=6223}}},["warlock.shadowBolt"]={["auraName"]="Shadow Trance"},["warlock.searingPain"]={["nativeAuraCandidates"]={1293696},["auraName"]="Demonic Brand"},["warlock.mouseoverAgony"]={["nativeAuraIDs"]={["70338"]={[6217]=6217}}},["warlock.mouseoverCorruption"]={["nativeAuraIDs"]={["70338"]={[6223]=6223}}}}
 for _,spec in ipairs(H.specs) do for field,value in pairs(spellOverrides[spec.key] or {}) do spec[field]=value end end
+local function publicInteger(value,maximum)
+ local S=ns.state
+ if not S.isSecret(value) and type(value)=="number" and value>=0 and value<=maximum and value==math.floor(value) then return value end
+end
+local function shardTarget()
+ local S=ns.state;local G=ns.features.GroupContext
+ local slots=publicInteger(NUM_BAG_SLOTS,8)
+ if not slots or slots==0 then return 0 end
+ local container=type(C_Container)=="table" and C_Container or {}
+ local capacity=0
+ for bag=1,slots do
+  local size=publicInteger(S.readableCall(container.GetContainerNumSlots or GetContainerNumSlots,bag),128)
+  if not size then return 0 end
+  if size>0 then
+   local family=G.read(container.GetContainerNumFreeSlots or GetContainerNumFreeSlots,2,bag)
+   local mask=family.status=="observed" and publicInteger(family.value,4294967295)
+   if not mask then return 0 end
+   -- This client uses bag-family bit 4 for dedicated Soul Shard bags.
+   if math.floor(mask/4)%2==1 then capacity=capacity+size end
+  end
+ end
+ return capacity>0 and capacity or 2
+end
+local function tooltipInteger(value)
+ if value:match("^%d+$") then return publicInteger(tonumber(value),16777215) end
+ local first,remaining=value:match("^(%d%d?%d?)(,.*)$")
+ if not first then return nil end
+ while remaining~="" do
+  local group,tail=remaining:match("^,(%d%d%d)(.*)$")
+  if not group then return nil end
+  first=first..group;remaining=tail
+ end
+ return publicInteger(tonumber(first),16777215)
+end
+local function lifeTapRestore(id)
+ local S=ns.state
+ local locale=S.readableCall(GetLocale)
+ if locale~="enUS" and locale~="enGB" then return nil end
+ local text=S.readableCall(S.spellAPI.GetSpellDescription or GetSpellDescription,id)
+ if type(text)~="string" or #text>256 then return nil end
+ -- The active spell's text incorporates rank, Spirit and the talent. No
+ -- catalog baseline or subtraction of restricted player stats is equivalent.
+ local health,mana=text:match("^%s*Converts ([%d,]+) Health into ([%d,]+) Mana for you%. Spirit increases the amount converted%.%s*$")
+ if not health or not mana then return nil end
+ local cost,restore=tooltipInteger(health),tooltipInteger(mana)
+ if cost and cost>0 and restore and restore>0 then return restore end
+end
 function H.initializePreview()
  local S=ns.state;local G=ns.features.GroupContext
  if G.text(G.read(UnitClass,2,"player"),16)~="WARLOCK" then return end
@@ -78,6 +125,22 @@ function H.initializePreview()
   if event=="UNIT_PET" then pcall(SetPortraitTexture,petIcon,"pet") else H.mouseoverGeneration=(H.mouseoverGeneration+1)%4294967296 end
  end)
  local lastIdentity=""
+ local armorExpiry,armorSeen
+ local function observeArmor(unit,name,aura,id)
+  if unit~="player" or name~="Demon Armor" then return end
+  if armorSeen then armorExpiry=0;return end
+  armorSeen=true
+  local spellID=id.status=="observed" and publicInteger(id.value,2147483647)
+  if not spellID or spellID==0 then return end
+  local expiration=S.safeField(aura,"expirationTime")
+  if type(expiration)~="number" or expiration~=expiration or expiration<0 or expiration==math.huge then return end
+  if expiration==0 then
+   if S.safeField(aura,"duration")==0 then armorExpiry=1 end
+   return
+  end
+  local now=S.readableCall(GetTime)
+  if type(now)=="number" and now>=0 and expiration>=now then armorExpiry=expiration-now<300 and 2 or 1 end
+ end
  local function mouseover()
   local identity=G.text(G.read(UnitGUID,1,"mouseover"),40)
   if identity~=lastIdentity then lastIdentity=identity;H.mouseoverGeneration=(H.mouseoverGeneration+1)%4294967296 end
@@ -93,6 +156,8 @@ function H.initializePreview()
   local F=ns.features.Healing;tick=(tick+1)%4294967296
   local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local hover=mouseover();local readings={}
+  local combat=G.read(UnitAffectingCombat,1,"player")
+  local outOfCombat=combat.status=="observed" and combat.value==false
   for i,spec in ipairs(H.specs) do
    local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource
    if spec.petAbility then r=ns.features.PetSupport.readSacrifice()
@@ -111,7 +176,8 @@ function H.initializePreview()
    auraReadings={};for i,r in ipairs(readings)do auraReadings[i]=r end
    auraReadings[34]={id=H.sacrificeAuraID,learned={status="observed",value=true}}
   end
-  B.auras(bridge,H.specs,auraReadings)
+  armorExpiry,armorSeen=0,false
+  B.auras(bridge,H.specs,auraReadings,outOfCombat and observeArmor or nil)
   if auraReadings~=readings then sacrificeReading.aura=auraReadings[34].aura end
   local auraSettled=GetTime()>=(bridge.settledAt or math.huge)
   local healthOK=false
@@ -125,6 +191,7 @@ function H.initializePreview()
   if healthOK then hoverHealthValid:SetColorTexture(0,1,0,1) else hoverHealth:SetMinMaxValues(0,1);hoverHealth:SetValue(0);hoverHealthValid:SetColorTexture(1,.65,0,1) end
   local hellfire=readings[33];renderChannelCosts(hellfire.id,hellfire.learned.status=="observed" and hellfire.learned.value==true)
   local packet=ns.wire.schemas.warlockPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
+  local tapRestore,tapID=0,0
   for i,spec in ipairs(H.specs) do
    local r=readings[i];local M=S.managedSpells;local family=spec.managedName or spec.name
    local entry=M and M.entries["WARLOCK:"..family]
@@ -132,6 +199,10 @@ function H.initializePreview()
    local compatible=not spec.petAbility or entry and entry.id==r.id and entry.petActionSlot==r.petActionSlot and entry.petIdentity==r.petIdentity
    local current=M and(spec.petAbility and M.current(entry)or not spec.petAbility and M.deliveryCurrent(entry))
    local key=S.bindingsValid and compatible and current and S.compactBindingCode(entry.key) or 0
+   if spec.key=="warlock.lifeTap" and outOfCombat and key>0 and r.learned.value==true and entry.id==r.id and r.id>0 and r.id<=16777215 then
+    local amount=lifeTapRestore(r.id)
+    if amount then tapRestore,tapID=amount,r.id end
+   end
    local ready=r.ready
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
    local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=spec.petAbility and r.castMs or S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end
@@ -139,7 +210,6 @@ function H.initializePreview()
    local configured=bridge.configured and bridge.configured[i] and auraSettled
    packet=packet..S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(S.spellUseCode(spec.usageKey or spec.key)+(absent and 4 or 0)+(configured and 8 or 0),1)..S.bytes(ms,2)
   end
-  local combat=G.read(UnitAffectingCombat,1,"player")
   combatDot:SetColorTexture(1,1,1,1)
   local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1})
   if not painted or result~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
@@ -162,6 +232,7 @@ function H.initializePreview()
   local petAction=ns.features.PetSupport.sacrificeAction()
   if sacrifice.petIdentity~=ns.features.PetSupport.identity() or sacrifice.petActionSlot>0 and (not petAction or petAction.id~=sacrifice.id or petAction.slot~=sacrifice.petActionSlot) then error("Pet action changed during Warlock update") end
   packet=packet..S.bytes(sacrifice.petActionSlot,1)..S.bytes(#petIdentity,1)..petIdentity
+  packet=packet..S.bytes(armorExpiry,1)..S.bytes(shardTarget(),2)..S.bytes(tapRestore,3)..S.bytes(tapID,3)
   local sum=S.adler32(packet);for i,dot in ipairs(bridge.stamp) do local v=math.floor(sum/256^(i-1))%256/255;dot:SetColorTexture(v,v,v,1) end
   S.publishTransportPacket(ns.wire.ids.warlockPreview,packet..S.bytes(sum,4))
  end
