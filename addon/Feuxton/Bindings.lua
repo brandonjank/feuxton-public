@@ -163,6 +163,10 @@ function M.catalog()
         -- exhaust the key pool. Druid already reserves all learned racials.
         if class=="DRUID" or spec.key=="racial.forsaken" then add(spec.id,spec.name,"player",true) end
     end end
+    if class=="PALADIN" and ns.features.ControlEffects then
+        local spec=ns.features.ControlEffects.freedom;local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
+        add(S.safeField(info,"spellID"),spec.name,"target",true)
+    end
     local lines=S.readableCall(S.bookAPI.GetNumSpellBookSkillLines)
     local bank=type(Enum)=="table" and S.safeField(S.safeField(Enum,"SpellBookSpellBank"),"Player")
     if type(lines)=="number" and lines>=0 and lines<=64 and type(bank)=="number" then
@@ -186,10 +190,6 @@ function M.catalog()
             candidates[#candidates+1]={id=0,name="Feuxton Skull",unit="target",skull=true}
         end end
     if class~="DRUID" and ns.features.Racials then for _,spec in ipairs(ns.features.Racials.learned()) do add(spec.id,spec.name,"player",true) end end
-    if class=="PALADIN" and ns.features.ControlEffects then
-        local spec=ns.features.ControlEffects.freedom;local info=S.readableCall(S.spellAPI.GetSpellInfo,spec.name)
-        add(S.safeField(info,"spellID"),spec.name,"target",true)
-    end
     if class~="WARLOCK" and class~="DRUID" and ns.features.Consumables then candidates[#candidates+1]=ns.features.Consumables.candidate() end
     if ns.features.Bandages then local bandage=ns.features.Bandages.candidate();if bandage then candidates[#candidates+1]=bandage end end
     if ns.features.Potions then for _,potion in ipairs(ns.features.Potions.candidates())do candidates[#candidates+1]=potion end end
@@ -205,14 +205,17 @@ local function fallbackKeys(candidate)
 end
 local paladinSelfSeals={
     ["paladin.sealCommand"]=true,["paladin.sealRighteousness"]=true,
-    ["paladin.sealCrusader"]=true,["paladin.sealFury"]=true,
+    ["paladin.sealCrusader"]=true,["paladin.sealFury"]=true,["paladin.sealWisdom"]=true,
 }
 local function isSelfSeal(candidate)
     return candidate.unit=="player" and paladinSelfSeals[candidate.abilityKey]==true
 end
+local function isSelfBulwark(candidate)
+    return candidate.unit=="player" and candidate.abilityKey=="paladin.templarsBulwark"
+end
 local function availableManagedKey(candidate,keys)
     return freeManagedKey(keys)
-        or (isSelfSeal(candidate) and freeManagedKey(M.extendedKeys))
+        or ((isSelfSeal(candidate) or candidate.support or isSelfBulwark(candidate)) and freeManagedKey(M.extendedKeys))
         or (fallbackKeys(candidate) and freeManagedKey(M.itemKeys))
         or nil
 end
@@ -428,6 +431,23 @@ local function macroTargetsSelected(id)
     end
     return true
 end
+local function exactSelfMacro(id,name)
+    local body=S.readableCall(GetMacroBody,id)
+    if type(body)~="string" or #body>255 then return false end
+    local matched=false
+    for line in (body:lower().."\n"):gmatch("([^\n]*)\n")do
+        line=line:match("^%s*(.-)%s*$")
+        if line~="" and line:sub(1,1)~="#" then
+            local cast=line:match("^/cast%s+(.+)$")
+            if not cast or matched then return false end
+            cast=cast:match("^%[%s*@player%s*%]%s*(.+)$") or cast:match("^%[%s*target%s*=%s*player%s*%]%s*(.+)$") or cast
+            cast=cast:match("^(.-)%s*%(%s*rank%s+[1-9]%d*%s*%)$") or cast
+            if cast~=name:lower() then return false end
+            matched=true
+        end
+    end
+    return matched
+end
 playerMappingCurrent=function(mapping)
     if not mapping or not mapping.playerOwned or mapping.invalidated or playerKey(mapping.key,mapping.action)~=mapping.key then return false end
     if mapping.specialIndex then return S.specialMappingCurrent(mapping) end
@@ -436,7 +456,7 @@ playerMappingCurrent=function(mapping)
     local ok,kind,id=pcall(GetActionInfo or function() end,mapping.slot)
     if not ok or S.isSecret(kind) or S.isSecret(id) or kind~=mapping.actionType or id~=mapping.actionID then return false end
     local spell=actionSpell(mapping.slot,kind,id)
-    return spell~=nil and spell==mapping.id
+    return spell~=nil and spell==mapping.id and (not mapping.selfMacroSpell or exactSelfMacro(id,mapping.selfMacroSpell))
 end
 scanPlayerBindings=function()
     local result={}
@@ -477,13 +497,18 @@ selectPlayerMapping=function(candidate,mappings)
     -- hooks. Augmented actions also retain their pet/start/stop/non-toggle
     -- semantics; matching only a displayed spell ID would lose that behavior.
     if not candidate or candidate.id<=0 then return nil end
-    local selfSeal=isSelfSeal(candidate)
-    if (candidate.unit~="target" and not selfSeal) or candidate.friendly or candidate.healing or candidate.support or candidate.buff or candidate.pinnedSpellID or candidate.managedName or candidate.name=="Lay on Hands" or
+    local selfAction=isSelfSeal(candidate) or isSelfBulwark(candidate)
+    local selfMacro=selfAction and (candidate.abilityKey=="paladin.sealWisdom" or isSelfBulwark(candidate))
+    if (candidate.unit~="target" and not selfAction) or candidate.friendly or candidate.healing or candidate.support or candidate.buff or candidate.pinnedSpellID or candidate.managedName or candidate.name=="Lay on Hands" or
         candidate.itemID or candidate.startAttack or candidate.petAttack or candidate.noToggle or candidate.groundAtCursor or candidate.stopAttack or candidate.petCommand or candidate.petAbility then return nil end
     local chosen
     for _,mapping in ipairs(mappings or {})do
-        if mapping.id==candidate.id and not mapping.specialIndex and (not selfSeal or mapping.kind=="spell") and mapping.selectedMacro~=false and playerMappingCurrent(mapping) and
-            (not chosen or chosen.kind~="spell" and mapping.kind=="spell")then chosen=mapping end
+        if mapping.id==candidate.id and not mapping.specialIndex and playerMappingCurrent(mapping) and
+            (not chosen or chosen.kind~="spell" and mapping.kind=="spell")then
+            local targetMatches=not selfAction and mapping.selectedMacro~=false or selfAction and mapping.kind=="spell"
+            local macroMatches=selfMacro and mapping.kind=="macro candidate" and exactSelfMacro(mapping.actionID,candidate.name)
+            if targetMatches or macroMatches then chosen=mapping;chosen.selfMacroSpell=macroMatches and candidate.name or nil end
+        end
     end
     if chosen then chosen.unit=candidate.unit;chosen.abilityKey=candidate.abilityKey end
     return chosen

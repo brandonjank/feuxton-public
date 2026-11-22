@@ -1,6 +1,6 @@
 -- Generated from shared/wire-metadata.json.
 local _, ns = ...
-ns.contractRevision = 72
+ns.contractRevision = 73
 local ids = { rosterFirst = 16, rosterLast = 21,
     core = 1,
     guide = 2,
@@ -44,7 +44,7 @@ local schemas = {
     recipientTargeting = "HHT5",
     enemyCast = "HHE2",
     consumables = "HHI7",
-    sharedSupport = "HHX6",
+    sharedSupport = "HHX7",
     warlockPreview = "WLS5",
     druidPreview = "DRS2",
     playerLifecycle = "PCS1",

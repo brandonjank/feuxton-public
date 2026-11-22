@@ -1,4 +1,4 @@
--- HHX6: shared control, friendly target/mouseover and independent Freedom receipt.
+-- HHX7: shared control, grouped mouseover and independent Freedom receipt.
 -- All secret fields remain unknown; native cooldown/usability stays rendered.
 local _,ns=...
 local X={cache={}}
@@ -127,7 +127,8 @@ X.controlAuraGroups={
  {kind="snare",name="Magma Shackles",ids={19496}},
  {kind="snare",name="Melt Ore",ids={5159}},
  {kind="snare",name="Might of Vis'era",ids={1231541}},
- {kind="snare",name="Mind Flay",ids={15407,16568,17165,17311,17312,17313,17314,18807,22919,23953,26044,26143,28310,29407,412526,474204,474268,1215740}},
+ {kind="snare",name="Mind Flay",ids={15407,16568,17165,17311,17312,17313,17314,18807,22919,23953,26143,28310,29407,412526,474204,1215740}},
+ {kind="snare",also="fear",name="Mind Flay (snare and fear)",ids={26044,474268}},
  {kind="snare",name="OLDFrost Trap Effect",ids={14207}},
  {kind="snare",name="Piercing Howl",ids={12323,23600}},
  {kind="snare",name="Piercing Shriek",ids={26379}},
@@ -163,30 +164,103 @@ X.controlAuraGroups={
  {kind="stun",name="Concussion Blow",ids={12809}},
  {kind="stun",name="Pounce",ids={9005,9823,9827}},
  {kind="stun",name="Psychic Scream (stun variant)",ids={15398}},
- {kind="fear",name="Fear",ids={5782,6213,6215}},
- {kind="fear",name="Psychic Scream",ids={8122,8124,10888,10890,437928}},
- {kind="fear",name="Howl of Terror",ids={5484,17928}},
- {kind="fear",name="Intimidating Shout",ids={5246}},
- {kind="fear",name="Panic",ids={19408}},
+ -- Charm/fear/sleep IDs: decoded Forever 1.60.1.70888 mechanic categories.
+ {kind="charm",name="Cause Insanity",ids={24327}},
+ {kind="charm",name="Charm",ids={1315557}},
+ {kind="charm",name="Circle of Domination",ids={437987,1231845}},
+ {kind="charm",name="Convert",ids={1280259}},
+ {kind="charm",name="Dominate Mind",ids={7645,14515,15859,20604,20740,429687,429688}},
+ {kind="charm",name="Domination",ids={17405,1222581}},
+ {kind="charm",name="Dominion of Soul",ids={16053}},
+ {kind="charm",name="Enthralled Sphere",ids={1300754}},
+ {kind="charm",name="Gnomish Mind Control Cap",ids={13181,26740}},
+ {kind="charm",name="Harvester Override Signalcaster",ids={1301683}},
+ {kind="charm",name="Irresistible Scent",ids={1296664}},
+ {kind="charm",name="Mind Control",ids={605,10911,10912,11446,1213332}},
+ {kind="charm",name="Poison Mind",ids={19469}},
  {kind="charm",name="Seduction",ids={6358}},
- {kind="charm",name="Mind Control",ids={605,10911,10912}},
- {kind="sleep",name="Sleep",ids={700,8399}},
+ {kind="charm",name="Subjugate Demon",ids={1098,11725,11726,20882}},
+ {kind="fear",name="Aura of Fear",ids={26641,28315,1294620}},
+ {kind="fear",name="Bellowing Roar",ids={22686,445498,1214028}},
+ {kind="fear",name="Combust",ids={1293228}},
+ {kind="fear",name="Copy of Fear",ids={30001}},
+ {kind="fear",name="Corrupted Fear",ids={21330}},
+ {kind="fear",name="Cowering Roar",ids={16096}},
+ {kind="fear",name="Demonbane",ids={1299440}},
+ {kind="fear",name="Dreadful Fright",ids={23275}},
+ {kind="fear",name="Dreadful Screech",ids={1269585}},
+ {kind="fear",name="Extremely Loud Bark",ids={1264437}},
+ {kind="fear",name="Fear",ids={5782,6213,6215,12096,12542,22678,26070,26580,27641,27990,29168,30002,411959,469521,469793,469879,1213452,1222563,1247087,1271593,1283934,1313471}},
+ {kind="fear",name="Flash Bomb",ids={5134,29419}},
+ {kind="fear",name="Fly Away!",ids={1257055}},
+ {kind="fear",name="Foxtail Ward",ids={1297109}},
+ {kind="fear",name="Frightening Howl",ids={1282071}},
+ {kind="fear",name="Frightening Lore",ids={1221571}},
+ {kind="fear",name="Frightening Shriek",ids={25815}},
+ {kind="fear",name="Frightsome Howl",ids={443990}},
+ {kind="fear",name="Gloom",ids={447579,460727}},
+ {kind="fear",name="Ground Tremor",ids={469065}},
+ {kind="fear",name="Howl of Terror",ids={5484,17928}},
+ {kind="fear",name="Intimidating Roar",ids={16508,1242884}},
+ {kind="fear",name="Intimidating Shout",ids={5246,19134,20511,29544,1213465,1270811}},
+ {kind="fear",name="Intimidation",ids={7093}},
+ {kind="fear",name="On Fire!!",ids={1234825}},
+ {kind="fear",name="Panic",ids={19408,461125}},
+ {kind="fear",name="Powerful Slam",ids={1290463}},
+ {kind="fear",name="Presence of Death",ids={3109}},
+ {kind="fear",name="Psychic Scream",ids={8122,8124,10888,10890,13704,22884,26042,27610,437928}},
+ {kind="fear",name="Repulsive Gaze",ids={21869}},
+ {kind="fear",name="Run Away!",ids={8225}},
+ {kind="fear",name="Scare Beast",ids={1513,14326,14327}},
+ {kind="fear",name="Scared",ids={425891,1249834}},
+ {kind="fear",name="Screeching Fear",ids={437532,1231885}},
+ {kind="fear",name="Self Fear",ids={31365}},
+ {kind="fear",name="Spectral Shout",ids={460084,460086}},
+ {kind="fear",name="Terrify",ids={7399}},
+ {kind="fear",name="Terrifying Howl",ids={8715}},
+ {kind="fear",name="Terrifying Roar",ids={14100,29685,1294313}},
+ {kind="fear",name="Terrifying Screech",ids={6605}},
+ {kind="fear",name="Threat of Arrest",ids={1230086}},
+ {kind="fear",name="Threatening Roar",ids={444522}},
+ {kind="fear",name="Warlock Terror",ids={21898}},
+ {kind="fear",name="Wings of Despair",ids={25260}},
+ {kind="sleep",name="Crystalline Slumber",ids={3636}},
+ {kind="sleep",name="Deep Sleep",ids={469155}},
+ {kind="sleep",name="Dream Fog",ids={367728,449879}},
+ {kind="sleep",name="Druid's Slumber",ids={8040}},
+ {kind="sleep",name="Enchanting Lullaby",ids={16798}},
+ {kind="sleep",name="Essence Chained",ids={1300241}},
+ {kind="sleep",name="Gas Bomb",ids={8901,8902}},
  {kind="sleep",name="Hibernate",ids={2637,18657,18658}},
+ {kind="sleep",name="Naralex's Nightmare",ids={7967}},
+ {kind="sleep",name="Sleep",ids={700,1090,8399,9159,12098,15970,20663,20669,20989,24004,24664,24778,448572,450662,460756,462577,468591,469146,1222578}},
+ {kind="sleep",name="Soporific",ids={1231616}},
+ {kind="sleep",name="Wake Up Dead",ids={446296,447890,448779}},
+ {kind="sleep",name="Wyvern Sting",ids={24335,26180,1215753}},
 }
-local controlByID={}
-for _,group in ipairs(X.controlAuraGroups) do for _,id in ipairs(group.ids) do controlByID[id]=group.kind end end
+local function freedomKind(kind)return kind=="root" or kind=="snare" end
+local function forsakenKind(kind)return kind=="charm" or kind=="fear" or kind=="sleep" end
+local controlByID,movementIDs,forsakenIDs={},{},{}
+for _,group in ipairs(X.controlAuraGroups) do
+ for _,id in ipairs(group.ids) do
+  controlByID[id]=group
+  if freedomKind(group.kind) or freedomKind(group.also) then movementIDs[id]=true end
+  if forsakenKind(group.kind) or forsakenKind(group.also) then forsakenIDs[id]=true end
+ end
+end
 -- These specific records use other control mechanics. Their effect type or
 -- movement-speed text alone must not activate Freedom or Will of the Forsaken.
-X.controlAuraExclusions={[6789]="horror",[2094]="disorient",[1776]="incapacitate",[6770]="sap",[20066]="incapacitate",[118]="polymorph",[1604]="daze"}
+-- Preserve intentionally consumed Dreamless Sleep recovery as well.
+X.controlAuraExclusions={[6789]="horror",[2094]="disorient",[1776]="incapacitate",[6770]="sap",[20066]="incapacitate",[118]="polymorph",[1604]="daze",[15822]="recovery",[24360]="recovery"}
 local function controlKind(id)
  if type(id)=="number" and id>0 and id<=2147483647 and id==math.floor(id) then
   return controlByID[id],X.controlAuraExclusions[id]~=nil
  end
 end
-local function applyControl(result,kind)
- if kind=="root" or kind=="snare" then result.movement=true
- elseif kind=="stun" then result.stun=true
- elseif kind=="charm" or kind=="fear" or kind=="sleep" then result.forsaken=true end
+local function applyControl(result,group)
+ if freedomKind(group.kind) or freedomKind(group.also) then result.movement=true end
+ if group.kind=="stun" then result.stun=true end
+ if forsakenKind(group.kind) or forsakenKind(group.also) then result.forsaken=true end
 end
 local movementNames={['Frostbolt']=true,['Frost Shock']=true,['Hamstring']=true,['Wing Clip']=true,['Concussive Shot']=true,['Crippling Poison']=true,['Entangling Roots']=true,['Frost Nova']=true,['Frost Trap Aura']=true,['Ensnare']=true,['Net']=true,['Web']=true,['Tendon Rip']=true}
 -- Exact known stun names supplement clients whose unit LoC API omits allies.
@@ -367,11 +441,10 @@ function X.effects(unit)
   local auraKind,excluded=controlKind(id)
   if auraKind then applyControl(result,auraKind) end
   if not auraKind and not excluded then
-   -- Retained exact-name support covers older known ranks and NPC effects;
-   -- new fear families use verified IDs, not broad name matching.
+   -- Retain exact-name movement/stun support for older NPC effects. Unlisted
+   -- charm/fear/sleep requires a positive typed LossOfControl observation.
    if movementNames[name] or impairment==true then result.movement=true elseif impairment~=false then unclassified=true end
    if stunNames[name] then result.stun=true end
-   if name=="Sleep" or name=="Deep Sleep" or name=="Charm" or name=="Mind Control" then result.forsaken=true end
   end
   if dispel=="Curse" then result.curse=true end
   if dispel=="Poison" or dispel=="Disease" or dispel=="Bleed" then result.stoneform=true end
@@ -419,33 +492,41 @@ function X.tracking()
  end
  if complete and not other then return false end -- do not replace another tracking choice
 end
-local function prepareNativeMovement()
- if X.movementNativeAttempted or not ns.state.hud or value(InCombatLockdown)~=false then return end
- X.movementNativeAttempted=true
+X.nativeControl={
+ selfMovement={x=316,unit="player",ids=movementIDs},
+ selfForsaken={x=322,unit="player",ids=forsakenIDs},
+ hoverMovement={x=328,unit="mouseover",ids=movementIDs},
+}
+local function prepareNativeControl(key)
+ local witness=X.nativeControl[key]
+ if witness.attempted or not ns.state.hud or value(InCombatLockdown)~=false then return end
+ witness.attempted=true
  local S=ns.state
- X.movementNativeReady=false;X.movementNativeError=nil
+ witness.ready=false;witness.error=nil
  -- The native aura engine owns filtering and protected visibility. No aura
  -- field, secret numeric argument or visibility result is read by Lua.
- local base=S.hud:CreateTexture(nil,"OVERLAY");base:SetSize(4,4);base:SetPoint("TOPLEFT",316,-2);base:SetColorTexture(1,.65,0,1)
+ local base=S.hud:CreateTexture(nil,"OVERLAY");base:SetSize(4,4);base:SetPoint("TOPLEFT",witness.x,-2);base:SetColorTexture(1,.65,0,1)
  local native
  local ok,err=pcall(function()
-  local ids={};for id,kind in pairs(controlByID)do if kind=="root"or kind=="snare"then ids[id]=true end end
   native=CreateFrame("AuraContainer",nil,S.hud,"CustomAuraContainerTemplate")
-  native:SetPoint("TOPLEFT",S.hud,"TOPLEFT",316,-2);native:SetSize(4,4)
-  native:AddAuraSlot("selfMovement","HARMFUL",{candidateFilters={includeSpellIDs=ids},initializeFrame=function(button)
+  native:SetPoint("TOPLEFT",S.hud,"TOPLEFT",witness.x,-2);native:SetSize(4,4)
+  native:AddAuraSlot(key,"HARMFUL",{candidateFilters={includeSpellIDs=witness.ids},initializeFrame=function(button)
    local rendered,why=pcall(function()
     button:SetSize(4,4);button:SetPoint("TOPLEFT",native,"TOPLEFT",0,0);button:EnableMouse(false)
     local dot=button:CreateTexture(nil,"OVERLAY");dot:SetAllPoints(button);dot:SetColorTexture(0,1,0,1)
    end)
-   if not rendered then X.movementNativeReady=false;X.movementNativeError=S.describe(why)end
+   if not rendered then witness.ready=false;witness.error=S.describe(why)end
   end})
-  native:SetUnit("player");native:SetEnabled(true)
+  native:SetUnit(witness.unit);native:SetEnabled(true)
  end)
- X.movementNativeReady=ok and X.movementNativeError==nil;X.movementAuraContainer=native
- if not ok then X.movementNativeError=S.describe(err);if native then pcall(native.Hide,native)end end
+ witness.ready=ok and witness.error==nil
+ if not ok then witness.error=S.describe(err);if native then pcall(native.Hide,native)end end
 end
-function X.native()
- prepareNativeMovement()
+local function undead(race)return race=="Scourge" or race=="Undead" end
+function X.native(class,race)
+ prepareNativeControl("selfMovement")
+ if class=="PALADIN" then prepareNativeControl("hoverMovement") end
+ if undead(race) then prepareNativeControl("selfForsaken") end
  if X.tiles or not ns.state.hud then return end
  local S=ns.state;X.tiles={};X.stamp={};X.ranges={};X.nearbyDots={}
  X.meleeDot=S.hud:CreateTexture(nil,"OVERLAY");X.meleeDot:SetSize(4,4);X.meleeDot:SetPoint("TOPLEFT",572,-2);ns.features.RangeTracking.initialize(X.meleeDot,1,.65,0,1)
@@ -466,17 +547,33 @@ function X.native()
  X.cleanseTile=tile
  for i=1,4 do local p=S.hud:CreateTexture(nil,"OVERLAY");p:SetSize(4,4);p:SetPoint("TOPLEFT",550+(i-1)*6,-2);X.stamp[i]=p end
 end
+local function invalidateSupportStamp()
+ if X.stamp and X.stamp[1]then X.stamp[1]:SetColorTexture(1,0,1,1)end
+end
+local function groupedMouseover()
+ if value(UnitIsPlayer,"mouseover")~=true or value(UnitCanAssist,"player","mouseover")~=true then return false end
+ if value(UnitInParty,"mouseover")==true then return true end
+ local raidIndex=value(UnitInRaid,"mouseover")
+ return type(raidIndex)=="number" and raidIndex>=1 and raidIndex<=40 and raidIndex==math.floor(raidIndex)
+end
+local function hoverWitness(identity,now)
+ if identity~=X.hoverIdentity then
+  X.hoverIdentity=identity
+  X.hoverSettlesAt=type(now)=="number" and now+.2 or nil
+ end
+ return X.nativeControl.hoverMovement.ready and identity and type(now)=="number" and X.hoverSettlesAt and now>=X.hoverSettlesAt
+end
 function X.packet(tick)
  local S=ns.state;local G=ns.features.GroupContext;local F=ns.features.Healing
  -- Reuse only within this synchronous packet assembly. No value survives to
  -- another tick, event or publication; partial scans retain unknown absence.
  local helpful,unitEffects={},{}
- X.native()
- -- Invalidate the old native witness before repainting any current values.
- -- A capture during assembly cannot join a new root cell to an old packet.
- if X.stamp and X.stamp[1]then X.stamp[1]:SetColorTexture(1,0,1,1)end
  local class=value(function()local _,c=UnitClass("player");return c end)
  local race=value(function()local _,r=UnitRace("player");return r end) or ""
+ X.native(class,race)
+ -- Invalidate the old native witness before repainting any current values.
+ -- A capture during assembly cannot join a new root cell to an old packet.
+ invalidateSupportStamp()
  if #race>32 then race="" end
  local roster=S.transportPackets[ns.wire.ids.rosterFirst];local rosterTick=roster and string.byte(roster.packet,9) and 0 or nil
  if roster then for i=0,3 do rosterTick=rosterTick+string.byte(roster.packet,9+i)*256^i end end
@@ -509,13 +606,21 @@ function X.packet(tick)
  local entry=class=="PALADIN" and F.delivery(X.freedom) or nil
  packet=packet..S.bytes(freedom.id or 0,4)..S.bytes(entry and S.compactBindingCode(entry.key) or 0,2)..S.bytes(S.spellUseCode(X.freedom.key),1)
  if X.tiles then local tile=X.tiles[4];tile.spellID=(freedom.id or 0)>0 and freedom.id or nil;tile.known=learned(freedom);tile.offGlobalCooldown=true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,freedom.id or 0,"player",freedomRangeOK,freedomRangeRaw,freedomUsableOK,freedomUsableRaw,freedomManaRaw,freedomRangeSource,freedomUsableSource);if class=="PALADIN" and (freedom.id or 0)>0 and not tile.useKey then S.attachSpellUse(S.hud,tile.dial,X.freedom.key);tile.useKey=X.freedom.key end end
+ local selfIdentity,hoverIdentity
  for index,unit in ipairs(X.units) do
-  -- Optional scopes must be friendly players; avoid scanning hostile hovers or
-  -- adding aura work for other classes. The app joins their HHB3 identities.
-  local covered=index<=5 or class=="PALADIN" and G.read(UnitIsPlayer,1,unit).value==true and G.read(UnitCanAssist,1,"player",unit).value==true
-  local identity=covered and G.text(G.read(UnitGUID,1,unit),40) or "";local effects=covered and X.effects(unit) or {};unitEffects[unit]=effects;local ef=0
+  -- Direct ally Freedom is scoped to a friendly player currently in our
+  -- party or raid. The app also joins the exact same-tick HHB3 identity.
+  local grouped=unit=="mouseover" and class=="PALADIN" and groupedMouseover()
+  local covered=index<=5 or grouped
+  local identity=covered and G.text(G.read(UnitGUID,1,unit),40) or ""
+  if index==1 then selfIdentity=identity end
+  if grouped and (identity=="" or identity==selfIdentity) then grouped=false;covered=false;identity="" end
+  local effects=covered and X.effects(unit) or {};unitEffects[unit]=effects;local ef=0
+  if grouped then hoverIdentity=identity;ef=1024 end
   for i,key in ipairs({"movement","forsaken","stun","curse","stoneform"}) do ef=ef+flag(effects[key])*4^(i-1) end
   local spell,rangeOK,rangeRaw
+  -- Party observations still protect an active Freedom from blessing upkeep.
+  -- Current app delivery limits casts to self and a verified grouped hover.
   if class=="PALADIN" and covered then
    if unit=="player" then spell,rangeOK,rangeRaw=freedom,freedomRangeOK,freedomRangeRaw else spell,rangeOK,rangeRaw=F.spell(X.freedom,unit) end
   else spell={id=0} end
@@ -548,7 +653,10 @@ function X.packet(tick)
  local valid=managed and S.bindingsValid and S.managedSpells.current(managed) and managed.unit=="player" and not managed.friendly and managed.id==cleanse.id
  local pf=G.code(cleanse.learned)+G.code(cleanse.usable)*4+G.code(cleanse.mana)*16+G.code(cleanse.ready)*64
  local effects=unitEffects.player
- packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4+(X.movementNativeReady and 16 or 0),1)
+ local nativeFlags=(X.nativeControl.selfMovement.ready and 16 or 0)
+  +(undead(race) and X.nativeControl.selfForsaken.ready and 32 or 0)
+  +(hoverWitness(hoverIdentity,now) and 64 or 0)
+ packet=packet..S.bytes(spec and spec.index or 0,1)..S.bytes(cleanse.id or 0,4)..S.bytes(valid and S.compactBindingCode(managed.key) or 0,2)..S.bytes(spec and S.spellUseCode(spec.key) or 0,1)..S.bytes(pf,1)..S.bytes(flag(effects.poison)+flag(effects.disease)*4+nativeFlags,1)
  packet=packet..S.bytes(flag(effects.debuffsComplete),1)..S.bytes(#effects.debuffs,1)
  for _,aura in ipairs(effects.debuffs) do packet=packet..S.bytes(aura.id,4)..S.bytes(aura.types,1) end
  if X.cleanseTile then local tile=X.cleanseTile;tile.spellID=(cleanse.id or 0)>0 and cleanse.id or nil;tile.known=learned(cleanse);S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,cleanse.id or 0,"player",cleanseRangeOK,cleanseRangeRaw,cleanseUsableOK,cleanseUsableRaw,cleanseManaRaw,cleanseRangeSource,cleanseUsableSource);if spec and (cleanse.id or 0)>0 and tile.useKey~=spec.key then S.attachSpellUse(S.hud,tile.dial,spec.key);tile.useKey=spec.key end end
@@ -561,7 +669,12 @@ function X.packet(tick)
 end
 local events=CreateFrame("Frame")
 events:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED");events:RegisterEvent("UNIT_SPELLCAST_FAILED");events:RegisterEvent("LOOT_CLOSED");events:RegisterEvent("SPELLS_CHANGED");events:RegisterEvent("PLAYER_ENTERING_WORLD")
+events:RegisterEvent("UPDATE_MOUSEOVER_UNIT");events:RegisterEvent("GROUP_ROSTER_UPDATE")
 events:SetScript("OnEvent",function(_,event,unit,cast,id)
+ if event=="UPDATE_MOUSEOVER_UNIT" or event=="GROUP_ROSTER_UPDATE" or event=="PLAYER_ENTERING_WORLD" then
+  X.hoverIdentity=nil;X.hoverSettlesAt=nil;invalidateSupportStamp()
+ end
+ if event=="UPDATE_MOUSEOVER_UNIT" or event=="GROUP_ROSTER_UPDATE" then return end
  if event=="SPELLS_CHANGED" or event=="PLAYER_ENTERING_WORLD" then X.probeCache=nil;X.attackSlotCache=nil;return end
  if event=="LOOT_CLOSED" then X.herbAt=nil;return end
  local S=ns.state;if S.isSecret(unit) or unit~="player" or S.isSecret(id) then return end
