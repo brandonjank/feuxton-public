@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.104",
+    "addonVersion":  "0.81.107",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v72",
-    "sourceRevision":  "85a711dbf4531b1ebbaea9c3a8d9f9d224ee6445",
+    "contract":  "feuxton-dense-v73",
+    "sourceRevision":  "a350e0e955f3c1178dd4d8a0676f65a3362e1777",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -12,8 +12,8 @@
                   },
                   {
                       "path":  "Bindings.lua",
-                      "sha256":  "4D1ED452465956AD2DBA811459446E3DFE2393166E59B9AD0237B8926842C745",
-                      "size":  44959
+                      "sha256":  "62BD8C38082B9EC22CCAB16F5BC3336B68500E1FB6190864E0ED7D596FEE8BAB",
+                      "size":  46458
                   },
                   {
                       "path":  "Classes/Druid.lua",
@@ -32,8 +32,8 @@
                   },
                   {
                       "path":  "Classes/Paladin.lua",
-                      "sha256":  "6933B985E56A51529AB05F22D639148736D2B62E1622879910EF183A77D31128",
-                      "size":  45298
+                      "sha256":  "D57012F0AD39DA11C7A5216A191431DDDC1A7D7B7678712781A6D3462D46779B",
+                      "size":  51662
                   },
                   {
                       "path":  "Classes/Priest.lua",
@@ -97,8 +97,8 @@
                   },
                   {
                       "path":  "Features/ControlEffects.lua",
-                      "sha256":  "CAF1C1129F3C20F29E500440403CC168161A15111688786484CEF5FBE2BC91EE",
-                      "size":  39850
+                      "sha256":  "AFE5443BA9367C063EA618419946083C87C6EF5B9FA857605040E1ACCE9857C4",
+                      "size":  46085
                   },
                   {
                       "path":  "Features/Equipment.lua",
@@ -192,12 +192,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "3E2E5C1E5223E8066D1BA4EA29DF95197AD76FF8B9E95BF0C0A05B4F5906C2E3",
+                      "sha256":  "AB18DA2CE55F4CA815FA186E0C2D311627717EFDD04873C4CFC2FF8463BA5935",
                       "size":  5394
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "F4F6C12AE27B21E5403F24BDEC07EB2897FF93F4ECFA38B476CBB19E22A10D5D",
+                      "sha256":  "42836CBF5886CA6F2FB1E1A9DA4020CA455B03921B924CB450A7C60DA0A28BCD",
                       "size":  1298
                   },
                   {
@@ -252,8 +252,8 @@
                   },
                   {
                       "path":  "SpellCatalog.lua",
-                      "sha256":  "4471EC58078850423CBF6CEE469CC3C22CC76823C549199D340CB0171B9B5EFD",
-                      "size":  110160
+                      "sha256":  "48E2A13DDAA001268F1A9CFA720EBFAC42687FB25A7D9419C9CA6DA037C895E4",
+                      "size":  110524
                   },
                   {
                       "path":  "SpellWidgets.lua",
@@ -272,7 +272,7 @@
                   },
                   {
                       "path":  "WireMetadata.lua",
-                      "sha256":  "06873ACAEC40DF760CF5225C6FA68B5982E68DC1A56ABAE78AE79D14EF7096CF",
+                      "sha256":  "36A2C7DC99C67AF0E483C2C52753443C3CCAD0A0BFDE3B9141FB268865CE6013",
                       "size":  3580
                   }
               ]
