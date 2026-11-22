@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.107",
+    "addonVersion":  "0.81.108",
     "interfaceVersion":  16001,
-    "contract":  "feuxton-dense-v73",
-    "sourceRevision":  "a350e0e955f3c1178dd4d8a0676f65a3362e1777",
+    "contract":  "feuxton-dense-v74",
+    "sourceRevision":  "a627323cbbf094c095e5046c4e50d09525bd9c79",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -52,8 +52,8 @@
                   },
                   {
                       "path":  "Classes/Warlock.lua",
-                      "sha256":  "743D2FB59491B745AE3B4A0688C2754A84244AF6B283C13E5CD73163EE78F2F3",
-                      "size":  14033
+                      "sha256":  "312C87EE63066A743664A9D62FC1C6AF2A083B5426C1309F808C0461CC3F4AC6",
+                      "size":  17556
                   },
                   {
                       "path":  "Classes/Warrior.lua",
@@ -177,8 +177,8 @@
                   },
                   {
                       "path":  "Features/SpellBridge.lua",
-                      "sha256":  "93AA611114DDBD6F00FFADCD9DED76F7158AE6C9EF6D157D0940D920AE3FA802",
-                      "size":  14956
+                      "sha256":  "87E19A867B954CFB2F5B74BE57E783AC8F0A46B08E055584B3EDDC57F8112DE5",
+                      "size":  15040
                   },
                   {
                       "path":  "Features/Threat.lua",
@@ -192,12 +192,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "AB18DA2CE55F4CA815FA186E0C2D311627717EFDD04873C4CFC2FF8463BA5935",
+                      "sha256":  "4648BE86395C38DDC397D08204C0DD796E98BCD1D1EF3B8D4233D9FFFFE234A4",
                       "size":  5394
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "42836CBF5886CA6F2FB1E1A9DA4020CA455B03921B924CB450A7C60DA0A28BCD",
+                      "sha256":  "7F5BAEA1432EFF463A46EDCA47951692D7B98D6F59954509053C92A13BB012B9",
                       "size":  1298
                   },
                   {
@@ -272,7 +272,7 @@
                   },
                   {
                       "path":  "WireMetadata.lua",
-                      "sha256":  "36A2C7DC99C67AF0E483C2C52753443C3CCAD0A0BFDE3B9141FB268865CE6013",
+                      "sha256":  "1C174A397C9CB7A1C529FEE5592C8D2015962CF8560C6E01E589EBACC631306D",
                       "size":  3580
                   }
               ]
