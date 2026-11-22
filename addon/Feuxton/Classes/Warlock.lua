@@ -150,22 +150,23 @@ function H.initializePreview()
   flags=flags+G.code(onPlayer)*4096
   return {identity=identity,generation=H.mouseoverGeneration,flags=flags}
  end
- local tick,elapsed=0,0
- local function render()
-  if not S.executionBytes then return end
-  local F=ns.features.Healing;tick=(tick+1)%4294967296
-  local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
-  local hover=mouseover();local readings={}
-  local combat=G.read(UnitAffectingCombat,1,"player")
-  local outOfCombat=combat.status=="observed" and combat.value==false
+ local renderSpellTiles=S.profileFunction(function(readings,castTimes)
+  local F=ns.features.Healing
   for i,spec in ipairs(H.specs) do
-   local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource
-   if spec.petAbility then r=ns.features.PetSupport.readSacrifice()
-   else r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or "target") end
-   readings[i]=r
-   if spec.petAbility then ns.features.PetSupport.renderSacrifice(bridge.tiles[i],r)
-   else B.render(bridge,i,r.id,r.learned.status=="observed" and r.learned.value or nil,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource);B.renderManaCost(bridge.tiles[i].manaCost,r.id,r.learned.status=="observed" and r.learned.value==true) end
+   if spec.petAbility then
+    local r=ns.features.PetSupport.readSacrifice()
+    readings[i],castTimes[i]=r,r.castMs
+    ns.features.PetSupport.renderSacrifice(bridge.tiles[i],r)
+   else
+    local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or "target")
+    local known=r.learned.status=="observed" and r.learned.value
+    local _,info=B.render(bridge,i,r.id,known or nil,spec,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
+    readings[i],castTimes[i]=r,S.safeField(info,"castTime")
+    B.renderManaCost(bridge.tiles[i].manaCost,r.id,known==true)
+   end
   end
+ end,"Warlock spell tiles")
+ local observeAuras=S.profileFunction(function(readings,outOfCombat)
   -- The shield outlives the sacrificed demon. Retain only its verified aura
   -- lookup ID; current pet learned state, action and binding remain untouched.
   if H.sacrificeAuraSession~=S.setupSession then H.sacrificeAuraSession=S.setupSession;H.sacrificeAuraID=nil end
@@ -179,6 +180,45 @@ function H.initializePreview()
   armorExpiry,armorSeen=0,false
   B.auras(bridge,H.specs,auraReadings,outOfCombat and observeArmor or nil)
   if auraReadings~=readings then sacrificeReading.aura=auraReadings[34].aura end
+ end,"Warlock auras")
+ local encodeSpells=S.profileFunction(function(readings,castTimes,outOfCombat,auraSettled)
+  local tapRestore,tapID=0,0
+  local slots={};local M=S.managedSpells
+  for i,spec in ipairs(H.specs) do
+   local r=readings[i];local family=spec.managedName or spec.name
+   local entry
+   if M and S.bindingsValid then
+    if spec.petAbility then
+     local pet=M.entries["WARLOCK:"..family]
+     if pet and pet.id==r.id and pet.petActionSlot==r.petActionSlot and pet.petIdentity==r.petIdentity and M.current(pet) then entry=pet end
+    else
+     -- Delivery already verifies the live binding, including its action/page.
+     entry=M.delivery("WARLOCK",family)
+    end
+   end
+   local key=entry and S.compactBindingCode(entry.key) or 0
+   if spec.key=="warlock.lifeTap" and outOfCombat and key>0 and r.learned.value==true and entry.id==r.id and r.id>0 and r.id<=16777215 then
+    local amount=lifeTapRestore(r.id)
+    if amount then tapRestore,tapID=amount,r.id end
+   end
+   local flags=G.code(r.learned)+4*G.code(r.usable)+16*G.code(r.mana)+64*G.code(r.range)+256*G.code(r.ready)+1024*G.code(r.aura)
+   local ms=castTimes[i];if type(ms)~="number" or ms~=ms or ms<0 or ms>10000 then ms=65535 end
+   local absent=bridge.absence and bridge.absence[i] and auraSettled
+   local configured=bridge.configured and bridge.configured[i] and auraSettled
+   slots[i]=S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(S.spellUseCode(spec.usageKey or spec.key)+(absent and 4 or 0)+(configured and 8 or 0),1)..S.bytes(ms,2)
+  end
+  return table.concat(slots),tapRestore,tapID
+ end,"Warlock spell packet")
+ local tick,elapsed=0,0
+ local function render()
+  if not S.executionBytes then return end
+  tick=(tick+1)%4294967296
+  local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
+  local hover=mouseover();local readings,castTimes={},{}
+  local combat=G.read(UnitAffectingCombat,1,"player")
+  local outOfCombat=combat.status=="observed" and combat.value==false
+  renderSpellTiles(readings,castTimes)
+  observeAuras(readings,outOfCombat)
   local auraSettled=GetTime()>=(bridge.settledAt or math.huge)
   local healthOK=false
   if hover.identity~="" and hover.flags%4==2 then
@@ -191,25 +231,8 @@ function H.initializePreview()
   if healthOK then hoverHealthValid:SetColorTexture(0,1,0,1) else hoverHealth:SetMinMaxValues(0,1);hoverHealth:SetValue(0);hoverHealthValid:SetColorTexture(1,.65,0,1) end
   local hellfire=readings[33];renderChannelCosts(hellfire.id,hellfire.learned.status=="observed" and hellfire.learned.value==true)
   local packet=ns.wire.schemas.warlockPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
-  local tapRestore,tapID=0,0
-  for i,spec in ipairs(H.specs) do
-   local r=readings[i];local M=S.managedSpells;local family=spec.managedName or spec.name
-   local entry=M and M.entries["WARLOCK:"..family]
-   if M and not spec.petAbility then entry=M.delivery("WARLOCK",family)end
-   local compatible=not spec.petAbility or entry and entry.id==r.id and entry.petActionSlot==r.petActionSlot and entry.petIdentity==r.petIdentity
-   local current=M and(spec.petAbility and M.current(entry)or not spec.petAbility and M.deliveryCurrent(entry))
-   local key=S.bindingsValid and compatible and current and S.compactBindingCode(entry.key) or 0
-   if spec.key=="warlock.lifeTap" and outOfCombat and key>0 and r.learned.value==true and entry.id==r.id and r.id>0 and r.id<=16777215 then
-    local amount=lifeTapRestore(r.id)
-    if amount then tapRestore,tapID=amount,r.id end
-   end
-   local ready=r.ready
-   local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
-   local info=S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=spec.petAbility and r.castMs or S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end
-   local absent=bridge.absence and bridge.absence[i] and auraSettled
-   local configured=bridge.configured and bridge.configured[i] and auraSettled
-   packet=packet..S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(S.spellUseCode(spec.usageKey or spec.key)+(absent and 4 or 0)+(configured and 8 or 0),1)..S.bytes(ms,2)
-  end
+  local slots,tapRestore,tapID=encodeSpells(readings,castTimes,outOfCombat,auraSettled)
+  packet=packet..slots
   combatDot:SetColorTexture(1,1,1,1)
   local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1})
   if not painted or result~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
