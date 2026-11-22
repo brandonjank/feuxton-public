@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.109",
+    "addonVersion":  "0.81.110",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v74",
-    "sourceRevision":  "ad5aebdc73204a61181988f66a86d21f113c015d",
+    "sourceRevision":  "525286c7030e6253b773b0c5ef8e255956f119cb",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -52,8 +52,8 @@
                   },
                   {
                       "path":  "Classes/Warlock.lua",
-                      "sha256":  "312C87EE63066A743664A9D62FC1C6AF2A083B5426C1309F808C0461CC3F4AC6",
-                      "size":  17556
+                      "sha256":  "C2E8D8972A5981600529240158EE93694FD385DF4E442230297FF6E29952474A",
+                      "size":  17999
                   },
                   {
                       "path":  "Classes/Warrior.lua",
@@ -177,8 +177,8 @@
                   },
                   {
                       "path":  "Features/SpellBridge.lua",
-                      "sha256":  "87E19A867B954CFB2F5B74BE57E783AC8F0A46B08E055584B3EDDC57F8112DE5",
-                      "size":  15040
+                      "sha256":  "8BE94ACCF5EBF874B53F6E010600D9AC5C1B28C97DC61F0D4CAE860968E11B7B",
+                      "size":  15045
                   },
                   {
                       "path":  "Features/Threat.lua",
@@ -192,12 +192,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "58EE701DE0FF08118D23F98D779904CB8A6FA8A4BFCEAEB537C8F6339A2282EF",
+                      "sha256":  "1C20AADF568D35BBA6576EB613E5304F9A1FB8FEB7BAF7159FC4ABCDC745069D",
                       "size":  5394
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "A91B2A66ABBA439C89C50A316D862076811C3492978A92720365599339E3500B",
+                      "sha256":  "EA4DA32BF09A28AA406C56F24494953DFEB85C1BA2EEDFABE1C3E2238F187239",
                       "size":  1298
                   },
                   {
