@@ -226,11 +226,14 @@ function D.whoResults(context,validText)
         if type(info)=="table"then
             local name=validText(field(info,"fullName"),96)
             if name and(name:find('[{}"/]')or name:find("\\",1,true))then name=nil end
+            -- A Who name with a possible realm suffix cannot be equated to a
+            -- stored unsuffixed decline on a realm-redacted client.
+            if name and context.club and name:find("-",1,true)then name=nil end
             local guild=field(info,"fullGuildName");local area=validText(field(info,"area"),96)
             -- Missing/secret guild strings never mean guildless here.
             if name then
-                local suffix="-"..context.realm:gsub("%s","")
-                if name:sub(-#suffix)==suffix then name=name:sub(1,-#suffix-1)end
+                local suffix=context.realm and "-"..context.realm:gsub("%s","")
+                if suffix and name:sub(-#suffix)==suffix then name=name:sub(1,-#suffix-1)end
                 if guild~=""then
                     if type(guild)=="string"then D.remove(name)end
                 elseif name~=context.name and(pending.scope~=1 or area==pending.zone)then

@@ -111,24 +111,66 @@ function S.alignHud()
     return aligned
 end
 S.handlers = {}
+local spellLoadPending,combatSpellLoadPending
 function S.retryHudInitialLayout()
     if S.hudLoginSeen and S.hudInitialLayoutPending and type(ns.applyCurrentBridge)=="function" then
         return ns.applyCurrentBridge()
     end
 end
+local function refreshSpellData()
+    spellLoadPending=false;combatSpellLoadPending=false
+    S.resolveSpells()
+    if S.resolvePlayerAspects then S.resolvePlayerAspects() end
+    S.discoverBindings()
+end
+function S.flushSpellData()
+    if not spellLoadPending then return false end
+    -- Setup runs inside publication. Refresh these legacy widgets without
+    -- adding their spell IDs to the class-owned native cooldown footer.
+    refreshSpellData();S.refreshCooldowns(true)
+    return true
+end
+local function refreshCombatSpellData()
+    S.resolveSpells(); S.discoverBindings(); S.refreshCooldowns()
+end
+function S.flushCombatSpellData()
+    if not combatSpellLoadPending or S.readableCall(InCombatLockdown)~=true then return end
+    combatSpellLoadPending=false
+    local ok,err=pcall(refreshCombatSpellData)
+    if not ok then S.eventErrors.SPELL_DATA_LOAD_RESULT=S.describe(err) end
+end
+local function relevantSpellData(id)
+    if S.requested[id] then return true end
+    local known=S.readableCall(S.bookAPI.IsSpellKnown,id)
+    if type(known)~="boolean" then known=S.readableCall(IsSpellKnown,id) end
+    return known==true or S.isPlayerAspectSpell and S.isPlayerAspectSpell(id)
+end
 S.handlers.PLAYER_LOGIN = function()
     S.hudLoginSeen=true
     local saved=type(FeuxtonDB)=="table" and FeuxtonDB.updateRateMs or 100
     if not ns.setUpdateRate(saved) then ns.setUpdateRate(100) end
-    S.alignHud(); S.resolveSpells(); S.discoverBindings(); S.refreshCooldowns(); S.refreshFlags()
+    S.alignHud(); refreshSpellData(); S.refreshCooldowns(); S.refreshFlags()
 end
 S.handlers.SPELLS_CHANGED = function()
-    S.resolveSpells(); S.discoverBindings(); S.refreshCooldowns();S.retryHudInitialLayout()
+    refreshSpellData(); S.refreshCooldowns(); S.retryHudInitialLayout()
+end
+S.handlers.SPELL_DATA_LOAD_RESULT = function(id)
+    if S.isSecret(id) or type(id)~="number" or id<1 or id>=2147483648 or id~=math.floor(id) then return end
+    local combat=spellLoadPending and S.readableCall(InCombatLockdown)
+    if (spellLoadPending and combat~=true) or combatSpellLoadPending or not relevantSpellData(id) then return end
+    if not spellLoadPending then combat=S.readableCall(InCombatLockdown) end
+    -- The success flag is not spell data. A partial record can still expose a
+    -- usable identity, so re-read the ordinary fields through the same guards.
+    spellLoadPending=true
+    ns.markSetupDirty()
+    -- In combat setup is blocked. Refresh the readable spell data, native
+    -- cooldowns and existing binding identities before the next publication.
+    if combat==true then combatSpellLoadPending=true end
 end
 S.handlers.PLAYER_ENTERING_WORLD = S.retryHudInitialLayout
-S.handlers.SPELL_DATA_LOAD_RESULT = S.handlers.SPELLS_CHANGED
-S.handlers.SPELL_UPDATE_COOLDOWN = S.refreshCooldowns
-S.handlers.SPELL_UPDATE_USABLE = S.refreshCooldowns
+local function cooldownEvent() S.refreshCooldowns() end
+S.handlers.SPELL_UPDATE_COOLDOWN = cooldownEvent
+S.handlers.SPELL_UPDATE_USABLE = cooldownEvent
 S.handlers.PLAYER_TARGET_CHANGED = S.refreshFlags
 S.handlers.UNIT_FLAGS = S.refreshFlags
 S.handlers.UNIT_PET = S.refreshFlags
@@ -137,7 +179,7 @@ S.handlers.PLAYER_REGEN_ENABLED = function()
     if S.hudInitialLayoutPending and type(ns.applyCurrentBridge)=="function" then
         S.retryHudInitialLayout()
     elseif S.hudPixelSnapPending then S.alignHud() end
-    S.resolveSpells(); S.discoverBindings(); S.refreshFlags(); S.refreshCooldowns()
+    refreshSpellData(); S.refreshFlags(); S.refreshCooldowns()
 end
 function S.bindingsChanged()
     if S.managedSpells and S.managedSpells.invalidatePlayerMappings then S.managedSpells.invalidatePlayerMappings() end
@@ -239,7 +281,7 @@ SlashCmdList.FEUXTONPANEL = function(message)
     elseif message == "report" then
         S.edit:SetText(S.report()); S.panel:Show(); S.edit:SetFocus(); S.edit:HighlightText()
     else
-        S.hud:Show(); S.alignHud(); S.resolveSpells(); S.discoverBindings(); S.refreshCooldowns(); S.refreshFlags()
+        S.hud:Show(); S.alignHud(); refreshSpellData(); S.refreshCooldowns(); S.refreshFlags()
     end
 end
 

@@ -91,8 +91,10 @@ function R.movement(dot)
 end
 function R.render(signals,id,unit,observedRange,range,observedUsability,usable,mana,rangeSource,usableSource)
     local S=ns.state
-    R.paintColor(signals[1],1,.65,0,1);R.paintColor(signals[3],1,.65,0,1)
-    if type(id)~="number" or id<=0 then return false,false end
+    if type(id)~="number" or id<=0 then
+        R.paintColor(signals[1],1,.65,0,1);R.paintColor(signals[3],1,.65,0,1)
+        return false,false
+    end
     local api=S.spellAPI or {}
     unit=unit or "target"
     -- A producer may pass its immediately preceding query for this exact
@@ -105,6 +107,7 @@ function R.render(signals,id,unit,observedRange,range,observedUsability,usable,m
         local painted,result=pcall(color,signals[1],range,{1,1,1,1},{1,0,0,1})
         rangeOK=painted and result==true
     end
+    if not rangeOK then R.paintColor(signals[1],1,.65,0,1) end
     local ok=observedUsability==true and usableSource~=nil and usableSource==api.IsSpellUsable
     if not ok then ok,usable,mana=R.usability(api.IsSpellUsable or function() end,id) end
     if ok then
@@ -124,6 +127,7 @@ function R.render(signals,id,unit,observedRange,range,observedUsability,usable,m
         end)
         usableOK=painted and result==true
     end
+    if not usableOK then R.paintColor(signals[3],1,.65,0,1) end
     return rangeOK,usableOK
 end
 

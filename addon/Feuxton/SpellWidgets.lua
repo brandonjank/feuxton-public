@@ -131,10 +131,10 @@ local function cooldownColor(tile,rendered)
         tile.feuxtonCooldownColor=rendered
     end
 end
-function S.renderCooldown(tile)
+function S.renderCooldown(tile,skipObservation)
     -- The shared diagnostic registry observes only public identity; duration
     -- objects continue through this renderer without being retained or decoded.
-    if ns.observeNativeCooldown then pcall(ns.observeNativeCooldown,tile) end
+    if skipObservation~=true and ns.observeNativeCooldown then pcall(ns.observeNativeCooldown,tile) end
     if type(tile.spellID) ~= "number" or tile.known == false then
         tile.cooldown:Clear()
         cooldownColor(tile,false)
@@ -181,7 +181,7 @@ function S.renderCooldown(tile)
     tile.cooldown:Clear()
     cooldownColor(tile,false)
 end
-function S.refreshCooldowns()
-    for _, tile in ipairs(S.tiles) do S.renderCooldown(tile) end
+function S.refreshCooldowns(skipObservation)
+    for _, tile in ipairs(S.tiles) do S.renderCooldown(tile,skipObservation) end
 end
 

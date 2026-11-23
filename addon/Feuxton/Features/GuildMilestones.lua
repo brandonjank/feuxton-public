@@ -13,6 +13,7 @@ local function identity(v)return public(v)and type(v)=="string"and #v>0 and #v<=
 local function sameSender(sender,name,context)
  if not public(sender)or type(sender)~="string"then return false end
  if sender==name then return true end
+ if not context.realm then return false end
  local realm=call(GetNormalizedRealmName);if type(realm)~="string"or realm==""then realm=context.realm:gsub("%s","")end
  return sender==name.."-"..realm
 end
@@ -29,7 +30,7 @@ local function send(text)
 end
 function M.configure(context,cfg)
  local enabled=cfg and cfg.enabled==true
- local owner=context.actor.."\31"..context.guild.."\31"..context.realm.."\31"..context.session
+ local owner=context.actor.."\31"..context.guild.."\31"..(context.scope or context.realm).."\31"..context.session
  if M.owner~=owner then M.owner=owner;M.claims={};M.scope=nil;M.baseline=true;M.lastMessage=nil;M.pending=0 end
  local s=context.ledger.milestones
  if type(s)~="table"or type(s.known)~="table"or type(s.events)~="table"then s={known={},events={},enabled=false,generation=0};context.ledger.milestones=s end

@@ -117,8 +117,6 @@ function B.render(bridge,index,id,learned,spec,rangeOK,rangeRaw,usableOK,usableR
     local range,usable=ns.features.RangeTracking.render(tile.visualSignals,id,spec.unit or "target",rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource)
     local R=ns.features.RangeTracking
     R.paintColor(tile.visualSignals[2],range and 0 or 1,range and 1 or .65,range and 1 or 0,1);R.paintFlag(tile.visualSignals[4],usable)
-    if not range then R.paintColor(tile.visualSignals[1],1,.65,0,1) end
-    if not usable then R.paintColor(tile.visualSignals[3],1,.65,0,1) end
     return tile,info
 end
 function B.auras(bridge,specs,readings,observeAura)

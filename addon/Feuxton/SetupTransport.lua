@@ -681,13 +681,24 @@ function S.collectSetup()
     if performance and #payload+#performance+22<=65536 then payload=payload:sub(1,-2)..',"clientPerformance":'..performance..'}'end
     local profiler=S.collectAddonProfiler and S.collectAddonProfiler()
     if profiler and #payload+#profiler+17<=65536 then payload=payload:sub(1,-2)..',"addonProfiler":'..profiler..'}'end
+    local recruitment=ns.features.GuildRecruitment
+    local realmProbe=recruitment and recruitment.realmProbe and recruitment.realmProbe()
+    if realmProbe then
+        local field=',"guildRealmProbe":'..S.jsonObject(realmProbe)
+        if #field<=256 and #payload+#field<=65536 then payload=payload:sub(1,-2)..field..'}'end
+    end
+    local configurationProbe=recruitment and recruitment.configurationProbe and recruitment.configurationProbe()
+    if configurationProbe then
+        local field=',"guildConfigurationProbe":'..S.jsonObject(configurationProbe)
+        if #field<=256 and #payload+#field<=65536 then payload=payload:sub(1,-2)..field..'}'end
+    end
     return payload
 end
 function S.refreshSetup()
     if S.readableCall(InCombatLockdown)~=false then return end
     ns.metadataBuilding=true
     local ok,result=pcall(function()
-        S.resolveSpells(); S.discoverBindings()
+        if not S.flushSpellData() then S.resolveSpells(); S.discoverBindings() end
         return S.collectSetup()
     end)
     ns.metadataBuilding=false

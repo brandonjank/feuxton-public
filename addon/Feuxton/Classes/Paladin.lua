@@ -106,6 +106,7 @@ for index,key in ipairs(ns.spellCatalog.PALADIN.utilityKeys) do
     utilitySlots[short]=index
     for _,keys in ipairs({ordinaryKeys,retKeys,protectionKeys}) do keys[#keys+1]=short end
 end
+for _,keys in ipairs({ordinaryKeys,retKeys,protectionKeys}) do keys[#keys+1]="divineShield" end
 local baseSlots=#paladin.packetKeys
 paladin.bindingCode=ns.state.compactBindingCode
 -- Restricted remaining time goes directly through the native color API. Lua
@@ -240,6 +241,11 @@ local function initializeNative(S)
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",610+(i-1)*6,0)
         paladin.castIdentityCells[i]=dot
     end
+    paladin.divineShieldCells={}
+    for i=1,6 do
+        local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",538+(i-1)*6,-36)
+        dot:SetColorTexture(0,0,0,1);paladin.divineShieldCells[i]=dot
+    end
     for i=1,4 do
         local dot=panel:CreateTexture(nil,"OVERLAY");dot:SetSize(4,4);dot:SetPoint("TOPLEFT",626+(i-1)*6,0);paladin.nativeStamp[i]=dot
     end
@@ -280,7 +286,7 @@ local function initializeNative(S)
         useButton.useDot:ClearAllPoints()
         useButton.useDot:SetPoint("TOPRIGHT",tile.icon,"TOPRIGHT",0,0)
     end
-    local function extensionTile(key,x)
+    local function extensionTile(key,x,compactSelf)
         local function cell(layer,size,dx,y)
             local region=panel:CreateTexture(nil,layer);region:SetSize(size,size);region:SetPoint("TOPLEFT",x+dx,-y);return region
         end
@@ -289,7 +295,8 @@ local function initializeNative(S)
         tile.cooldown=CreateFrame("Cooldown",nil,panel,"CooldownFrameTemplate");tile.cooldown:SetAllPoints(tile.dial)
         tile.cooldown:SetDrawEdge(false);tile.cooldown:SetDrawSwipe(true);tile.cooldown:SetSwipeColor(0,0,0,1);tile.cooldown:SetHideCountdownNumbers(true)
         for j=1,4 do
-            local dot=cell("OVERLAY",4,22+(j-1)*6,25);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot
+            local dx=compactSelf and j==4 and 38 or 22+(j-1)*6
+            local dot=cell("OVERLAY",4,dx,25);ns.features.RangeTracking.initialize(dot,1,.65,0,1);tile.visualSignals[j]=dot
         end
         tile.manaCost=ns.features.SpellBridge.createManaCost(panel,x,36,28)
         local use=S.attachSpellUse(panel,tile.icon,key);use.useDot:ClearAllPoints();use.useDot:SetPoint("TOPRIGHT",tile.icon,"TOPRIGHT",0,0)
@@ -303,7 +310,15 @@ local function initializeNative(S)
     for i,key in ipairs(ns.spellCatalog.PALADIN.utilityKeys) do
         paladin.utilityTiles[i]=extensionTile(key,18+(i-1)*72)
     end
+    paladin.divineShieldTile=extensionTile("paladin.divineShield",586,true)
     local wisdom=panel:CreateTexture(nil,"ARTWORK");wisdom:SetSize(8,8);wisdom:SetPoint("TOPLEFT",72,-23);wisdom:SetColorTexture(0,0.25,1,1)
+end
+
+local function paintRGB(cells,bytes)
+    for i,dot in ipairs(cells) do
+        local r,g,b=string.byte(bytes,(i-1)*3+1,i*3)
+        dot:SetColorTexture(r/255,g/255,b/255,1)
+    end
 end
 
 local function renderNative(tile,bound,learned,chosen,info,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
@@ -494,10 +509,12 @@ function paladin.initializePreview()
         end
         paladin.rangeSpecs={};local nativeReadings={};local protectionRecords={};local utilityRecords={}
         local wisdomID,bulwarkID,utilityMask=nil,nil,0
+        local divineShieldRecord
         local retTiming=retSignalContext(S)
         local retClocks=retTiming and {} or nil
         local records=protection and protectionKeys or retTiming and retKeys or ordinaryKeys
         for index,shortKey in ipairs(records) do
+            local divineShield=shortKey=="divineShield"
             local spec
             for _,entry in ipairs(paladin.specs) do if entry.key=="paladin."..shortKey then spec=entry;break end end
             local ok,info=pcall(api.GetSpellInfo or function() end,spec.name)
@@ -512,6 +529,7 @@ function paladin.initializePreview()
             local key=chosen and chosen.key or "";local keyCode=paladin.bindingCode(key)
             if keyCode==0 then chosen=nil end
             local bound=chosen and chosen.id or id;bound=type(bound)=="number" and bound>0 and bound==math.floor(bound) and bound or 0
+            if divineShield and bound>=2147483648 then bound=0;chosen=nil;visualChosen=nil;keyCode=0 end
             local learned=bound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,bound) or {}
             local utilityIndex=utilitySlots[shortKey]
             local isLearned=learned.status=="observed" and learned.value==true
@@ -519,7 +537,7 @@ function paladin.initializePreview()
             local usable,mana={},{};local usableRead,usableRaw,manaRaw,usableSource
             if bound>0 then usable,mana,usableRead,usableRaw,manaRaw,usableSource=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
             local range,rangeRead,rangeRaw={};local rangeSource=api.IsSpellInRange
-            if bound>0 then range,rangeRead,rangeRaw=ns.features.RangeTracking.observeRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
+            if bound>0 and not divineShield then range,rangeRead,rangeRaw=ns.features.RangeTracking.observeRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
             local ready={}
             -- The readable API includes the global cooldown. Off-GCD abilities
             -- leave this field unknown and use the native ignore-GCD widget,
@@ -537,14 +555,16 @@ function paladin.initializePreview()
             local record=S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
             local extension=index-baseSlots
             if extension>0 and not protection then extension=2 end -- Reuse the Hammer tile's calibration.
-            if utilityIndex then
+            if divineShield then
+                if isLearned then divineShieldRecord=record end
+            elseif utilityIndex then
                 utilityRecords[utilityIndex]=record;utilityMask=utilityMask+2^(utilityIndex-1)
                 if shortKey=="sealWisdom" then wisdomID=bound else bulwarkID=bound end
             elseif extension>0 then protectionRecords[extension]=record else packet=packet..record end
-            local tile=utilityIndex and paladin.utilityTiles[utilityIndex] or extension>0 and paladin.protectionTiles[extension] or paladin.nativeTiles[index]
+            local tile=divineShield and paladin.divineShieldTile or utilityIndex and paladin.utilityTiles[utilityIndex] or extension>0 and paladin.protectionTiles[extension] or paladin.nativeTiles[index]
             renderNative(tile,bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
             if retClocks and isLearned and (shortKey=="judgement" or shortKey=="holyStrike" or shortKey=="hammerWrath") then retClocks[#retClocks+1]=bound end
-            if not utilityIndex and extension==2 and not protection and not isLearned then protectionRecords[2]=nil end
+            if not divineShield and not utilityIndex and extension==2 and not protection and not isLearned then protectionRecords[2]=nil end
             if tile.manaCost then
                 local freeIfNoCostRecord=shortKey=="swiftJudgement" and bound==1310994 and bound==id
                 ns.features.SpellBridge.renderManaCost(tile.manaCost,bound,isLearned,freeIfNoCostRecord)
@@ -559,22 +579,14 @@ function paladin.initializePreview()
                 auraID=bound
             end
             local reading={name=spec.name,bound=bound,learned=isLearned,auraID=auraID}
-            if not utilityIndex then
+            if divineShield then nativeReadings[19]=reading
+            elseif not utilityIndex then
                 if extension<=0 then nativeReadings[index]=reading
                 elseif extension==1 then paladin.protectionShield=reading end
             end
             if spec.healing and bound>0 and learned.value==true then paladin.rangeSpecs[#paladin.rangeSpecs+1]={id=bound,name=spec.name} end
             end
         end
-        -- Aura-only capability: no new binding, spell slot, packet bytes or
-        -- sampling dimensions. Restricted presence stays in AuraContainer.
-        local shieldSpec
-        for _,spec in ipairs(paladin.specs) do if spec.key=="paladin.divineShield" then shieldSpec=spec;break end end
-        local shieldOK,shieldInfo=pcall(api.GetSpellInfo or function() end,shieldSpec.name)
-        local shieldID=shieldOK and group.field(shieldInfo,"spellID") or {}
-        local shieldBound=shieldID.status=="observed" and type(shieldID.value)=="number" and shieldID.value>0 and shieldID.value<2147483648 and math.floor(shieldID.value)==shieldID.value and shieldID.value or 0
-        local shieldKnown=shieldBound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,shieldBound) or {}
-        nativeReadings[19]={name=shieldSpec.name,bound=shieldBound,learned=shieldKnown.status=="observed" and shieldKnown.value==true}
         if protection then nativeReadings[20]=paladin.protectionShield end
         local movement=group.read(GetUnitSpeed,1,"player");movement=movement.status=="observed" and type(movement.value)=="number" and {status="observed",value=movement.value>0} or {}
         packet=packet..S.bytes(group.code(movement),1)..S.bytes(group.code(group.read(UnitAffectingCombat,1,"player")),1)..S.bytes(group.code(group.read(IsMounted,1)),1)..S.bytes(group.code(group.read(UnitOnTaxi,1,"player")),1)
@@ -663,7 +675,16 @@ function paladin.initializePreview()
         local active=S.bytes(activeID,4)..S.bytes(activeKind,1)
         -- Associate public RGB identity with this exact checksummed class frame.
         active=active..S.bytes(S.adler32(active..S.bytes(checksum,4)),4)
-        for i,dot in ipairs(paladin.castIdentityCells) do dot:SetColorTexture(string.byte(active,(i-1)*3+1)/255,string.byte(active,(i-1)*3+2)/255,string.byte(active,(i-1)*3+3)/255,1) end
+        paintRGB(paladin.castIdentityCells,active)
+        -- An optional record in unused pixels preserves existing HHPD framing.
+        -- Only the record attached to this packet's checksum can own the tile.
+        if divineShieldRecord then
+            local shield=string.char(1)..divineShieldRecord..S.bytes(S.spellUseCode("paladin.divineShield"),1)
+            paintRGB(paladin.divineShieldCells,shield..S.bytes(S.adler32(shield..S.bytes(checksum,4)),4)..string.char(0))
+        elseif paladin.divineShieldPainted then
+            paintRGB(paladin.divineShieldCells,string.rep(string.char(0),18))
+        end
+        paladin.divineShieldPainted=divineShieldRecord~=nil
         for i,dot in ipairs(paladin.nativeStamp) do local value=math.floor(checksum/256^(i-1))%256/255;dot:SetColorTexture(value,value,value,1) end
         packet=packet..S.bytes(checksum,4);assert(#packet<=357)
         S.publishTransportPacket(ns.wire.ids.paladinPreview,packet)

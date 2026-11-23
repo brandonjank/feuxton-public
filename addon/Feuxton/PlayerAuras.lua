@@ -53,6 +53,15 @@ do
     for _,spec in ipairs(specs) do S.attachSpellUse(panel,spec.icon,spec.key) end
     S.refreshSpellUse()
     local native,filtered,ready,errorText
+    local aspectIDs={}
+    for _,spec in ipairs(specs) do
+        for _,id in ipairs(spec.ids) do aspectIDs[id]=true end
+    end
+    function S.isPlayerAspectSpell(id)
+        return aspectIDs[id]==true and S.readableCall(function()
+            local _,class=UnitClass("player");return class
+        end)=="HUNTER"
+    end
     local settledAt=GetTime()+0.6
     local ok,err=pcall(function()
         native=CreateFrame("AuraContainer",nil,panel,"CustomAuraContainerTemplate")
@@ -95,10 +104,12 @@ do
             if type(spec.known)~="boolean" and type(spec.spellID)=="number" then spec.known=S.readableCall(IsSpellKnown,spec.spellID) end
             S.drawFlag(spec.learnedDot,spec.known)
         end
-        S.discoverBindings()
+        return true
     end
-    panel:RegisterEvent("PLAYER_LOGIN"); panel:RegisterEvent("SPELLS_CHANGED"); panel:RegisterEvent("SPELL_DATA_LOAD_RESULT"); panel:RegisterEvent("PLAYER_REGEN_ENABLED")
-    panel:SetScript("OnEvent",function() local eventOK,eventError=pcall(resolve); if not eventOK then errorText=S.describe(eventError) end end)
+    function S.resolvePlayerAspects()
+        local eventOK,eventError=pcall(resolve)
+        if not eventOK then errorText=S.describe(eventError) end
+    end
     local elapsedTotal=0
     panel:SetScript("OnUpdate",function(self,elapsed)
         elapsedTotal=elapsedTotal+elapsed; if elapsedTotal<S.updateInterval() then return end; elapsedTotal=0
@@ -122,6 +133,6 @@ do
     end)
     local report=ns.hudReport
     ns.hudReport=function(add) report(add); add("Player aura widget ready",S.describe(ready)); if errorText then add("Player aura widget error",errorText) end end
-    resolve()
+    if resolve() then S.discoverBindings() end
 end
 

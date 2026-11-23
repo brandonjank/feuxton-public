@@ -307,6 +307,7 @@ do
     register(S.groupPanel,"group")
     register(S.fastFrame,"core")
     local update=S.profileFunction(function(delta)
+        S.flushCombatSpellData()
         if ns.beginNativeCooldownBatch then pcall(ns.beginNativeCooldownBatch) end
         S.beginPacketUpdate()
         local friendly=ns.features.Healing

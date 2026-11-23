@@ -7,6 +7,8 @@ local MAX=2147483647
 local D=ns.features.GuildDiscovery
 local M=ns.features.GuildMilestones
 local H=ns.features.GuildRecruitmentHistory
+local separator="\31"
+local clubPrefix="@club:"
 local function public(value)
     if type(issecretvalue)~="function" then return false end
     local ok,secret=pcall(issecretvalue,value);return ok and not secret
@@ -49,11 +51,172 @@ local function retireTicket(at)
         B.actionButton:SetAttribute("type",nil);B.actionButton:SetAttribute("macrotext",nil);B.actionButton:SetAttribute("feuxton-action",nil);B.macroArmed=false
     end
 end
-local function configurationContext()
-    local actor=utf8(call(UnitGUID,"player"),64);local realm=utf8(call(GetRealmName),96)
+local function validLedger(ledger)
+    return type(ledger)=="table" and type(ledger.records)=="table" and type(ledger.names)=="table" and type(ledger.attempts)=="table"
+end
+local function historicalRealm(actor,guild,normalized,onlyNormalized)
+    if not actor or not guild or onlyNormalized and not normalized then return nil,"unavailable" end
+    local store=type(FeuxtonDB)=="table" and FeuxtonDB.guildRecruitment
+    if not store then return nil,"none" end
+    if type(store)~="table" or store.schema~=1 or type(store.scopes)~="table" then return nil,"unavailable" end
+    -- The normalized name only confirms an existing exact owner key. Never
+    -- create a second realm namespace or reuse history across actors or guilds.
+    local guildPart=separator..guild..separator
+    local suffix=guildPart..actor
+    local match,invalid,otherActor
+    for key,ledger in pairs(store.scopes) do
+        if type(key)=="string" then
+            local realm,guildName=key:match("^([^\31]+)\31([^\31]+)\31[^\31]+$")
+            if guildName==guild and not onlyNormalized then otherActor=true end
+            if key:sub(-#suffix)==suffix and (not onlyNormalized or realm and realm:gsub("%s","")==normalized) then
+                local name=utf8(realm,96)
+                if not name or name:sub(1,#clubPrefix)==clubPrefix then return nil,"unavailable" end
+                if match then return nil,"ambiguous" end
+                match,invalid=name,not validLedger(ledger)
+            end
+        end
+    end
+    if invalid then return nil,"unavailable" end
+    return match,match and "unique" or otherActor and "unavailable" or "none"
+end
+local function playerRealm(actor,guild)
+    if type(GetRealmName)=="function" then
+        local ok,name=pcall(GetRealmName)
+        if ok then
+            if not public(name) then return nil end
+            if name~=nil and name~="" then
+                local realm=utf8(name,96)
+                return realm and realm:sub(1,#clubPrefix)~=clubPrefix and realm or nil
+            end
+        end
+    end
+    if not actor then return nil end
+    local normalized=utf8(call(GetNormalizedRealmName),96)
+    if not normalized then return nil end
+    guild=guild or utf8(call(GetGuildInfo,"player"),96)
+    return historicalRealm(actor,guild,normalized,true)
+end
+local function probeText(fn,maximum,...)
+    if type(fn)~="function" then return nil,"missing" end
+    local ok,value=pcall(fn,...)
+    if not ok then return nil,"failed" end
+    if type(issecretvalue)~="function" then return nil,"unverified" end
+    local verified,secret=pcall(issecretvalue,value)
+    if not verified or type(secret)~="boolean" then return nil,"unverified" end
+    if secret then return nil,"restricted" end
+    if value==nil or value=="" then return nil,"empty" end
+    local text=utf8(value,maximum)
+    return text,text and "public" or "invalid"
+end
+local function probeGuildClub(guild)
+    if not guild then return "unavailable" end
+    local api=C_Club
+    if type(api)~="table" or type(api.GetGuildClubId)~="function" or type(api.GetClubInfo)~="function" then return "missing" end
+    if type(C_ChatInfo)~="table" or call(C_ChatInfo.InChatMessagingLockdown)~=false then return "unavailable" end
+    local ok,id=pcall(api.GetGuildClubId)
+    if not ok then return "failed" end
+    if not public(id) then return "restricted" end
+    if id==nil or id==0 then return "empty" end
+    if not integer(id,9007199254740991) then return "invalid" end
+    local guildType=call(function()return Enum.ClubType.Guild end)
+    if type(guildType)~="number" then return "unavailable" end
+    local info
+    ok,info=pcall(api.GetClubInfo,id)
+    if not ok then return "failed" end
+    if not public(info) then return "restricted" end
+    if info==nil then return "empty" end
+    if type(info)~="table" then return "invalid" end
+    local clubID,clubType,name=info.clubId,info.clubType,info.name
+    if not public(clubID) or not public(clubType) or not public(name) then return "restricted" end
+    if clubID~=id or clubType~=guildType or name~=guild then return "mismatch" end
+    return "public",id
+end
+function B.realmProbe()
+    if call(InCombatLockdown)~=false or call(UnitAffectingCombat,"player")~=false then return nil end
+    local _,directState=probeText(GetRealmName,96)
+    local normalized,normalizedState=probeText(GetNormalizedRealmName,96)
+    local actor,actorState=probeText(UnitGUID,64,"player")
+    local guild,guildState=probeText(GetGuildInfo,96,"player")
+    local _,matchState=historicalRealm(actor,guild,normalized,true)
+    return {v=2,direct=directState,normalized=normalizedState,actor=actorState,guild=guildState,match=matchState,club=probeGuildClub(guild)}
+end
+local function currentScope(actor,guild)
+    if guild then
+        local _,id=probeGuildClub(guild)
+        if id then return clubPrefix..string.format("%.0f",id),nil,true end
+    end
+    local store=type(FeuxtonDB)=="table" and FeuxtonDB.guildRecruitment
+    if type(store)=="table" then
+        if store.clubActors~=nil and type(store.clubActors)~="table" or store.clubLegacy~=nil and type(store.clubLegacy)~="table" then return end
+        -- Temporary club API loss must not reopen an older ledger for this owner.
+        for _,actors in pairs(store.clubActors or {})do
+            if type(actors)~="table" or actors[actor]~=nil then return end
+        end
+        for _,origin in pairs(store.clubLegacy or {})do
+            if type(origin)~="table" or origin.guild==guild then return end
+        end
+    end
+    local realm=playerRealm(actor,guild)
+    return realm,realm,false
+end
+local function copySavedValue(value,depth)
+    if type(value)~="table" then return value end
+    if depth==0 then return nil end
+    local result={}
+    for key,entry in pairs(value) do
+        if type(key)=="string" or type(key)=="number" then result[key]=copySavedValue(entry,depth-1) end
+    end
+    return result
+end
+local function newActorLedger(prior)
+    local ledger={records={},names={},attempts={},totalInvites=0,totalJoins=0,totalDeclines=0}
+    if prior then
+        for _,key in ipairs({"attempts","lastAttempt","lastDelayMs","lastWhoAt","totalInvites","totalJoins","totalDeclines","statistics","milestones"})do
+            if prior[key]~=nil then ledger[key]=copySavedValue(prior[key],4) end
+        end
+    end
+    return ledger
+end
+local function clubLedger(store,scope,actor,guild)
+    if store.clubActors~=nil and type(store.clubActors)~="table" or store.clubLegacy~=nil and type(store.clubLegacy)~="table" then return end
+    local actors=store.clubActors and store.clubActors[scope]
+    if actors~=nil and type(actors)~="table" then return end
+    local legacy=store.clubLegacy and store.clubLegacy[scope]
+    if legacy~=nil then
+        if type(legacy)~="table" or not utf8(legacy.realm,96) or not utf8(legacy.guild,96) then return end
+    elseif not actors then
+        local realm,status=historicalRealm(actor,guild)
+        if status~="unique" and status~="none" then return end
+        if realm then
+            for _,origin in pairs(store.clubLegacy or {})do
+                if type(origin)~="table" or origin.realm==realm and origin.guild==guild then return end
+            end
+            legacy={realm=realm,guild=guild}
+        end
+    end
+    local ledger=actors and actors[actor]
+    if ledger==nil then
+        local prior=legacy and store.scopes[legacy.realm..separator..legacy.guild..separator..actor]
+        if prior~=nil and not validLedger(prior) then return end
+        ledger=newActorLedger(prior)
+    end
+    return ledger,actors,legacy
+end
+local function readIdentity()
+    local actor=utf8(call(UnitGUID,"player"),64)
+    if not actor then return nil end
+    local guild=utf8(call(GetGuildInfo,"player"),96)
+    local scope,realm,club=currentScope(actor,guild)
+    if scope then return {actor=actor,guild=guild,scope=scope,realm=realm,club=club} end
+end
+local function configurationContext(identity)
+    if identity==nil then identity=readIdentity() end
+    if not identity then return nil end
     local stamp=now();local session=integer(ns.state.setupSession,4294967295)
-    if not actor or not realm or not stamp or not session or session==0 then return nil end
-    return {actor=actor,realm=realm,session=session,at=stamp,owner=realm.."\31"..actor.."\31"..session}
+    if not stamp or not session or session==0 then return nil end
+    local guild=identity.club and identity.guild or nil
+    local owner=identity.scope..separator..(guild and guild..separator or "")..identity.actor..separator..session
+    return {actor=identity.actor,scope=identity.scope,guild=guild,session=session,at=stamp,owner=owner}
 end
 -- Observe the native chat box without changing or hooking any Blizzard UI.
 -- Only its standard name and boolean proofs leave this function, never text.
@@ -79,29 +242,45 @@ local function nativeChatState(t)
     end
     return state
 end
-local function ownContext()
+local function ownContext(identity)
     local G=ns.features.GroupContext
     if not G or type(G.names)~="function"then return nil end
-    local actor=utf8(call(UnitGUID,"player"),64)
+    if identity==nil then identity=readIdentity() end
     -- A current positive self read is also the control for qualified nils.
-    local guild=utf8(call(GetGuildInfo,"player"),96)
-    local realm=utf8(call(GetRealmName),96)
+    if not identity or not identity.guild then return nil end
+    local actor,guild,scope,realm,club=identity.actor,identity.guild,identity.scope,identity.realm,identity.club
     local _,name=G.names("player",96);name=utf8(name,96)
     local stamp=now();local utc=wall();local session=integer(ns.state.setupSession,4294967295)
-    if not actor or not guild or not realm or not name or not stamp or not utc or not session or session==0 then return nil end
-    local key=realm.."\31"..guild.."\31"..actor
+    if not scope or not name or not stamp or not utc or not session or session==0 then return nil end
+    local key=scope..separator..guild..separator..actor
     if B.owner~=key or B.session~=session then
-        retireTicket(stamp);B.owner=key;B.session=session;B.pending={};B.samples={};D.reset(key.."\31"..session);B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.rosterRequested=nil;B.ledger=nil;B.ledgerMaintenance=nil
+        retireTicket(stamp);B.owner=key;B.session=session;B.pending={};B.samples={};D.reset(key.."\31"..session);B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.rosterRetryAt=nil;B.rosterRequested=nil;B.ledger=nil;B.ledgerMaintenance=nil
     end
     if type(FeuxtonDB)~="table"then return nil end
     local store=FeuxtonDB.guildRecruitment
     if store==nil then store={schema=1,scopes={}};FeuxtonDB.guildRecruitment=store end
     if type(store)~="table"or store.schema~=1 or type(store.scopes)~="table"then return nil end
-    local ledger=store.scopes[key]
-    if ledger==nil then ledger={records={},names={},attempts={},totalInvites=0,totalJoins=0,totalDeclines=0};store.scopes[key]=ledger end
-    if type(ledger)~="table"or type(ledger.records)~="table"or type(ledger.names)~="table"or type(ledger.attempts)~="table"then return nil end
-    local historyContext={actor=actor,guild=guild,realm=realm,session=session,at=stamp,utc=utc,ledger=ledger}
+    local ledger,actors,legacy
+    if club then ledger,actors,legacy=clubLedger(store,scope,actor,guild)
+    else
+        ledger=store.scopes[key]
+        if ledger==nil then ledger=newActorLedger();store.scopes[key]=ledger end
+    end
+    if not validLedger(ledger) or #ledger.attempts>10 then return nil end
+    local attempts={}
+    for _,at in ipairs(ledger.attempts)do if not integer(at)then return nil end;if utc-at<60 then attempts[#attempts+1]=at end end
+    local historyContext={actor=actor,name=name,guild=guild,scope=scope,realm=realm,club=club,session=session,at=stamp,utc=utc,ledger=ledger,
+        legacyRealm=legacy and legacy.realm,legacyGuild=legacy and legacy.guild}
     if not H.attach(store,historyContext,utf8,B.configuration and B.configuration.reinviteHours or 72)then return nil end
+    if club and not (actors and actors[actor]) then
+        if not store.clubActors then store.clubActors={} end
+        if not actors then actors={};store.clubActors[scope]=actors end
+        actors[actor]=ledger
+        if legacy then
+            if not store.clubLegacy then store.clubLegacy={} end
+            store.clubLegacy[scope]=legacy
+        end
+    end
     if B.ledger~=ledger or not B.ledgerMaintenance or stamp-B.ledgerMaintenance>=5 then
         local count=0
         for guid,row in pairs(ledger.records)do
@@ -110,11 +289,9 @@ local function ownContext()
         end
         B.ledger=ledger;B.recordCount=count;B.ledgerMaintenance=stamp;H.count=count;H.full=count>=H.limit
     end
-    if #ledger.attempts>10 then return nil end
-    local attempts={}
-    for _,at in ipairs(ledger.attempts)do if not integer(at)then return nil end;if utc-at<60 then attempts[#attempts+1]=at end end
     ledger.attempts=attempts
-    return {actor=actor,name=name,guild=guild,realm=realm,session=session,at=stamp,utc=utc,ledger=ledger,recordCount=B.recordCount or 0}
+    historyContext.recordCount=B.recordCount or 0
+    return historyContext
 end
 local function permissions()
     local invite=call(CanGuildInvite)
@@ -222,21 +399,31 @@ local function rosterStep(context,cfg)
         B.requestRoster=false;B.rosterRequested=context.at
         if type(C_GuildInfo)=="table"and type(C_GuildInfo.GuildRoster)=="function"then pcall(C_GuildInfo.GuildRoster)end
     end
-    if not B.rosterScan and B.rosterDirty then
+    if not B.rosterScan and B.rosterDirty and context.at>=(B.rosterRetryAt or 0) then
         B.rosterDirty=false
         local count=integer(call(GetNumGuildMembers),1000)
-        if not count or count==0 then return end
-        B.rosterScan={count=count,index=1,members={},valid=true,at=context.at}
+        if not count or count==0 then B.rosterDirty=true;B.rosterRetryAt=context.at+1;return end
+        B.rosterScan={count=count,index=1,members={},onlineNames={},valid=true,at=context.at}
     end
     local scan=B.rosterScan;if not scan then return end
     for _=1,8 do
         if scan.index>scan.count then break end
         local member=rosterMember(scan.index);scan.index=scan.index+1
-        if member then scan.members[member.guid or "name:"..member.name]=member else scan.valid=false end
+        local key=member and (member.guid or "name:"..member.name)
+        if key and not scan.members[key] then
+            scan.members[key]=member
+            if context.club and member.online~=false then
+                if not member.guid or scan.onlineNames[member.name] then scan.valid=false end
+                scan.onlineNames[member.name]=true
+            end
+        else scan.valid=false end
     end
     if scan.index<=scan.count then return end
     B.rosterScan=nil
-    if scan.count~=integer(call(GetNumGuildMembers),1000)or not scan.valid then return end
+    if scan.count~=integer(call(GetNumGuildMembers),1000)or not scan.valid or context.club and not scan.members[context.actor] then
+        B.rosterDirty=true;B.rosterRetryAt=context.at+1;return
+    end
+    B.rosterRetryAt=nil
     local initial=B.roster==nil;B.roster=scan.members;B.rosterAt=context.at
     if M then M.observe(context,B.roster,cfg and cfg.milestones)end
     if initial then return end -- initial login roster is never a join event
@@ -307,33 +494,53 @@ local function template(value,milestone)
     return not remainder:find("[{}]")and value or nil
 end
 local function decodeConfiguration(raw)
-    if type(raw)~="string"or #raw<8 or #raw>11823 or raw:byte(1)~=4 or raw:byte(2)>2 then return nil end
+    if type(raw)~="string"or #raw>11823 or #raw>=1 and raw:byte(1)~=4 or #raw>=2 and raw:byte(2)>2 then return nil end
+    if #raw<8 then return nil,"incomplete" end
     local offset=3;local lists={}
     for kind=1,2 do
-        local count=raw:byte(offset);offset=offset+1;if not count or count<1 or count>32 then return nil end
+        local count=raw:byte(offset);offset=offset+1
+        if not count then return nil,"incomplete" end
+        if count<1 or count>32 then return nil end
         local list={}
         for i=1,count do
             local length=raw:byte(offset);offset=offset+1
-            if not length or length<1 or length>120 or offset+length-1>#raw then return nil end
+            if not length then return nil,"incomplete" end
+            if length<1 or length>120 then return nil end
+            if offset+length-1>#raw then return nil,"incomplete" end
             local text=template(raw:sub(offset,offset+length-1));if not text then return nil end
             list[i]=text;offset=offset+length
         end
         lists[kind]=list
     end
-    local flags=raw:byte(offset);offset=offset+1;if not flags or flags>7 then return nil end
-    if offset+3>#raw then return nil end
+    local flags=raw:byte(offset);offset=offset+1
+    if not flags then return nil,"incomplete" end
+    if flags>7 then return nil end
+    if offset+3>#raw then return nil,"incomplete" end
     local generation=0;for i=0,3 do generation=generation+raw:byte(offset+i)*256^i end;offset=offset+4
     local ranks={}
     for _,level in ipairs({25,45,60})do
-        local length=raw:byte(offset);offset=offset+1;if not length or length>64 or offset+length-1>#raw then return nil end
+        local length=raw:byte(offset);offset=offset+1
+        if not length then return nil,"incomplete" end
+        if length>64 then return nil end
+        if offset+length-1>#raw then return nil,"incomplete" end
         local name=raw:sub(offset,offset+length-1);offset=offset+length
         if length>0 and(not utf8(name,64)or name:find("[{}]")or name:match("^%s")or name:match("%s$"))then return nil end
         ranks[level]=name
     end
-    local count=raw:byte(offset);offset=offset+1;if not count or count<1 or count>32 then return nil end
+    local count=raw:byte(offset);offset=offset+1
+    if not count then return nil,"incomplete" end
+    if count<1 or count>32 then return nil end
     local messages={}
-    for i=1,count do local length=raw:byte(offset);offset=offset+1;if not length or length<1 or length>120 or offset+length-1>#raw then return nil end;local text=template(raw:sub(offset,offset+length-1),true);if not text then return nil end;messages[i]=text;offset=offset+length end
-    if offset+1~=#raw then return nil end
+    for i=1,count do
+        local length=raw:byte(offset);offset=offset+1
+        if not length then return nil,"incomplete" end
+        if length<1 or length>120 then return nil end
+        if offset+length-1>#raw then return nil,"incomplete" end
+        local text=template(raw:sub(offset,offset+length-1),true);if not text then return nil end
+        messages[i]=text;offset=offset+length
+    end
+    if offset+1>#raw then return nil,"incomplete" end
+    if offset+1<#raw then return nil end
     local hours=raw:byte(offset)+256*raw:byte(offset+1);if hours<1 or hours>720 then return nil end
     offset=offset+2
     if offset~=#raw+1 then return nil end
@@ -374,9 +581,18 @@ local function rejectOwnedAction(event,value,fn)
     local pending=B.pending[window.guid];if pending then pending.authorized=false end
     B.quarantine=math.max(B.quarantine or 0,at+2);clearMacro()
 end
-local function closeEditor()
+local function configurationOutcome(outcome,length)
+    B.configurationImport={v=1,outcome=outcome,length=math.min(16000,integer(length)or 0),ordinal=B.editorNonce}
+    if outcome~="opened"and outcome~="settling"and ns.markSetupDirty then ns.markSetupDirty()end
+end
+function B.configurationProbe()
+    return B.configurationImport
+end
+local function closeEditor(outcome,length)
     if not B.editor then return end
-    B.editor:ClearFocus();B.editor:SetText("");B.editor:Hide();B.editorOwner=nil;B.editorExpires=nil
+    if outcome and B.editorOwner then configurationOutcome(outcome,length)end
+    B.editor:ClearFocus();B.editor:SetText("");B.editor:Hide()
+    B.editorOwner=nil;B.editorNonce=nil;B.editorExpires=nil;B.editorSubmit=nil
 end
 local function editorFlags()
     if not B.editor or type(GetCurrentKeyBoardFocus)~="function"then return nil,nil end
@@ -438,7 +654,7 @@ local function clickAction(_,_,down)
         t.status=5;B.quarantine=context.at+2;B.blocked=false
         local ok=pcall(C_ChatInfo.SendChatMessage,t.message,"WHISPER",nil,c.name)
         local latest=ownContext();local current=latest and currentCandidate(t,latest)
-        if not ok or B.blocked or not latest or latest.actor~=context.actor or latest.guild~=context.guild or latest.realm~=context.realm or latest.session~=context.session
+        if not ok or B.blocked or not latest or latest.actor~=context.actor or latest.guild~=context.guild or latest.scope~=context.scope or latest.session~=context.session
             or not current or not current.qualified or current.guid~=c.guid or current.name~=c.name or not safety(latest,false,1)then clearMacro();t.status=6;return end
         pending.authorized=true;t.stage=2;t.status=5
     elseif t.kind==4 or t.kind==5 then
@@ -465,28 +681,76 @@ local function openConfiguration()
     if not context or not keyCurrent("configuration",B.configurationKey)or not safety(context,false,0)then return end
     retireTicket(context.at);B.quarantine=math.max(B.quarantine or 0,context.at+2)
     B.configurationNonce=B.configurationNonce%4294967295+1
-    B.editorOwner=context.owner;B.editorExpires=context.at+3
+    B.editorOwner=context.owner;B.editorNonce=B.configurationNonce;B.editorExpires=context.at+3
+    configurationOutcome("opened",0)
     B.editor:SetText("");B.editor:Show();B.editor:SetFocus()
 end
-local function importConfiguration()
-    local context=configurationContext();local focused=editorFlags()
-    if not context or not B.editorOwner or B.editorOwner~=context.owner or not B.editorExpires or context.at>=B.editorExpires or focused~=true
-        or not keyCurrent("configuration",B.configurationKey)or not safety(context,true,0)then closeEditor();return end
+local function editorFailure(context)
+    if not context or not B.editorOwner or B.editorOwner~=context.owner or B.editorNonce~=B.configurationNonce then return "ownership" end
+    if not B.editorExpires or context.at>=B.editorExpires then return "expired" end
+    if editorFlags()~=true then return "focus" end
+    if not keyCurrent("configuration",B.configurationKey)then return "binding" end
+    if not safety(context,true,0)then return "safety" end
+end
+local function consumeConfiguration(context,submit)
     local text=call(B.editor.GetText,B.editor)
-    if type(text)~="string"or #text>16000 then closeEditor();return end
-    local nonce,encoded=text:match("^/feuxton%-guild%-config (%d+) ([A-Za-z0-9+/=]+)$")
-    local number=nonce and #nonce<=10 and tonumber(nonce)
-    if not number or number~=B.configurationNonce or nonce~=string.format("%.0f",number)then closeEditor();return end
-    local raw=decode64(encoded);local cfg=raw and decodeConfiguration(raw)
-    if not cfg then closeEditor();return end
-    if type(FeuxtonDB)~="table"then closeEditor();return end
+    if type(text)~="string"then closeEditor("text");return end
+    local length=#text
+    if length>16000 or length<submit.length then closeEditor("text",length);return end
+    if submit.observed and length==submit.length then return end
+    submit.observed=true
+    submit.length=length
+    local prefix="/feuxton-guild-config "..string.format("%.0f",submit.nonce).." "
+    local encoded
+    if length<=#prefix and prefix:sub(1,length)==text then encoded=""
+    elseif text:sub(1,#prefix)==prefix then encoded=text:sub(#prefix+1)
+    else closeEditor("prefix",length);return end
+    if #encoded>15764 or encoded:find("[^A-Za-z0-9+/=]")then closeEditor("encoding",length);return end
+    local raw,cfg,reason
+    if #encoded==0 or #encoded%4~=0 then reason="incomplete"
+    else
+        raw=decode64(encoded)
+        if not raw then closeEditor("encoding",length);return end
+        cfg,reason=decodeConfiguration(raw)
+        if reason=="incomplete"and encoded:find("=",1,true)then reason=nil end
+    end
+    if not cfg then
+        if reason~="incomplete"then closeEditor("payload",length);return end
+        configurationOutcome("settling",length);return
+    end
+    if type(FeuxtonDB)~="table"then closeEditor("storage",length);return end
     local store=FeuxtonDB.guildRecruitment
     if store==nil then store={schema=1,scopes={}};FeuxtonDB.guildRecruitment=store end
-    if type(store)~="table"or store.schema~=1 or type(store.scopes)~="table"then closeEditor();return end
+    if type(store)~="table"or store.schema~=1 or type(store.scopes)~="table"then closeEditor("storage",length);return end
     local previous=configuration()
     if not previous or previous.checksum~=cfg.checksum then B.routeRejected=false end
     store.configuration={version=1,canonical=raw,checksum=cfg.checksum};B.configuration=cfg;B.configurationRaw=raw
-    retireTicket(context.at);B.quarantine=math.max(B.quarantine or 0,context.at+2);closeEditor()
+    retireTicket(context.at);B.quarantine=math.max(B.quarantine or 0,context.at+2);closeEditor("accepted",length)
+end
+local function importConfiguration(editor)
+    if editor~=B.editor then return end
+    local context=configurationContext()
+    local failure=editorFailure(context)
+    if failure then closeEditor(failure);return end
+    if B.editorSubmit then return end
+    -- Enter can arrive before all queued native text. Only that explicit
+    -- submit can wait, under the same editor, owner, nonce and idle guards.
+    local submit={editor=editor,owner=context.owner,nonce=B.editorNonce,length=0,expires=math.min(B.editorExpires,context.at+.75),nextAt=context.at+.1}
+    B.editorSubmit=submit
+    consumeConfiguration(context,submit)
+end
+local function observeConfigurationEditor(context)
+    if not B.editorOwner then return end
+    local submit=B.editorSubmit;local length=submit and submit.length
+    local failure=editorFailure(context)
+    if failure then closeEditor(failure,length);return end
+    if not submit then return end
+    if submit.editor~=B.editor or submit.owner~=context.owner or submit.nonce~=B.editorNonce then closeEditor("ownership",length);return end
+    if context.at>=submit.expires then closeEditor("incomplete",length);return end
+    if context.at>=submit.nextAt then
+        submit.nextAt=context.at+.1
+        consumeConfiguration(context,submit)
+    end
 end
 local function ensureButtons()
     local M=ns.state.managedSpells
@@ -501,7 +765,7 @@ local function ensureButtons()
         button:SetScript("OnClick",openConfiguration);B.configurationButton=button
         local editor=CreateFrame("EditBox","FeuxtonGuildRecruitConfigurationEditBox",UIParent,"InputBoxTemplate")
         editor:SetSize(1,1);editor:SetPoint("CENTER",UIParent,"CENTER",0,0);editor:SetAlpha(0);editor:SetAutoFocus(false);editor:SetMaxLetters(16000)
-        editor:SetScript("OnEnterPressed",importConfiguration);editor:SetScript("OnEscapePressed",closeEditor);editor:Hide();B.editor=editor
+        editor:SetScript("OnEnterPressed",importConfiguration);editor:SetScript("OnEscapePressed",function()closeEditor("cancelled")end);editor:Hide();B.editor=editor
     end
     B.actionKey=M.claimAuxiliaryBinding("guild.action","FeuxtonGuildRecruitAction")
     B.configurationKey=M.claimAuxiliaryBinding("guild.configuration","FeuxtonGuildRecruitConfiguration")
@@ -553,7 +817,7 @@ local function update(context,cfg)
     if M.configure(context,cfg.milestones)then B.rosterDirty=true;B.requestRoster=true end
     if(cfg.milestones.enabled or cfg.recruiting)and(not B.rosterRequested or context.at-B.rosterRequested>=30)then B.rosterDirty=true;B.requestRoster=true end
     rosterStep(context,cfg)
-    H.step(context,B.roster)
+    H.step(context,not B.rosterDirty and not B.rosterScan and B.roster or nil)
     if B.ticket then
         local t=B.ticket
         if t.owner~=B.owner or t.session~=context.session or context.at>=t.expires or cfg.checksum~=t.configurationChecksum then retireTicket(context.at)
@@ -577,7 +841,7 @@ local function update(context,cfg)
         end
     end
     if B.quarantine and context.at<B.quarantine then return 3 end
-    if not B.roster then return 1 end
+    if not B.roster or context.club and (B.rosterDirty or B.rosterScan) then return 1 end
     local milestoneKind,milestone=M.next(context,cfg.milestones,rosterMember)
     if milestoneKind then
         if not safety(context,false,milestoneKind)or milestoneKind==5 and nativeChatState(nil).opener~=true then return 2 end
@@ -607,13 +871,14 @@ function B.packet(tick)
     D.maintain()
     ensureButtons()
     if B.macroArmed and not B.ticket then retireTicket(now())end
-    local editorContext=configurationContext()
-    if B.editorOwner and(not editorContext or editorContext.owner~=B.editorOwner or not B.editorExpires or editorContext.at>=B.editorExpires or not safety(editorContext,true,0))then closeEditor()end
-    local focus,empty=editorFlags();local cfg=configuration();local context=ownContext();local status
+    local identity=readIdentity() or false
+    local editorContext=configurationContext(identity)
+    observeConfigurationEditor(editorContext)
+    local focus,empty=editorFlags();local cfg=configuration();local context=ownContext(identity);local status
     if context then D.collect(context,B.plates,candidate,candidateLevel)end
     if focus==true then retireTicket(editorContext and editorContext.at);status=3
     elseif context then status=update(context,cfg)
-    else retireTicket(editorContext and editorContext.at);B.pending={};M.clear();status=editorContext and 3 or 0 end
+    else retireTicket(editorContext and editorContext.at);B.pending={};H.invalidateRoster();M.clear();status=editorContext and 3 or 0 end
     B.monitorContext=context;B.monitorTick=tick
     local invite,canChat=permissions();local t=B.ticket
     local expires=t and math.max(0,math.min(10000,math.floor((t.expires-context.at)*1000)))or 0
@@ -629,7 +894,7 @@ function B.packet(tick)
         ..S.bytes(flag(chat.focus)+flag(chat.empty)*4+flag(chat.matches)*16+flag(chat.opener)*64,1)
         ..S.bytes(D.count,2)..S.bytes(D.whoStatus,1)
         ..S.bytes(t and t.milestoneLevel or 0,1)..S.bytes(t and t.targetRank or 255,1)..S.bytes(t and t.currentRank or 255,1)..S.bytes(milestoneStatus,1)..S.bytes(milestonePending,2)..S.bytes(announcements,4)..S.bytes(confirmed,4)..S.bytes(promoted,4)
-    for _,value in ipairs({context and context.actor or editorContext and editorContext.actor or "",context and context.guild or "",context and context.realm or editorContext and editorContext.realm or "",t and t.guid or "",t and t.name or "",chat.identity})do packet=packet..S.bytes(#value,1)..value end
+    for _,value in ipairs({context and context.actor or editorContext and editorContext.actor or "",context and context.guild or editorContext and editorContext.guild or "",context and context.scope or editorContext and editorContext.scope or "",t and t.guid or "",t and t.name or "",chat.identity})do packet=packet..S.bytes(#value,1)..value end
     assert(#packet+4<=602,"guild recruitment packet capacity")
     return packet..S.bytes(S.adler32(packet),4)
 end
@@ -760,9 +1025,9 @@ events:SetScript("OnEvent",function(_,event,value,...)
     elseif event=="WHO_LIST_UPDATE"then D.whoResults(ownContext(),utf8)
     elseif event=="ADDON_LOADED"then D.addonLoaded()
     elseif event=="CHAT_MSG_SYSTEM"then systemMessage(value)
-    elseif event=="GUILD_ROSTER_UPDATE"then B.rosterDirty=true -- permission to request is not a request trigger
-    elseif event=="PLAYER_GUILD_UPDATE"then if public(value)and value=="player"then B.rosterDirty=true;B.requestRoster=true end
+    elseif event=="GUILD_ROSTER_UPDATE"then B.rosterDirty=true;B.rosterScan=nil;B.rosterRetryAt=nil;H.invalidateRoster() -- permission to request is not a request trigger
+    elseif event=="PLAYER_GUILD_UPDATE"then if public(value)and value=="player"then B.rosterDirty=true;B.rosterScan=nil;B.rosterRetryAt=nil;B.requestRoster=true end
     elseif event=="ADDON_ACTION_BLOCKED"or event=="ADDON_ACTION_FORBIDDEN"or event=="MACRO_ACTION_BLOCKED"or event=="MACRO_ACTION_FORBIDDEN"then local fn=(event=="MACRO_ACTION_BLOCKED"or event=="MACRO_ACTION_FORBIDDEN")and value or select(1,...);if not D.rejected(fn)then rejectOwnedAction(event,value,select(1,...))end
-    elseif event=="PLAYER_REGEN_DISABLED"then closeEditor();retireTicket(now())
-    else D.cancelWho();closeEditor();retireTicket(now());B.actionWindow=nil;B.pending={};B.samples={};B.plates={};B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.requestRoster=true end
+    elseif event=="PLAYER_REGEN_DISABLED"then closeEditor("safety");retireTicket(now())
+    else D.cancelWho();closeEditor("ownership");retireTicket(now());B.actionWindow=nil;B.pending={};B.samples={};B.plates={};B.roster=nil;B.rosterScan=nil;B.rosterDirty=true;B.requestRoster=true end
 end)
