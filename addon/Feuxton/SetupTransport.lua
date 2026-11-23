@@ -58,9 +58,15 @@ function S.adler32(data)
     end
     return b*65536+a
 end
+local char,floor=string.char,math.floor
 function S.bytes(value,count)
+    -- Packet fields use one to four bytes. Pack them without a temporary table.
+    if count==1 then return char(value%256) end
+    if count==2 then return char(value%256,floor(value/256)%256) end
+    if count==3 then return char(value%256,floor(value/256)%256,floor(value/65536)%256) end
+    if count==4 then return char(value%256,floor(value/256)%256,floor(value/65536)%256,floor(value/16777216)%256) end
     local result={}
-    for i=1,count do result[i]=string.char(value%256); value=math.floor(value/256) end
+    for i=1,count do result[i]=char(value%256); value=floor(value/256) end
     return table.concat(result)
 end
 S.setupSession=math.random(0,65535)*65536+math.random(0,65535)
