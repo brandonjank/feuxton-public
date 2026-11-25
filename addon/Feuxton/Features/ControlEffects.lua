@@ -274,15 +274,21 @@ local function learned(spell)
  return nil
 end
 local debuffTypes={Poison=1,Disease=2,Curse=4,Magic=8,Bleed=16}
+local nameplateUnits={}
+for i=1,40 do nameplateUnits[i]="nameplate"..i end
+local engagementTargets={"player","pet","party1","party2","party3","party4"}
+local probeNames={PALADIN={"Holy Strike"},HUNTER={"Raptor Strike"},SHAMAN={"Primal Strike","Stormstrike"},WARRIOR={"Rend"},ROGUE={"Sinister Strike"},DRUID={"Claw"}}
+local noProbeNames={}
+local effectKeys={"movement","forsaken","stun","curse","stoneform"}
+local inRangeColor,outOfRangeColor={0,1,0,1},{1,0,0,1}
 -- A lower bound from available nameplate units, never a complete world count.
 -- Public eligibility is required before a secret range value can be rendered.
 function X.nearbyProbe()
  local S=ns.state;local now=value(GetTime)
  if X.probeCache and type(now)=="number" and now-X.probeAt>=0 and now-X.probeAt<1 then return unpack(X.probeCache) end
- local class=value(function()local _,c=UnitClass("player");return c end)
- local names={PALADIN={"Holy Strike"},HUNTER={"Raptor Strike"},SHAMAN={"Primal Strike","Stormstrike"},WARRIOR={"Rend"},ROGUE={"Sinister Strike"},DRUID={"Claw"}}
+ local class=ns.features.GroupContext.player("class").value
  local id,reach=0,0
- for _,name in ipairs(names[class] or {}) do
+ for _,name in ipairs(probeNames[class] or noProbeNames) do
   local info=value(S.spellAPI.GetSpellInfo,name);local spell=S.safeField(info,"spellID");local maximum=S.safeField(info,"maxRange");local minimum=S.safeField(info,"minRange")
   -- Combat-range melee spells may report zero numeric range. This catalog
   -- definition supplies reach, never a unit's in-range observation.
@@ -299,7 +305,8 @@ end
 function X.engaged(unit)
  local threat=value(UnitThreatSituation,"player",unit)
  if type(threat)=="number" and threat>=0 and threat<=3 then return true end
- for _,friend in ipairs({"player","pet","party1","party2","party3","party4"}) do if value(UnitIsUnit,unit.."target",friend)==true then return true end end
+ local target=unit.."target"
+ for _,friend in ipairs(engagementTargets) do if value(UnitIsUnit,target,friend)==true then return true end end
  return nil -- another fight or unavailable threat/target data is not our pack
 end
 local function hasRangeResult(ok,result)
@@ -362,8 +369,8 @@ function X.nearby()
  local S=ns.state;local id,reach=X.nearbyProbe();local near="";local packed=0
  -- Fixed unique tokens also work after /reload without waiting for ADD events.
  -- Forty is a bounded sample; omitted/off-screen enemies are not assumed absent.
- for i=1,40 do
-  local unit="nameplate"..i;local range;local exists=value(UnitExists,unit)
+ for i,unit in ipairs(nameplateUnits) do
+  local range;local exists=value(UnitExists,unit)
   if exists==false then range=false
   elseif exists==true and id>0 then
    local dead=value(UnitIsDeadOrGhost,unit);local hostile=value(UnitCanAttack,"player",unit);local combat=value(UnitAffectingCombat,unit)
@@ -376,7 +383,7 @@ function X.nearby()
   if i%4==0 then near=near..S.bytes(packed,1);packed=0 end
   local dot=X.nearbyDots and X.nearbyDots[i]
   if dot then
-   local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,dot,range,{0,1,0,1},{1,0,0,1})
+   local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,dot,range,inRangeColor,outOfRangeColor)
    if not ok or painted~=true then ns.features.RangeTracking.paintColor(dot,1,.65,0,1) end
   end
  end
@@ -394,12 +401,13 @@ function X.targetMelee(id,reach)
   local ok,result=X.readMeleeRange("target",id)
   if ok then range=result end
  end
- local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,X.meleeDot,range,{0,1,0,1},{1,0,0,1})
+ local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,X.meleeDot,range,inRangeColor,outOfRangeColor)
  if not ok or painted~=true then ns.features.RangeTracking.paintColor(X.meleeDot,1,.65,0,1) end
 end
 function X.effects(unit)
- local S=ns.state;local G=ns.features.GroupContext;local result={debuffs={}};local complete=false;local idsComplete=true;local seenIDs={}
+ local S=ns.state;local G=ns.features.GroupContext;local result={debuffs={}};local complete=false;local idsComplete=true
  if value(UnitExists,unit)~=true then return result end
+ local seenIDs={}
  local api=type(C_LossOfControl)=="table" and C_LossOfControl or {}
  local count
  if unit=="player" then count=value(api.GetActiveLossOfControlDataCount) else count=value(api.GetActiveLossOfControlDataCountByUnit,unit) end
@@ -435,8 +443,9 @@ function X.effects(unit)
    elseif #result.debuffs<16 then local entry={id=id,types=kind};result.debuffs[#result.debuffs+1]=entry;seenIDs[id]=entry
    else idsComplete=false end
   end
-  if type(name)~="string" or S.isSecret(aura.dispelName) then classified=false end
-  if S.isSecret(aura.dispelName) then dispelClassified=false end
+  local secretDispel=S.isSecret(aura.dispelName)
+  if type(name)~="string" or secretDispel then classified=false end
+  if secretDispel then dispelClassified=false end
   local impairment=S.safeField(aura,"isMovementImpairing")
   local auraKind,excluded=controlKind(id)
   if auraKind then applyControl(result,auraKind) end
@@ -567,8 +576,8 @@ function X.packet(tick)
  local S=ns.state;local G=ns.features.GroupContext;local F=ns.features.Healing
  -- Reuse only within this synchronous packet assembly. No value survives to
  -- another tick, event or publication; partial scans retain unknown absence.
- local helpful,unitEffects={},{}
- local class=value(function()local _,c=UnitClass("player");return c end)
+ local helpful={}
+ local class=G.player("class").value
  local race=value(function()local _,r=UnitRace("player");return r end) or ""
  X.native(class,race)
  -- Invalidate the old native witness before repainting any current values.
@@ -579,7 +588,7 @@ function X.packet(tick)
  if roster then for i=0,3 do rosterTick=rosterTick+string.byte(roster.packet,9+i)*256^i end end
  local revision=F.revision or 0
  local packet=ns.wire.schemas.sharedSupport..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(rosterTick or 0,4)..S.bytes(revision,4)..S.bytes(#race,1)..race
- local contexts={value(IsFalling),value(IsStealthed),value(UnitIsPlayer,"target"),value(UnitIsDeadOrGhost,"target"),value(UnitAffectingCombat,"player")}
+ local contexts={value(IsFalling),value(IsStealthed),value(UnitIsPlayer,"target"),value(UnitIsDeadOrGhost,"target"),G.player("combat").value}
  local corpseType=value(UnitCreatureType,"target")
  contexts[6]=(corpseType=="Humanoid" or corpseType=="Undead") and true or type(corpseType)=="string" and false or nil
  local now=value(GetTime)
@@ -606,7 +615,7 @@ function X.packet(tick)
  local entry=class=="PALADIN" and F.delivery(X.freedom) or nil
  packet=packet..S.bytes(freedom.id or 0,4)..S.bytes(entry and S.compactBindingCode(entry.key) or 0,2)..S.bytes(S.spellUseCode(X.freedom.key),1)
  if X.tiles then local tile=X.tiles[4];tile.spellID=(freedom.id or 0)>0 and freedom.id or nil;tile.known=learned(freedom);tile.offGlobalCooldown=true;S.renderCooldown(tile);ns.features.RangeTracking.render(tile.signals,freedom.id or 0,"player",freedomRangeOK,freedomRangeRaw,freedomUsableOK,freedomUsableRaw,freedomManaRaw,freedomRangeSource,freedomUsableSource);if class=="PALADIN" and (freedom.id or 0)>0 and not tile.useKey then S.attachSpellUse(S.hud,tile.dial,X.freedom.key);tile.useKey=X.freedom.key end end
- local selfIdentity,hoverIdentity
+ local selfIdentity,hoverIdentity,playerEffects
  for index,unit in ipairs(X.units) do
   -- Direct ally Freedom is scoped to a friendly player currently in our
   -- party or raid. The app also joins the exact same-tick HHB3 identity.
@@ -615,9 +624,10 @@ function X.packet(tick)
   local identity=covered and G.text(G.read(UnitGUID,1,unit),40) or ""
   if index==1 then selfIdentity=identity end
   if grouped and (identity=="" or identity==selfIdentity) then grouped=false;covered=false;identity="" end
-  local effects=covered and X.effects(unit) or {};unitEffects[unit]=effects;local ef=0
+  local effects=covered and X.effects(unit) or {};local ef=0
+  if unit=="player" then playerEffects=effects end
   if grouped then hoverIdentity=identity;ef=1024 end
-  for i,key in ipairs({"movement","forsaken","stun","curse","stoneform"}) do ef=ef+flag(effects[key])*4^(i-1) end
+  for i,key in ipairs(effectKeys) do ef=ef+flag(effects[key])*4^(i-1) end
   local spell,rangeOK,rangeRaw
   -- Party observations still protect an active Freedom from blessing upkeep.
   -- Current app delivery limits casts to self and a verified grouped hover.
@@ -629,7 +639,7 @@ function X.packet(tick)
   if class=="PALADIN" and covered then presence=active(X.freedom.name,unit,helpful) end
   packet=packet..S.bytes(#identity,1)..identity..S.bytes(ef,2)..S.bytes(sf,2)..S.bytes(flag(presence),1)
   if X.ranges and (freedom.id or 0)>0 then
-   local painted,result=pcall(ns.features.RangeTracking.paintBoolean,X.ranges[index],rangeRaw,{0,1,0,1},{1,0,0,1})
+   local painted,result=pcall(ns.features.RangeTracking.paintBoolean,X.ranges[index],rangeRaw,inRangeColor,outOfRangeColor)
    if not rangeOK or not painted or result~=true then ns.features.RangeTracking.paintColor(X.ranges[index],1,.65,0,1) end
   end
  end
@@ -652,7 +662,7 @@ function X.packet(tick)
  local managed=spec and S.managedSpells.entries[class..":"..spec.name] or nil
  local valid=managed and S.bindingsValid and S.managedSpells.current(managed) and managed.unit=="player" and not managed.friendly and managed.id==cleanse.id
  local pf=G.code(cleanse.learned)+G.code(cleanse.usable)*4+G.code(cleanse.mana)*16+G.code(cleanse.ready)*64
- local effects=unitEffects.player
+ local effects=playerEffects
  local nativeFlags=(X.nativeControl.selfMovement.ready and 16 or 0)
   +(undead(race) and X.nativeControl.selfForsaken.ready and 32 or 0)
   +(hoverWitness(hoverIdentity,now) and 64 or 0)

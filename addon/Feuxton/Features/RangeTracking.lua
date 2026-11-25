@@ -427,9 +427,8 @@ do
         return result==true
     end
     local function classKey()
-        if type(UnitClass)~="function" then return nil end
-        local ok,_,class=pcall(UnitClass,"player")
-        if ok and not ns.state.isSecret(class) and type(class)=="string" and #class<=24 then return class end
+        local class=ns.features.GroupContext.player("class").value
+        if type(class)=="string" and #class<=24 then return class end
     end
     function C.invalidate() cachedProbe=nil end
     local function probe()

@@ -124,7 +124,7 @@ local function publicCast(unit,isChannel)
 end
 function I.extraPacket(tick)
     local S=ns.state;local G=ns.features.GroupContext;local R=ns.features.RangeTracking
-    if G.text(G.read(UnitClass,2,"player"),16)~="PALADIN" then return nil end
+    if G.text(G.player("class"),16)~="PALADIN" then return nil end
     local specs=ns.classes.PALADIN and ns.classes.PALADIN.specs;local targetSpec,hoverSpec
     for _,spec in ipairs(specs or {}) do if spec.key=="paladin.repentance" then targetSpec=spec elseif spec.key=="paladin.mouseoverRepentance" then hoverSpec=spec end end
     if not targetSpec or not hoverSpec then return nil end

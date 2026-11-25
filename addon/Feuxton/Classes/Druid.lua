@@ -100,7 +100,7 @@ function H.initializePreview()
  local function render()
   if not S.executionBytes then return end
   local F=ns.features.Healing;tick=(tick+1)%4294967296
-  local level=integer(S,S.readableCall(UnitLevel,"player"),1,100);if not level then error("Level unavailable")end
+  local level=integer(S,G.player("level").value,1,100);if not level then error("Level unavailable")end
   local readings={};for i,spec in ipairs(H.specs)do
    local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or"target");readings[i]=r
    local known=r.learned.status=="observed"and r.learned.value
@@ -110,7 +110,7 @@ function H.initializePreview()
   local auraReads={};for i,spec in ipairs(H.specs)do auraReads[i]=readings[i]end
   auraReads[40]={id=16870,learned={status="observed",value=true}}
   B.auras(bridge,H.auraSpecs,auraReads)
-  local combat=G.read(UnitAffectingCombat,1,"player");bool(combatDot,UnitAffectingCombat("player"))
+  local combat=G.player("combat");bool(combatDot,G.nativePlayerCombat(combat))
   local form=G.read(GetShapeshiftForm,1);local caster,formID={},4294967295
   if form.status=="observed"and integer(S,form.value,0,32)then caster={status="observed",value=form.value==0};if form.value==0 then formID=0 else local id=S.specialActionSpell(form.value);if id then formID=id end end end
   local power=integer(S,S.readableCall(UnitPowerType,"player"),0,31)or 255

@@ -11,6 +11,7 @@ local swiftUnleashesSeal=type(clientBuild)=="number" and clientBuild>=70938
 local holyShieldRanks={[20925]=true,[20927]=true,[20928]=true}
 local wisdomRanks={[20166]=true,[20356]=true,[20357]=true}
 local utilitySpellIDs={sealWisdom=wisdomRanks,templarsBulwark={[1311015]=true}}
+local targetClassifications={normal=1,elite=2,rareelite=3,rare=4,worldboss=5,trivial=6,minus=7}
 local previewSpecs={}
 -- Stop melee swings before selected-target incapacitation; recovery owns any follow-up.
 for _,spec in ipairs(paladin.specs) do
@@ -327,22 +328,21 @@ local function renderNative(tile,bound,learned,chosen,info,S,rangeRead,rangeRaw,
     tile.spellID=bound>0 and bound or nil;tile.known=learned.status=="observed" and learned.value or false
     S.renderSpellIcon(tile,info)
     S.renderCooldown(tile)
-    local button=chosen and chosen.kind=="spell" and chosen.button
-    local visible=button and S.readableCall(button.IsVisible,button)==true
-    local slot=button and S.safeField(button,"action")
-    local valid=visible and slot==chosen.slot
     local rangeOK,usableOK=false,false
     if chosen and chosen.managed then
         -- The public packet checks target range. Self/pet native indicators
         -- still need their own direct range query; usability has no unit.
         rangeOK,usableOK=ns.features.RangeTracking.render(tile.visualSignals,bound,chosen.unit,chosen.unit=="target" and rangeRead or nil,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
-    elseif valid then
-        local hotkey=button.HotKey
-        if type(hotkey)~="table" and type(hotkey)~="userdata" then hotkey=nil end
-        local method=hotkey and type(hotkey.GetVertexColor)=="function" and "GetVertexColor" or "GetTextColor"
-        rangeOK=S.mirrorColor(tile.visualSignals[1],hotkey,method,true)
-        local icon=button.icon or button.Icon
-        if type(icon)=="table" or type(icon)=="userdata" then usableOK=S.mirrorColor(tile.visualSignals[3],icon,"GetVertexColor",true) end
+    elseif chosen and chosen.kind=="spell" then
+        local button=chosen.button
+        if button and S.readableCall(button.IsVisible,button)==true and S.safeField(button,"action")==chosen.slot then
+            local hotkey=button.HotKey
+            if type(hotkey)~="table" and type(hotkey)~="userdata" then hotkey=nil end
+            local method=hotkey and type(hotkey.GetVertexColor)=="function" and "GetVertexColor" or "GetTextColor"
+            rangeOK=S.mirrorColor(tile.visualSignals[1],hotkey,method,true)
+            local icon=button.icon or button.Icon
+            if type(icon)=="table" or type(icon)=="userdata" then usableOK=S.mirrorColor(tile.visualSignals[3],icon,"GetVertexColor",true) end
+        end
     end
     local R=ns.features.RangeTracking
     R.paintFlag(tile.visualSignals[2],rangeOK);R.paintFlag(tile.visualSignals[4],usableOK)
@@ -357,20 +357,33 @@ local function retSignalContext(S)
     local echoes=S.setupTalentNames and S.setupTalentNames["Unsealed Wrath"]==true
     return not S.paladinProtectionActive and not S.paladinProtectionPending and (S.paladinRetributionActive or echoes),echoes
 end
+local function sameAuraReadings(current,previous)
+    local nextSlot=1
+    for i,reading in ipairs(current) do
+        local old=previous[i]
+        if not old or reading.name~=old.name or reading.bound~=old.bound or reading.learned~=old.learned or
+                (reading.auraID or 0)~=(old.auraID or 0) then return false end
+        nextSlot=i+1
+    end
+    return previous[nextSlot]==nil
+end
 local function refreshNativeAuras(readings,wisdomID,bulwarkID,S)
     local bulwarkKey="paladin.templarsBulwark"
     local retTiming,echoes=retSignalContext(S)
-    local signature={tostring(S.setupKnownSpellRevision or 0),S.setupBookAvailable==true and "complete" or "partial",echoes and "echoes" or "no echoes",retTiming and "ret" or "ordinary"}
-    for i,reading in ipairs(readings) do signature[#signature+1]=reading.name..":"..reading.bound..":"..tostring(reading.learned)..":"..tostring(reading.auraID or 0) end
-    signature[#signature+1]=tostring(wisdomID or 0)
-    signature[#signature+1]=tostring(bulwarkID or 0)
-    signature=table.concat(signature,"|")
-    if signature==paladin.auraSignature then return end
+    local revision,complete=S.setupKnownSpellRevision or 0,S.setupBookAvailable==true
+    local previous=paladin.auraConfiguration
+    -- Compare public filter configuration without serializing every slot on every update.
+    retTiming,echoes=not not retTiming,not not echoes
+    if previous and previous.revision==revision and previous.complete==complete and previous.echoes==echoes and
+            previous.retTiming==retTiming and previous.wisdomID==wisdomID and previous.bulwarkID==bulwarkID and
+            sameAuraReadings(readings,previous.readings) then return end
     if S.readableCall(InCombatLockdown)~=false then
-        paladin.auraSignature=nil;paladin.auraMask=0;paladin.auraAbsenceMask=0;paladin.wisdomAuraReady=false;paladin.combatAuraPage=nil
+        paladin.auraConfiguration=nil;paladin.auraMask=0;paladin.auraAbsenceMask=0;paladin.wisdomAuraReady=false;paladin.combatAuraPage=nil
         return
     end
-    paladin.auraSignature=signature;paladin.auraMask=0;paladin.auraAbsenceMask=0;paladin.wisdomAuraReady=false;paladin.forbearanceAuraReady=false;paladin.auraSettledAt=GetTime()+0.6
+    paladin.auraConfiguration={revision=revision,complete=complete,retTiming=retTiming,echoes=echoes,
+        wisdomID=wisdomID,bulwarkID=bulwarkID,readings=readings}
+    paladin.auraMask=0;paladin.auraAbsenceMask=0;paladin.wisdomAuraReady=false;paladin.forbearanceAuraReady=false;paladin.auraSettledAt=GetTime()+0.6
     paladin.signalAuraRevision=((paladin.signalAuraRevision or 0)+1)%4294967296
     paladin.combatAuraPage=nil
     if ns.retireNativeSignalAuras then pcall(ns.retireNativeSignalAuras,paladin) end
@@ -510,18 +523,19 @@ function paladin.initializePreview()
         if group.text(group.read(UnitClass,2,"player"),16)=="PALADIN" then pcall(paladin.refreshWeapon) end
     end)
     local function render()
-        if group.text(group.read(UnitClass,2,"player"),16)~="PALADIN" then S.publishTransportPacket(ns.wire.ids.paladinPreview,nil);S.paladinNativePanel:Hide();return end
+        if group.text(group.player("class"),16)~="PALADIN" then S.publishTransportPacket(ns.wire.ids.paladinPreview,nil);S.paladinNativePanel:Hide();return end
         S.paladinNativePanel:Show()
         if GetTime()>=weaponRetry and (paladin.weaponDelayMs or 0)==0 and S.readableCall(InCombatLockdown)==false then paladin.refreshWeapon();weaponRetry=GetTime()+1 end
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
         tick=(tick+1)%4294967296
-        local level=group.read(UnitLevel,1,"player");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
+        local level=group.player("level");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
         local swiftMode=swiftUnleashesSeal and 4 or 0
         local packet=ns.wire.schemas.paladinPreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes((S.bindingsValid and 2 or 0)+swiftMode,1)
-        -- One guarded scan for all abilities. A restricted/incomplete list is not absence.
+        -- The first readable aura match owns the proc count, even if later rows are restricted.
         local protection=S.paladinProtectionActive==true
         local auras,auraIDs,complete={},{},false
-        local holyShieldCount
+        local holyShieldCount,wrathStacks,continueWrath
+        local B=ns.features.SpellBridge
         if type(C_UnitAuras)=="table" and type(C_UnitAuras.GetAuraDataByIndex)=="function" then
             for i=1,40 do
                 local ok,aura=pcall(C_UnitAuras.GetAuraDataByIndex,"player",i,"HELPFUL")
@@ -531,11 +545,17 @@ function paladin.initializePreview()
                 if name=="" then break end;auras[name]=true
                 local auraID=group.field(aura,"spellId")
                 if auraID.status=="observed" and type(auraID.value)=="number" and auraID.value>0 and auraID.value<2147483648 and math.floor(auraID.value)==auraID.value then auraIDs[name]=auraID.value end
+                if wrathStacks==nil and name=="Unsealed Wrath" then wrathStacks=B.stackCountFromAura("player",name,3,aura,auraID) end
                 if protection and name=="Holy Shield" then
                     local count=group.field(aura,"applications")
                     if count.status=="observed" and publicNumber(S,count.value,0,32) and math.floor(count.value)==count.value then holyShieldCount=count.value end
                 end
+                if i==40 then continueWrath=true end
             end
+        end
+        if wrathStacks==nil then
+            if complete then wrathStacks=B.stackCountFromAura("player","Unsealed Wrath",3,nil)
+            elseif continueWrath then wrathStacks=B.stackCount("player","Unsealed Wrath",3,41) end
         end
         paladin.rangeSpecs={};local nativeReadings={};local protectionRecords={};local utilityRecords={}
         local wisdomID,bulwarkID,utilityMask=nil,nil,0
@@ -558,24 +578,25 @@ function paladin.initializePreview()
             local utilityIndex=utilitySlots[shortKey]
             local isLearned=learned.status=="observed" and learned.value==true
             if not utilityIndex or isLearned and utilitySpellIDs[shortKey][bound] then
-            local usable,mana={},{};local usableRead,usableRaw,manaRaw,usableSource
+            local usable,mana,usableRead,usableRaw,manaRaw,usableSource
             if bound>0 then usable,mana,usableRead,usableRaw,manaRaw,usableSource=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
-            local range,rangeRead,rangeRaw={};local rangeSource=api.IsSpellInRange
+            local range,rangeRead,rangeRaw;local rangeSource=api.IsSpellInRange
             if bound>0 and not divineShield then range,rangeRead,rangeRaw=ns.features.RangeTracking.observeRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
-            local ready={}
+            local readyCode=0
             -- The readable API includes the global cooldown. Off-GCD abilities
             -- leave this field unknown and use the native ignore-GCD widget,
             -- otherwise an unrelated GCD would override their own readiness.
             if bound>0 and not spec.offGlobalCooldown and type(api.GetSpellCooldown)=="function" then
                 local cdOK,cd=pcall(api.GetSpellCooldown,bound)
-                local start=cdOK and group.field(cd,"startTime") or {};local duration=cdOK and group.field(cd,"duration") or {};local enabled=cdOK and group.field(cd,"isEnabled") or {}
-                if start.status=="observed" and duration.status=="observed" and type(start.value)=="number" and type(duration.value)=="number" and enabled.status=="observed" and enabled.value==true then
-                    ready={status="observed",value=duration.value==0 or start.value+duration.value<=GetTime()}
+                if cdOK then
+                    local start,duration,enabled=group.field(cd,"startTime"),group.field(cd,"duration"),group.field(cd,"isEnabled")
+                    if start.status=="observed" and duration.status=="observed" and type(start.value)=="number" and type(duration.value)=="number" and enabled.status=="observed" and enabled.value==true then
+                        readyCode=(duration.value==0 or start.value+duration.value<=GetTime()) and 2 or 1
+                    end
                 end
             end
-            local aura=auras[spec.name] and {status="observed",value=true} or complete and {status="observed",value=false} or {}
-            local flags=0
-            for i,value in ipairs({learned,usable,mana,range,ready,aura}) do flags=flags+group.code(value)*4^(i-1) end
+            local auraCode=auras[spec.name] and 2 or complete and 1 or 0
+            local flags=group.code(learned)+4*group.code(usable)+16*group.code(mana)+64*group.code(range)+256*readyCode+1024*auraCode
             local record=S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
             local extension=index-baseSlots
             if extension>0 and not protection then extension=2 end -- Reuse the Hammer tile's calibration.
@@ -613,7 +634,7 @@ function paladin.initializePreview()
         end
         if protection then nativeReadings[20]=paladin.protectionShield end
         local movement=group.read(GetUnitSpeed,1,"player");movement=movement.status=="observed" and type(movement.value)=="number" and {status="observed",value=movement.value>0} or {}
-        packet=packet..S.bytes(group.code(movement),1)..S.bytes(group.code(group.read(UnitAffectingCombat,1,"player")),1)..S.bytes(group.code(group.read(IsMounted,1)),1)..S.bytes(group.code(group.read(UnitOnTaxi,1,"player")),1)
+        packet=packet..S.bytes(group.code(movement),1)..S.bytes(group.code(group.player("combat")),1)..S.bytes(group.code(group.player("mounted")),1)..S.bytes(group.code(group.player("taxi")),1)
         refreshNativeAuras(nativeReadings,wisdomID,bulwarkID,S)
         local auraMask=GetTime()>=(paladin.auraSettledAt or math.huge) and (paladin.auraMask or 0) or 0
         -- The source marker proves that this frame owns a settled Shield filter.
@@ -627,10 +648,10 @@ function paladin.initializePreview()
         local absenceMask=auraMask~=0 and (paladin.auraAbsenceMask or 0) or 0
         packet=packet..S.bytes(paladin.weaponID or 0,4)..S.bytes(paladin.weaponDelayMs or 0,2)..S.bytes(auraMask,2)..S.bytes(absenceMask,2)
         local usage=0
-        for i,key in ipairs(paladin.packetKeys) do if i<=16 then usage=usage+S.spellUseCode("paladin."..key)*4^(i-1) end end
+        for i,key in ipairs(ns.spellCatalog.PALADIN.packetKeys) do if i>16 then break end;usage=usage+S.spellUseCode(key)*4^(i-1) end
         packet=packet..S.bytes(S.auraGeneration,1)..S.bytes(usage,4)..S.executionBytes(2)
         -- Instance type is public context; unavailable/secret values stay unknown.
-        local inside=group.read(IsInInstance,1);local kind=group.read(IsInInstance,2)
+        local inside,kind=group.playerInstance()
         local dungeon={}
         if inside.status=="observed" and type(inside.value)=="boolean" then
             if inside.value==false then dungeon={status="observed",value=false}
@@ -654,7 +675,7 @@ function paladin.initializePreview()
         local stopKey=S.bindingsValid and S.managedSpells.current(stopEntry) and paladin.bindingCode(stopEntry.key) or 0
         packet=packet..S.bytes(stopKey,2)
         packet=packet..S.bytes(paladin.bindingCode(ns.features.Threat.readyBinding()),2)
-        packet=packet..S.bytes(ns.features.SpellBridge.stackCount("player","Unsealed Wrath",3),1)
+        packet=packet..S.bytes(wrathStacks or 255,1)
         local creature=S.readableCall(UnitCreatureType,"target")
         packet=packet..S.bytes(creature=="Undead" and 2 or creature=="Demon" and 3 or type(creature)=="string" and 1 or 0,1)
         packet=packet..S.bytes(S.spellUseCode("paladin.blessingProtection"),1)..S.bytes(math.floor(auraMask/65536)%2+2*(math.floor(absenceMask/65536)%2),1)
@@ -664,8 +685,7 @@ function paladin.initializePreview()
         local targetLevel=S.readableCall(UnitLevel,"target")
         targetLevel=publicNumber(S,targetLevel,-1,100) and targetLevel==math.floor(targetLevel) and targetLevel or nil
         local classification=group.text(group.read(UnitClassification,1,"target"),20)
-        local classifications={normal=1,elite=2,rareelite=3,rare=4,worldboss=5,trivial=6,minus=7}
-        packet=packet..S.bytes(targetLevel==-1 and 65534 or targetLevel or 65535,2)..S.bytes(classifications[classification] or 0,1)..paladin.swingClockBytes()
+        packet=packet..S.bytes(targetLevel==-1 and 65534 or targetLevel or 65535,2)..S.bytes(targetClassifications[classification] or 0,1)..paladin.swingClockBytes()
         if protection then
             local shield=paladin.protectionShield
             local count=holyShieldCount or (complete and not auras["Holy Shield"] and 0 or 255)

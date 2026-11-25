@@ -26,6 +26,43 @@ function feature.readPair(fn, ...)
     if not ok then return {status="error"},{status="error"} end
     return feature.scalar(first),feature.scalar(second)
 end
+-- These public player facts share the coordinator's synchronous publication.
+-- Outside that publication, callers still read the live API directly.
+local playerUpdate
+local function readPlayerScalar(fn,...)
+    if type(fn)~="function" then return {status="unavailable"} end
+    local ok,value=pcall(fn,...)
+    if not ok then return {status="error"} end
+    return feature.scalar(value)
+end
+local playerReaders={
+    class=function() return feature.read(UnitClass,2,"player") end,
+    className=function() return feature.read(UnitClass,1,"player") end,
+    level=function() return readPlayerScalar(UnitLevel,"player") end,
+    combat=function() return readPlayerScalar(UnitAffectingCombat,"player") end,
+    mounted=function() return readPlayerScalar(IsMounted) end,
+    taxi=function() return readPlayerScalar(UnitOnTaxi,"player") end,
+}
+function feature.beginPlayerUpdate()
+    local name,class=feature.readPair(UnitClass,"player")
+    local inside,instance=feature.readPair(IsInInstance)
+    playerUpdate={className=name,class=class,inside=inside,instance=instance,
+        level=playerReaders.level(),combat=playerReaders.combat(),mounted=playerReaders.mounted(),taxi=playerReaders.taxi()}
+end
+function feature.endPlayerUpdate() playerUpdate=nil end
+function feature.player(field)
+    if playerUpdate then return playerUpdate[field] end
+    return playerReaders[field]()
+end
+function feature.playerInstance()
+    if playerUpdate then return playerUpdate.inside,playerUpdate.instance end
+    return feature.readPair(IsInInstance)
+end
+function feature.nativePlayerCombat(observation)
+    if observation.status=="observed" then return observation.value end
+    -- Restricted combat values only travel from their API to the native widget.
+    return UnitAffectingCombat("player")
+end
 local function fieldValue(object,key)return object[key]end
 function feature.field(object, key)
     if type(issecretvalue)=="function" and issecretvalue(object) then return {status="restricted"} end
@@ -125,7 +162,7 @@ function feature.initialize()
         local raid=feature.code(feature.read(IsInRaid,1));local count=feature.read(GetNumGroupMembers,1)
         count=count.status=="observed" and type(count.value)=="number" and count.value>=0 and count.value<=40 and count.value==math.floor(count.value) and count.value or 255
         local healSpecs=ns.classes.PALADIN and ns.classes.PALADIN.rangeSpecs or {}
-        local playerClass=feature.text(feature.read(UnitClass,2,"player"),16)
+        local playerClass=feature.text(feature.player("class"),16)
         local friendly=(playerClass=="PALADIN" or playerClass=="SHAMAN" or playerClass=="DRUID") and ns.features.Healing or nil
         local now=S.readableCall(GetTime)
         if friendly then
@@ -149,11 +186,12 @@ function feature.initialize()
                 end
                 if not rendered then display.bar:SetMinMaxValues(0,1);display.bar:SetValue(0) end
                 local flags=feature.code(exists)
-                local checks={feature.read(UnitIsDeadOrGhost,1,unit),feature.read(UnitIsConnected,1,unit),feature.read(UnitIsVisible,1,unit),feature.read(UnitCanAssist,1,"player",unit),feature.read(UnitAffectingCombat,1,unit),feature.read(UnitIsUnit,1,unit,"player"),feature.read(UnitIsUnit,1,unit,"focus"),feature.read(GetPartyAssignment,1,"MAINTANK",unit)}
+                local combat=unit=="player" and feature.player("combat") or feature.read(UnitAffectingCombat,1,unit)
+                local checks={feature.read(UnitIsDeadOrGhost,1,unit),feature.read(UnitIsConnected,1,unit),feature.read(UnitIsVisible,1,unit),feature.read(UnitCanAssist,1,"player",unit),combat,feature.read(UnitIsUnit,1,unit,"player"),feature.read(UnitIsUnit,1,unit,"focus"),feature.read(GetPartyAssignment,1,"MAINTANK",unit)}
                 for i,value in ipairs(checks) do flags=flags+feature.code(value)*4^i end
                 local role=feature.text(feature.read(UnitGroupRolesAssigned,1,unit),12)
                 local roleID=role=="TANK" and 1 or role=="HEALER" and 2 or role=="DAMAGER" and 3 or role=="NONE" and 4 or 0
-                local class=feature.text(feature.read(UnitClass,2,unit),16);local classID=0
+                local class=unit=="player" and playerClass or feature.text(feature.read(UnitClass,2,unit),16);local classID=0
                 for i,key in ipairs({"HUNTER","SHAMAN","WARRIOR","WARLOCK","DRUID","ROGUE","PALADIN","PRIEST","MAGE"}) do if class==key then classID=i end end
                 local ranges=0;local api=type(C_Spell)=="table" and C_Spell or {}
                 -- A row consumes each friendly spell immediately: public flags

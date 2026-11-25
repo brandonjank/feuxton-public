@@ -68,7 +68,7 @@ end
 function B.select()
     local S=ns.state;B.scan()
     if S.readableCall(InCombatLockdown)~=false then return B.selected end
-    local level=number(S.readableCall(UnitLevel,"player"),255);local selected
+    local level=number(ns.features.GroupContext.player("level").value,255);local selected
     for _,item in ipairs(B.items)do
         local count,_,usable,spellID=itemState(item.itemID)
         if level and item.minLevel and item.minLevel<=level and count and count>0 and usable==true and spellID==item.spellID then selected=item;break end
@@ -118,7 +118,7 @@ function B.packet(tick)
     local count,ready,usable,spellID
     count,ready,usable,spellID=itemState(id)
     if count==0 then return nil end -- absent optional source cannot become stale readiness
-    local class=S.readableCall(function()local _,key=UnitClass("player");return key end)
+    local class=ns.features.GroupContext.player("class").value
     local M=S.managedSpells;local entry=class and M and M.entries[class..":"..B.name]
     local key=0
     if item and spellID==item.spellID and count and count>0 and M and M.current(entry) and entry.itemID==id and entry.id==spellID then key=S.compactBindingCode(entry.key)end

@@ -113,7 +113,7 @@ do
     local elapsedTotal=0
     panel:SetScript("OnUpdate",function(self,elapsed)
         elapsedTotal=elapsedTotal+elapsed; if elapsedTotal<S.updateInterval() then return end; elapsedTotal=0
-        S.drawFlag(combat,S.readableCall(UnitAffectingCombat,"player"))
+        S.drawFlag(combat,ns.features.GroupContext.player("combat").value)
         ns.features.RangeTracking.movement(moving)
         S.drawFlag(readyDot,ready==true and GetTime()>=settledAt)
         for _,spec in ipairs(specs) do

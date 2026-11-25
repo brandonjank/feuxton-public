@@ -114,7 +114,7 @@ local function selectItem(kind,now)
         end
         return nil
     end
-    local level=number(S.readableCall(UnitLevel,"player"),255);local selected,bestCount,bestReady,bestUsable,bestSpellID
+    local level=number(ns.features.GroupContext.player("level").value,255);local selected,bestCount,bestReady,bestUsable,bestSpellID
     for _,item in ipairs(P.items)do
         local restoration=effect(item,kind)
         if restoration and level and item.minLevel and item.minLevel<=level then
@@ -152,7 +152,7 @@ end
 function P.packet(now,tick)
     local S=ns.state;now=clock(now);if not now then return nil end
     P.scan();local rows={};local mask=0
-    local class=S.readableCall(function()local _,key=UnitClass("player");return key end);local M=S.managedSpells
+    local class=ns.features.GroupContext.player("class").value;local M=S.managedSpells
     local function flag(v)return v==true and 2 or v==false and 1 or 0 end
     for kind=1,2 do
         local item,count,ready,usable,spellID=selectItem(kind,now)

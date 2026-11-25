@@ -81,7 +81,7 @@ end
 
 function P.bytes()
     local S=ns.state
-    local class=S.readableCall(function()local _,key=UnitClass("player");return key end)
+    local class=ns.features.GroupContext.player("class").value
     local M=S.managedSpells
     local entry=M and M.entries["WARLOCK:"..P.name]
     local valid=class=="WARLOCK" and S.bindingsValid and M and M.current(entry)

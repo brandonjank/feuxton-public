@@ -15,7 +15,7 @@ S.signalUpdater:SetScript("OnUpdate", function(self, elapsed)
     S.signalElapsed = S.signalElapsed + elapsed
     if S.signalElapsed < S.updateInterval() then return end
     S.signalElapsed = 0
-    if S.setupString(S.setupValue(UnitClass,2,"player"))~="HUNTER" then return end
+    if ns.features.GroupContext.player("class").value~="HUNTER" then return end
     for _, tile in ipairs(S.tiles) do
         local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
         local button = chosen and chosen.button

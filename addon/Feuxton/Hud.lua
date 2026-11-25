@@ -144,7 +144,7 @@ function S.refreshFlags()
     S.drawFlag(S.targetFlags[5], S.readableCall(UnitExists, "pet"))
     S.targetFlags[6]:SetVertexColor(1,1,1,1)
     S.drawFlag(S.targetFlags[6], S.autoActive)
-    local meleeClass=S.readableCall(function() local _,class=UnitClass("player");return class end)
+    local meleeClass=ns.features.GroupContext.player("class").value
     if meleeClass=="PALADIN" or meleeClass=="SHAMAN" then
         local ok,value=pcall(S.spellAPI.IsCurrentSpell or IsCurrentSpell,6603)
         if ok and not S.isSecret(value) and type(value)=="boolean" then S.drawFlag(S.targetFlags[6],value)

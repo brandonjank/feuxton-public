@@ -213,9 +213,9 @@ function H.initializePreview()
  local function render()
   if not S.executionBytes then return end
   tick=(tick+1)%4294967296
-  local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
+  local level=G.player("level").value;if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local hover=mouseover();local readings,castTimes={},{}
-  local combat=G.read(UnitAffectingCombat,1,"player")
+  local combat=G.player("combat")
   local outOfCombat=combat.status=="observed" and combat.value==false
   renderSpellTiles(readings,castTimes)
   observeAuras(readings,outOfCombat)
@@ -234,7 +234,7 @@ function H.initializePreview()
   local slots,tapRestore,tapID=encodeSpells(readings,castTimes,outOfCombat,auraSettled)
   packet=packet..slots
   combatDot:SetColorTexture(1,1,1,1)
-  local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1})
+  local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,G.nativePlayerCombat(combat),{0,1,0,1},{.2,.2,.2,1})
   if not painted or result~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
   -- Start/stop events describe the whole auto-repeat session. A current-spell
   -- query can be false between wand shots, so use it only before a known event.

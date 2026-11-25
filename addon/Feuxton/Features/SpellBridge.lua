@@ -61,27 +61,31 @@ function B.renderPowerCost(widget,id,learned,powerType,allowResolvedFree)
 end
 function B.renderManaCost(widget,id,learned,allowResolvedFree) return B.renderPowerCost(widget,id,learned,0,allowResolvedFree) end
 -- Public proc counts only. An incomplete/restricted scan cannot prove zero.
--- This also serves class bridges which do not use the shared native tiles.
-function B.stackCount(unit,name,maximum)
+-- The caller supplies either the first readable matching row or a proven end.
+function B.stackCountFromAura(unit,name,maximum,aura,id)
     local S=ns.state;local G=ns.features.GroupContext
     if B.stackSession~=S.setupSession then B.stackSession=S.setupSession;B.stackIdentities={} end
     B.stackIdentities=B.stackIdentities or {};local key=unit..":"..name
+    if aura==nil then return B.stackIdentities[key] and 0 or 255 end
+    local count=G.field(aura,"applications")
+    if count.status=="observed" and type(count.value)=="number" and count.value==math.floor(count.value) and count.value>=0 and count.value<=maximum then
+        id=id or G.field(aura,"spellId")
+        if id.status=="observed" and type(id.value)=="number" and id.value>0 and id.value==math.floor(id.value) then B.stackIdentities[key]=id.value end
+        return count.value
+    end
+    return 255
+end
+-- A consumer with a readable prefix can continue it without repeating reads.
+function B.stackCount(unit,name,maximum,firstIndex)
+    local S=ns.state;local G=ns.features.GroupContext
     if type(C_UnitAuras)~="table" or type(C_UnitAuras.GetAuraDataByIndex)~="function" then return 255 end
-    for i=1,80 do
+    for i=firstIndex or 1,80 do
         local ok,aura=pcall(C_UnitAuras.GetAuraDataByIndex,unit,i,"HELPFUL")
         if not ok or S.isSecret(aura) then return 255 end
-        if aura==nil then return B.stackIdentities[key] and 0 or 255 end
+        if aura==nil then return B.stackCountFromAura(unit,name,maximum,nil) end
         local label=G.text(G.field(aura,"name"),80)
         if label=="" then return 255 end
-        if label==name then
-            local count=G.field(aura,"applications")
-            if count.status=="observed" and type(count.value)=="number" and count.value==math.floor(count.value) and count.value>=0 and count.value<=maximum then
-                local id=G.field(aura,"spellId")
-                if id.status=="observed" and type(id.value)=="number" and id.value>0 and id.value==math.floor(id.value) then B.stackIdentities[key]=id.value end
-                return count.value
-            end
-            return 255
-        end
+        if label==name then return B.stackCountFromAura(unit,name,maximum,aura) end
     end
     return 255
 end

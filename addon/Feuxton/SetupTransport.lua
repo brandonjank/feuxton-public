@@ -50,10 +50,17 @@ end
 function S.adler32(data)
     local a,b=1,0
     local byte=string.byte
-    -- Reduce once per bounded block. With reduced starting sums, 5552 bytes
-    -- keep even the worst all-255 intermediate sum within an exact integer.
+    -- A group of eight adds each byte to a once and to b for every remaining position.
+    -- Keep the same modulus boundary and use the scalar loop for the tail.
     for first=1,#data,5552 do
-        for i=first,math.min(first+5551,#data) do a=a+byte(data,i);b=b+a end
+        local last=math.min(first+5551,#data)
+        local grouped=last-(last-first+1)%8
+        for i=first,grouped,8 do
+            local x1,x2,x3,x4,x5,x6,x7,x8=byte(data,i,i+7)
+            b=b+8*a+8*x1+7*x2+6*x3+5*x4+4*x5+3*x6+2*x7+x8
+            a=a+x1+x2+x3+x4+x5+x6+x7+x8
+        end
+        for i=grouped+1,last do a=a+byte(data,i);b=b+a end
         a=a%65521;b=b%65521
     end
     return b*65536+a
@@ -94,6 +101,11 @@ S.transportPackets={}
 local wire,source=ns.wire,ns.wire.ids
 local sourceSession=S.setupSession
 local sourceSessionBytes=S.bytes(sourceSession,4)
+-- Public completed-source framing only; body/schema/session validation stays below.
+local function sourceChunk(id,age,body)
+    local size=#body
+    return char(id%256,age%256,floor(age/256)%256,size%256,floor(size/256)%256)..body
+end
 local function packedSource(id,packet,classID)
     local schema=wire.sourceSchema(classID,id)
     assert(schema and type(packet)=="string" and #packet>=12 and packet:sub(1,4)==schema and packet:sub(5,8)==sourceSessionBytes,"Invalid current source context")
@@ -130,7 +142,7 @@ local function setupFragmentChunk(entry,tick,budget)
         ..S.bytes(length,2)..original:sub(18,25)..payload:sub(setupFragmentOffset+1,setupFragmentOffset+length)
     packet=packet..S.bytes(S.adler32(packet),4)
     local body=packedSource(source.setup,packet,0)
-    return S.bytes(source.setup,1)..S.bytes(0,2)..S.bytes(#body,2)..body
+    return sourceChunk(source.setup,0,body)
 end
 function S.denseStatePacket(now,tick)
     if sourceSession~=S.setupSession then sourceSession=S.setupSession;sourceSessionBytes=S.bytes(sourceSession,4) end
@@ -213,7 +225,7 @@ function S.denseStatePacket(now,tick)
         -- Wait for that producer's new packet; missing remains unavailable.
         if age and age>=0 and age<=maxAge and entry.packet:sub(5,8)==sourceSessionBytes then
             local body=packedSource(id,entry.packet,classID)
-            local chunk=S.bytes(id,1)..S.bytes(age,2)..S.bytes(#body,2)..body
+            local chunk=sourceChunk(id,age,body)
             if id==source.setup then setupChunk=chunk
             elseif id==source.courtesyBlessings then courtesyChunk=chunk
             elseif id==source.buffCoverage then buffChunk=chunk
@@ -235,14 +247,14 @@ function S.denseStatePacket(now,tick)
                     base=base..S.bytes(S.adler32(base),4)
                     local body=packedSource(source.consumables,base,classID)
                     restIndex=#chunks;restFullChunk=chunk
-                    restBaseChunk=S.bytes(source.consumables,1)..S.bytes(age,2)..S.bytes(#body,2)..body
+                    restBaseChunk=sourceChunk(source.consumables,age,body)
                     restOffers=entry.packet:byte(40)>0
                 end
             end
         end
     end
     local extra=S.transportPackets[source.interruptTargets]
-    local hoverCombat=S.readableCall(UnitAffectingCombat,"player")==true
+    local hoverCombat=ns.features.GroupContext.player("combat").value==true
     S.interruptPageUrgent=interruptChunk~=nil and (selectedInterruptActive or hoverCombat and extra and extra.packet:byte(36)==2) or false
     S.restPageDeferred=false
     if restIndex then
@@ -277,7 +289,7 @@ function S.denseStatePacket(now,tick)
             and count<22 and liveBytes+courtesyBudget+setupBudget+45<=2304 then
         local ok,page=pcall(ns.features.Fishing.packet,tick)
         if ok and page then
-            local body=packedSource(source.fishing,page,classID);local piece=S.bytes(source.fishing,1)..S.bytes(0,2)..S.bytes(#body,2)..body
+            local body=packedSource(source.fishing,page,classID);local piece=sourceChunk(source.fishing,0,body)
             if liveBytes+courtesyBudget+setupBudget+#piece<=2304 then
                 chunks[#chunks+1]=piece;count=count+1;liveBytes=liveBytes+#piece
             end
@@ -318,7 +330,7 @@ function S.denseStatePacket(now,tick)
         local ok,page=pcall(recruitment.monitorPacket,tick,math.min(499,remaining+3))
         if ok and page then
             local body=packedSource(source.guildQueue,page,classID)
-            if #body+5<=remaining and count<24 then chunks[#chunks+1]=S.bytes(source.guildQueue,1)..S.bytes(0,2)..S.bytes(#body,2)..body;count=count+1 end
+            if #body+5<=remaining and count<24 then chunks[#chunks+1]=sourceChunk(source.guildQueue,0,body);count=count+1 end
         end
     end
     S.setupPageDeferred=setupChunk~=nil and selectedSetup==nil
@@ -433,9 +445,10 @@ function S.collectRealmInfo()
     return realm,found
 end
 function S.collectSetup(performance)
-    local class=S.setupString(S.setupValue(UnitClass,2,"player"))
-    local className=S.setupString(S.setupValue(UnitClass,1,"player"))
-    local level=S.setupNumber(S.readableCall(UnitLevel,"player"))
+    local group=ns.features.GroupContext
+    local class=S.setupString(group.player("class").value)
+    local className=S.setupString(group.player("className").value)
+    local level=S.setupNumber(group.player("level").value)
     local specIndex=S.setupNumber(S.readableCall(GetSpecialization))
     if not specIndex and type(C_SpecializationInfo)=="table" then
         specIndex=S.setupNumber(S.readableCall(C_SpecializationInfo.GetSpecialization))

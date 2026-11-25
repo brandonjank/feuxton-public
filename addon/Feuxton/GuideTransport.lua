@@ -1,6 +1,7 @@
 -- HHG6 guide widgets, Hawk count, cast receipts and readiness flags.
 local _, ns = ...
 local S = ns.state
+local group = ns.features.GroupContext
 
 -- Guide supplement: all spell widgets use the same native rendering path.
 -- Hawk count stays unknown until this session has actually observed a Hawk slot.
@@ -59,8 +60,8 @@ do
             if ok and readinessPublic(focus) then focusCode=focus==nil and 1 or 2 end
         end
         packet=packet..S.bytes(focusCode+(worldReady and 4 or 8)+(eventsAvailable and 16 or 0),1)
-        local mounted=S.readableCall(IsMounted)
-        local taxi=S.readableCall(UnitOnTaxi,"player")
+        local mounted=group.player("mounted").value
+        local taxi=group.player("taxi").value
         local mountedCode=readinessPublic(mounted) and (mounted==true and 2 or mounted==false and 1 or 0) or 0
         local taxiCode=readinessPublic(taxi) and (taxi==true and 2 or taxi==false and 1 or 0) or 0
         packet=packet..S.bytes(mountedCode+taxiCode*4,1)
@@ -73,7 +74,7 @@ do
         return packet
     end
     local function render()
-        local class=S.setupString(S.setupValue(UnitClass,2,"player"))
+        local class=S.setupString(group.player("class").value)
         if class~="HUNTER" then
             -- Other classes consume their own ability packet. Keep the shared
             -- enemy-cast source current without querying hidden Hunter tiles.
@@ -85,7 +86,7 @@ do
             else S.publishTransportPacket(ns.wire.ids.enemyCast,nil) end
             return
         end
-        local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
+        local level=S.setupNumber(group.player("level").value) or 0
         if level<0 or level>100 then level=0 end
         local packet=ns.wire.schemas.guide..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(class=="HUNTER" and 1 or 0,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(11,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
         local firstGuideSlot,lastGuideSlot=11,21
@@ -313,12 +314,7 @@ do
     register(S.guidePanel,"guide")
     register(S.groupPanel,"group")
     register(S.fastFrame,"core")
-    local update=S.profileFunction(function(delta)
-        S.flushCombatSpellData()
-        if ns.beginNativeCooldownBatch then pcall(ns.beginNativeCooldownBatch) end
-        S.beginPacketUpdate()
-        local friendly=ns.features.Healing
-        if friendly then friendly.beginSpellUpdate() end
+    local function produceAndPublish(delta)
         local ok,err=true,nil
         for _,entry in ipairs(coordinator.entries) do
             if S.readableCall(entry.frame.IsShown,entry.frame)==true then
@@ -327,7 +323,17 @@ do
             end
         end
         coordinator.updates=coordinator.updates+1;coordinator.lastError=not ok and err or nil
-        local published,publicationError=pcall(S.endPacketUpdate,ok,err)
+        S.endPacketUpdate(ok,err)
+    end
+    local update=S.profileFunction(function(delta)
+        S.flushCombatSpellData()
+        if ns.beginNativeCooldownBatch then pcall(ns.beginNativeCooldownBatch) end
+        S.beginPacketUpdate()
+        local friendly=ns.features.Healing
+        if friendly then friendly.beginSpellUpdate() end
+        group.beginPlayerUpdate()
+        local published,publicationError=pcall(produceAndPublish,delta)
+        group.endPlayerUpdate()
         if friendly then friendly.endSpellUpdate() end
         if ns.endNativeCooldownBatch then pcall(ns.endNativeCooldownBatch) end
         if not published then error(publicationError,0) end

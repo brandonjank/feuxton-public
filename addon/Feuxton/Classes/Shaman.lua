@@ -12,7 +12,7 @@ function H.initializePreview()
  local function render()
   if not S.executionBytes then return end
   local F=ns.features.Healing;tick=(tick+1)%4294967296
-  local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
+  local level=G.player("level").value;if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local readings={}
   for i,spec in ipairs(H.specs) do
    local r,rangeOK,rangeRaw,usableOK,usableRaw,manaRaw,rangeSource,usableSource=F.spell(spec,spec.unit or "target");readings[i]=r
@@ -29,16 +29,16 @@ function H.initializePreview()
    local absent=bridge.absence and bridge.absence[i] and GetTime()>=(bridge.settledAt or math.huge)
    packet=packet..S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(S.spellUseCode(spec.key)+(absent and 4 or 0),1)..S.bytes(ms,2)
   end
-  local inside,kind=G.read(IsInInstance,1),G.read(IsInInstance,2);local dungeon={}
+  local inside,kind=G.playerInstance();local dungeon={}
   if inside.status=="observed" and type(inside.value)=="boolean" then if not inside.value then dungeon={status="observed",value=false} elseif kind.status=="observed" and type(kind.value)=="string" then dungeon={status="observed",value=kind.value=="party"} end end
   local main,off={},{};local ok,a,b,c,d,e=pcall(GetWeaponEnchantInfo)
   if ok and not S.isSecret(a) and type(a)=="boolean" then main={status="observed",value=a} end
   if ok and not S.isSecret(e) and type(e)=="boolean" then off={status="observed",value=e} end
   local stop=S.managedSpells and S.managedSpells.entries["SHAMAN:Feuxton Stop Casting"]
   local stopKey=S.bindingsValid and S.managedSpells.current(stop) and S.compactBindingCode(stop.key) or 0
-  local combat=G.read(UnitAffectingCombat,1,"player")
+  local combat=G.player("combat")
   local combatDot=ns.features.Totems.combat;combatDot:SetColorTexture(1,1,1,1)
-  local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1})
+  local painted,result=pcall(ns.features.RangeTracking.paintBoolean,combatDot,G.nativePlayerCombat(combat),{0,1,0,1},{.2,.2,.2,1})
   if not painted or result~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
   packet=packet..S.executionBytes(2)..S.bytes(G.code(dungeon),1)..S.bytes(G.code(combat),1)..ns.features.Totems.observe(H.specs)..S.bytes(G.code(main),1)..S.bytes(G.code(off),1)..S.bytes(stopKey,2)
   packet=packet..S.bytes(B.stackCount("player","Maelstrom Weapon",5),1)

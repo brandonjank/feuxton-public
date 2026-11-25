@@ -52,7 +52,7 @@ function H.initializePreview()
  local function render()
   if not S.executionBytes then return end
   tick=(tick+1)%4294967296;local food,water=inventory();local F=ns.features.Healing
-  local level=S.readableCall(UnitLevel,"player");if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
+  local level=G.player("level").value;if type(level)~="number" or level<1 or level>100 then error("Level unavailable") end
   local readings={}
   for i,spec in ipairs(H.specs) do
    local r,a,b,c,d,e,f,g
@@ -85,8 +85,8 @@ function H.initializePreview()
    local meta=S.spellUseCode(spec.key)+(absent and 4 or 0)+(bridge.configured and bridge.configured[i] and 8 or 0)
    packet=packet..S.bytes(r.id,4)..S.bytes(key,2)..S.bytes(flags,2)..S.bytes(meta,1)..S.bytes(ms,2)..S.bytes(r.itemID or 0,4)..S.bytes(r.count or 65535,2)
   end
-  local combat=G.read(UnitAffectingCombat,1,"player");combatDot:SetColorTexture(1,1,1,1)
-  local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,combatDot,UnitAffectingCombat("player"),{0,1,0,1},{.2,.2,.2,1});if not ok or painted~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
+  local combat=G.player("combat");combatDot:SetColorTexture(1,1,1,1)
+  local ok,painted=pcall(ns.features.RangeTracking.paintBoolean,combatDot,G.nativePlayerCombat(combat),{0,1,0,1},{.2,.2,.2,1});if not ok or painted~=true then combatDot:SetVertexColor(1,1,1,1);combatDot:SetColorTexture(1,.65,0,1) end
   -- IsAutoRepeatSpell is a type query, not active state. Explicit start/stop
   -- events stay authoritative between shots, as in the existing Warlock bridge.
   local wand,wandRaw={},nil

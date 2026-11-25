@@ -1,16 +1,17 @@
 -- HHF4 single-frame core pixel transport.
 local _, ns = ...
 local S = ns.state
+local group = ns.features.GroupContext
 
 -- One-frame core link: never waits for the spellbook/talent page cycle.
 S.fastFrame=CreateFrame("Frame",nil,S.hud)
 S.fastFrame:SetPoint("TOPLEFT",S.metadataFrame,"BOTTOMLEFT",0,-4); S.fastFrame:SetSize(668,12)
 function S.renderFastSetup()
-    local class=S.setupString(S.setupValue(UnitClass,2,"player"))
+    local class=S.setupString(group.player("class").value)
     local classes={"HUNTER","SHAMAN","WARRIOR","WARLOCK","DRUID","ROGUE","PALADIN","PRIEST","MAGE"}
     local classID=0
     for i,name in ipairs(classes) do if class==name then classID=i; break end end
-    local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
+    local level=S.setupNumber(group.player("level").value) or 0
     if level<0 or level>100 then level=0 end
     local count=ns.classes[class] and ns.classes[class].coreSlotCount or 10
     local packet=ns.wire.schemas.core..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(classID,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(count,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)

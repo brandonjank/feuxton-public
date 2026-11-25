@@ -383,7 +383,7 @@ function C.queueInventoryBindings()
     if id==0 and count==0 then C.bindingItemID=nil;return end
     if not id or id==0 or C.bindingItemID==id then return end
     C.bindingItemID=id
-    local class=S.readableCall(function()local _,key=UnitClass("player");return key end)
+    local class=ns.features.GroupContext.player("class").value
     local M=S.managedSpells
     local entry=type(class)=="string" and M and M.entries[class..":Feuxton Healthstone"]
     if (not entry or entry.itemID~=id) and ns.markSetupDirty then ns.markSetupDirty()end
@@ -394,10 +394,11 @@ function C.restExtension(tick,wellFed)
     C.scanRestInventory();C.refreshRestBindings();C.queueInventoryBindings()
     local pages=math.max(1,math.ceil(#R.items/2));local page=tick%pages
     local first=page*2+1;local count=math.min(2,math.max(0,#R.items-first+1));local kind=0
-    local ok,inside,instance=pcall(IsInInstance)
-    if ok and not S.isSecret(inside) and type(inside)=="boolean"then
+    local insideRead,instanceRead=ns.features.GroupContext.playerInstance()
+    local inside,instance=insideRead.value,instanceRead.value
+    if type(inside)=="boolean"then
         if not inside then kind=1
-        elseif not S.isSecret(instance) and type(instance)=="string"and instance~=""then kind=instance=="party" and 2 or instance=="raid" and 3 or 4 end
+        elseif type(instance)=="string"and instance~=""then kind=instance=="party" and 2 or instance=="raid" and 3 or 4 end
     end
     local canonical=R.canonical or C.restCanonical()
     local stand=restBindingCurrent(R.stand) and S.compactBindingCode(R.stand.key)or 0
@@ -415,7 +416,7 @@ function C.restExtension(tick,wellFed)
 end
 function C.packet(tick)
     local S=ns.state;local id,count=C.inventory();local ready,usable,spellID=C.itemState(id)
-    local class=S.readableCall(function()local _,key=UnitClass("player");return key end)
+    local class=ns.features.GroupContext.player("class").value
     local M=S.managedSpells;local entry=M and M.entries[class..":Feuxton Healthstone"]
     local key=M and M.current(entry) and entry.itemID==id and S.compactBindingCode(entry.key) or 0
     local function flag(v)return v==true and 2 or v==false and 1 or 0 end

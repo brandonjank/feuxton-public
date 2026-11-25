@@ -162,7 +162,7 @@ function F.track(button,spec,down)
     end
 end
 function F.delivery(spec)
-    local S=ns.state;local class=S.readableCall(function() local _,key=UnitClass("player");return key end)
+    local S=ns.state;local class=ns.features.GroupContext.player("class").value
     local e=type(class)=="string" and S.managedSpells and S.managedSpells.entries[class..":"..(spec.managedName or spec.name)]
     return S.bindingsValid and S.managedSpells.current(e) and e.unit=="target" and e.friendly and (not (spec.healing or spec.support or spec.buff) or F.receiptsAvailable) and e or nil
 end
@@ -200,7 +200,7 @@ end
 function F.refresh(now)
     local G=ns.features.GroupContext;local S=ns.state
     if type(now)~="number" then return end
-    local class=G.text(G.read(UnitClass,2,"player"),16)
+    local class=G.text(G.player("class"),16)
     if class~="PALADIN" and class~="SHAMAN" and class~="DRUID" then return end
     if F.classKey~=class then
         F.classKey=class;F.shaman=class=="SHAMAN";F.druid=class=="DRUID"
