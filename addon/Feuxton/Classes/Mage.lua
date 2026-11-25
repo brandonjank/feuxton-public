@@ -74,10 +74,11 @@ function H.initializePreview()
   B.auras(bridge,H.specs,readings)
   local packet=ns.wire.schemas.magePreview..S.bytes(S.setupSession,4)..S.bytes(tick,4)..S.bytes(level,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)..S.bytes(#H.specs,1)..S.bytes(S.bindingsValid and 2 or 0,1)
   for i,spec in ipairs(H.specs) do
-   local r=readings[i];local M=S.managedSpells;local entry
-   if spec.itemID then entry=M and M.entries["MAGE:Feuxton "..spec.name];if not (entry and entry.itemID==r.itemID and entry.id==r.id and M.current(entry)) then entry=nil end
-   elseif not spec.passive then entry=M and M.delivery("MAGE",spec.managedName or spec.name);if entry and not M.deliveryCurrent(entry) then entry=nil end end
-   local key=S.bindingsValid and entry and S.compactBindingCode(entry.key) or 0
+   local r=readings[i];local M=S.managedSpells;local key=0
+   if spec.itemID then
+    local entry=M and S.bindingsValid and M.entries["MAGE:Feuxton "..spec.name]
+    if entry and entry.itemID==r.itemID and entry.id==r.id and M.current(entry) then key=S.compactBindingCode(entry.key) end
+   elseif not spec.passive then key=M and M.deliveryCode("MAGE",spec.managedName or spec.name) or 0 end
    local flags=0;for j,value in ipairs({r.learned,r.usable,r.mana,r.range,r.ready,r.aura or {}}) do flags=flags+G.code(value)*4^(j-1) end
    local info=r.id>0 and S.readableCall(S.spellAPI.GetSpellInfo,r.id);local ms=spec.itemID and 0 or S.safeField(info,"castTime");if type(ms)~="number" or ms<0 or ms>10000 then ms=65535 end
    local absent=bridge.absence and bridge.absence[i] and GetTime()>=(bridge.settledAt or math.huge)

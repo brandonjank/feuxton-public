@@ -385,6 +385,9 @@ S.setupRevision,S.setupPage,S.setupDirty=0,0,true
 S.setupPayload,S.setupPages,S.setupError="",{},nil
 S.setupPublishedRevision,S.setupFingerprint=0,nil
 S.setupElapsed,S.setupDelay=0,0
+local clientPerformanceInterval=60
+local clientPerformanceAge=clientPerformanceInterval
+local clientPerformance
 ns.markSetupDirty=function()
     if ns.metadataBuilding then return end
     if not S.setupDirty then S.setupRevision=(S.setupRevision+1)%65536; S.setupDelay=0 end
@@ -429,7 +432,7 @@ function S.collectRealmInfo()
     end
     return realm,found
 end
-function S.collectSetup()
+function S.collectSetup(performance)
     local class=S.setupString(S.setupValue(UnitClass,2,"player"))
     local className=S.setupString(S.setupValue(UnitClass,1,"player"))
     local level=S.setupNumber(S.readableCall(UnitLevel,"player"))
@@ -683,10 +686,15 @@ function S.collectSetup()
     end
     local restInventory=ns.features.Consumables and ns.features.Consumables.restMetadata and ns.features.Consumables.restMetadata()or "null"
     local payload='{"v":1,"restInventory":'..restInventory..',"character":'..character..',"bindings":['..table.concat(bindings,",")..'],"spells":['..table.concat(knownSpells,",")..'],"talents":['..table.concat(talents,",")..'],"trees":['..table.concat(trees,",")..'],"petActions":['..table.concat(petActions,",")..'],"bookAvailable":'..S.jsonValue(bookAvailable)..',"talentAvailable":'..S.jsonValue(talentAvailable)..'}'
-    local performance=S.collectClientPerformance and S.collectClientPerformance()
-    if performance and #payload+#performance+22<=65536 then payload=payload:sub(1,-2)..',"clientPerformance":'..performance..'}'end
     local profiler=S.collectAddonProfiler and S.collectAddonProfiler()
-    if profiler and #payload+#profiler+17<=65536 then payload=payload:sub(1,-2)..',"addonProfiler":'..profiler..'}'end
+    if profiler and #profiler<=8192 then
+        -- Put the independently checked profiler object first so it becomes
+        -- available before the rest of the paged character setup.
+        local checksum=S.adler32(profiler)
+        local header=string.format("%04x%04x%04x",#profiler,math.floor(checksum/65536),checksum%65536)
+        local prefix='{"addonProfilerHeader":"'..header..'","addonProfiler":'..profiler..','
+        if #payload+#prefix-1<=65536 then payload=prefix..payload:sub(2) end
+    end
     local recruitment=ns.features.GuildRecruitment
     local realmProbe=recruitment and recruitment.realmProbe and recruitment.realmProbe()
     if realmProbe then
@@ -698,14 +706,23 @@ function S.collectSetup()
         local field=',"guildConfigurationProbe":'..S.jsonObject(configurationProbe)
         if #field<=256 and #payload+#field<=65536 then payload=payload:sub(1,-2)..field..'}'end
     end
+    if performance and #payload+#performance+21<=65536 then payload=payload:sub(1,-2)..',"clientPerformance":'..performance..'}'end
     return payload
 end
 function S.refreshSetup()
     if S.readableCall(InCombatLockdown)~=false then return end
+    if not S.setupDirty then ns.markSetupDirty() end
+    -- Fresh diagnostic clocks and FPS should not restart setup on every event.
+    -- Keep the sampled report stable while normal binding and spell scans run.
+    if clientPerformanceAge>=clientPerformanceInterval then
+        local sampled,value=pcall(S.collectClientPerformance)
+        clientPerformance=sampled and value or nil
+        clientPerformanceAge=0
+    end
     ns.metadataBuilding=true
     local ok,result=pcall(function()
         if not S.flushSpellData() then S.resolveSpells(); S.discoverBindings() end
-        return S.collectSetup()
+        return S.collectSetup(clientPerformance)
     end)
     ns.metadataBuilding=false
     if not ok or type(result)~="string" or #result>65536 then
@@ -754,7 +771,9 @@ end)
 S.metadataFrame:SetScript("OnUpdate",function(self,elapsed)
     S.setupElapsed=S.setupElapsed+elapsed
     S.setupDelay=S.setupDelay+elapsed
-    if S.setupDirty and S.setupDelay>=0.3 then S.refreshSetup() end
-    if S.setupElapsed>=math.max(0.25,S.updateInterval()*2) then S.setupElapsed=0; S.renderSetupPage() end
+    clientPerformanceAge=clientPerformanceAge+elapsed
+    local pageDue=S.setupElapsed>=math.max(0.25,S.updateInterval()*2)
+    if S.setupDirty and S.setupDelay>=0.3 or (not S.setupDirty and pageDue and clientPerformanceAge>=clientPerformanceInterval) then S.refreshSetup() end
+    if pageDue then S.setupElapsed=0; S.renderSetupPage() end
 end)
 S.renderSetupPage()

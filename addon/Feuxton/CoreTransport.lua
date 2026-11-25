@@ -22,12 +22,11 @@ function S.renderFastSetup()
     for tileIndex,tile in ipairs(S.tiles) do
         if tileIndex>10 then break end
         local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
-        local valid=S.mappingCurrent(chosen)
-        local slot=valid and chosen.slot or 0
-        local key=valid and S.setupString(chosen.key) or ""
+        local slot=chosen and chosen.slot or 0
+        local key=chosen and S.setupString(chosen.key) or ""
         if not key or #key>20 then key="" end
-        local id=S.setupNumber(S.boundSpellID(tile)) or 0
-        packet=packet..S.bytes(id,4)..S.bytes(valid and slot or 0,2)..S.bytes(valid and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(#key,1)..key..S.bytes(S.directSpellFlags(S.hunterSpecs[tileIndex].name,id,tile.known),1)..S.bytes(S.spellUseCode(S.hunterSpecs[tileIndex].key),1)
+        local id=S.setupNumber(S.boundSpellIDForMapping(tile,chosen)) or 0
+        packet=packet..S.bytes(id,4)..S.bytes(slot,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(#key,1)..key..S.bytes(S.directSpellFlags(S.hunterSpecs[tileIndex].name,id,tile.known),1)..S.bytes(S.spellUseCode(S.hunterSpecs[tileIndex].key),1)
     end
     end
     packet=packet..S.bytes(classID==1 and (S.spellUseCode("hunter.aspectHawk")+S.spellUseCode("hunter.aspectCheetah")*4+S.spellUseCode("hunter.aspectMonkey")*16) or 0,1)

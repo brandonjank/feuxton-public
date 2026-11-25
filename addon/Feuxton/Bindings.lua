@@ -99,6 +99,11 @@ function M.delivery(class,family)
     local managed=M.entries[key]
     return M.current(managed) and managed or nil
 end
+function M.deliveryCode(class,family)
+    if not S.bindingsValid then return 0 end
+    local entry=M.delivery(class,family)
+    return entry and S.compactBindingCode(entry.key) or 0
+end
 local function known(id)
     local value=S.readableCall(S.bookAPI.IsSpellKnown,id)
     if type(value)~="boolean" then value=S.readableCall(IsSpellKnown,id) end
@@ -648,9 +653,7 @@ end
 
 -- Public spell identity of the same preferred visible mapping used by the fast link.
 -- Macro-selected ranks can differ from the name-resolved spellbook rank.
-function S.boundSpellID(tile)
-    if not tile then return nil end
-    local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
+function S.boundSpellIDForMapping(tile,chosen)
     if chosen and chosen.managed then return S.setupNumber(chosen.id) end
     local button=chosen and chosen.button
     local slot=button and S.setupNumber(button.action)
@@ -660,6 +663,11 @@ function S.boundSpellID(tile)
         return S.setupNumber(chosen.spellID)
     end
     return tile.spellID
+end
+function S.boundSpellID(tile)
+    if not tile then return nil end
+    local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
+    return S.boundSpellIDForMapping(tile,chosen)
 end
 
 -- Persist only user exclusions; built-in shortcut families cannot be unblocked.

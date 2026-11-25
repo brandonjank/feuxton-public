@@ -11,8 +11,10 @@ local swiftUnleashesSeal=type(clientBuild)=="number" and clientBuild>=70938
 local holyShieldRanks={[20925]=true,[20927]=true,[20928]=true}
 local wisdomRanks={[20166]=true,[20356]=true,[20357]=true}
 local utilitySpellIDs={sealWisdom=wisdomRanks,templarsBulwark={[1311015]=true}}
+local previewSpecs={}
 -- Stop melee swings before selected-target incapacitation; recovery owns any follow-up.
 for _,spec in ipairs(paladin.specs) do
+    previewSpecs[spec.key:sub(9)]=spec
     if spec.key=="paladin.repentance" then spec.stopAttack=true end
     if spec.key=="paladin.swiftJudgement" and swiftUnleashesSeal then spec.unit="target" end
 end
@@ -464,6 +466,34 @@ function paladin.initializePreview()
     local background=panel:CreateTexture(nil,"BACKGROUND");background:SetAllPoints();background:SetColorTexture(0,0,0,1)
     initializeNative(S)
     local tick,total,weaponRetry=0,0,0
+    local mappingSource,mappingCandidates
+    local function previewBinding(spec,id)
+        local mappings=S.bindingsValid and S.setupMappings or nil
+        if mappings~=mappingSource then
+            mappingSource,mappingCandidates=mappings,mappings and {} or nil
+        end
+        if not mappings then return end
+        local candidates=mappingCandidates[spec]
+        if not candidates or candidates.id~=id then
+            -- Discovery publishes a new mapping array after refreshing delivery identities.
+            candidates={id=id}
+            for _,mapping in ipairs(mappings) do
+                if (id>0 and mapping.id==id) or (not mapping.playerOwned and mapping.name==spec.name) then
+                    candidates[#candidates+1]=mapping
+                end
+            end
+            mappingCandidates[spec]=candidates
+        end
+        local chosen
+        for _,mapping in ipairs(candidates) do
+            -- Recheck the actual action and key on every observation, including in combat.
+            if mapping.key and (not chosen or mapping.playerOwned and not chosen.playerOwned or
+                mapping.playerOwned==chosen.playerOwned and chosen.kind~="spell" and mapping.kind=="spell") and S.mappingCurrent(mapping) then
+                chosen=mapping
+            end
+        end
+        return chosen
+    end
     panel:RegisterEvent("PLAYER_LOGIN");panel:RegisterEvent("PLAYER_EQUIPMENT_CHANGED");panel:RegisterEvent("PLAYER_REGEN_ENABLED")
     for _,event in ipairs({"PLAYER_ENTERING_WORLD","PLAYER_DEAD","PLAYER_LEAVE_COMBAT","PLAYER_SWING"}) do pcall(panel.RegisterEvent,panel,event) end
     paladin.swingClockRegistered=S.readableCall(panel.IsEventRegistered,panel,"PLAYER_SWING")==true
@@ -515,16 +545,10 @@ function paladin.initializePreview()
         local records=protection and protectionKeys or retTiming and retKeys or ordinaryKeys
         for index,shortKey in ipairs(records) do
             local divineShield=shortKey=="divineShield"
-            local spec
-            for _,entry in ipairs(paladin.specs) do if entry.key=="paladin."..shortKey then spec=entry;break end end
+            local spec=previewSpecs[shortKey]
             local ok,info=pcall(api.GetSpellInfo or function() end,spec.name)
             local id=ok and group.field(info,"spellID") or {};id=id.status=="observed" and type(id.value)=="number" and id.value>0 and math.floor(id.value)==id.value and id.value or 0
-            local chosen
-            if S.bindingsValid then for _,mapping in ipairs(S.setupMappings or {}) do
-                if ((mapping.id==id and id>0) or not mapping.playerOwned and mapping.name==spec.name) and S.mappingCurrent(mapping) then
-                    if mapping.key and (not chosen or mapping.playerOwned and not chosen.playerOwned or mapping.playerOwned==chosen.playerOwned and chosen.kind~="spell" and mapping.kind=="spell") then chosen=mapping end
-                end
-            end end
+            local chosen=previewBinding(spec,id)
             local visualChosen=chosen
             local key=chosen and chosen.key or "";local keyCode=paladin.bindingCode(key)
             if keyCode==0 then chosen=nil end

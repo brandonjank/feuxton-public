@@ -109,6 +109,32 @@ function F.recipientUnit(button,spec)
     end
     return "target"
 end
+local function canAnnounceBuff(button,spec,key,unit)
+    local G=ns.features.GroupContext;local S=ns.state
+    if type(S.buffCoordinationEnabled)~="function" or not S.buffCoordinationEnabled() or S.readableCall(InCombatLockdown)~=false then return false end
+    local entry=F.delivery(spec)
+    if not entry or entry.button~=button or entry.id~=button.hhSpellID then return false end
+    local book=type(C_SpellBook)=="table" and C_SpellBook or {}
+    if G.read(book.IsSpellKnown or IsSpellKnown,1,entry.id).value~=true then return false end
+    if G.read(UnitIsUnit,1,unit,"player").value==true then return true end
+    if G.read(UnitIsPlayer,1,unit).value~=true or G.read(UnitIsConnected,1,unit).value~=true or G.read(UnitIsVisible,1,unit).value~=true or G.read(UnitAffectingCombat,1,unit).value~=false then return false end
+    local effect=ns.buffCatalog and ns.buffCatalog.byAbility[key]
+    local level=numeric(G.read(UnitLevel,1,unit))
+    for _,rank in ipairs(effect and effect.ranks or {})do
+        if rank.spellID==entry.id then
+            if rank.managedDeliveryQualified==true then return rank.recipientUnrestricted==true or level~=nil and rank.recipientMinLevel~=nil and level>=rank.recipientMinLevel end
+            if effect.providerClass=="PALADIN" and effect.slot=="paladin.blessing" and effect.variant=="single" and effect.targetKind=="living-player" then
+                -- Use the exact rank's training level as a conservative safe
+                -- floor. This does not establish the client's minimum target level.
+                local floor=rank.casterLearnLevel
+                local caster=numeric(G.read(UnitLevel,1,"player"))
+                return floor~=nil and caster~=nil and level~=nil and caster>=floor and level>=floor
+            end
+            break
+        end
+    end
+    return false
+end
 function F.track(button,spec,down)
     if not (spec.healing or spec.support or spec.buff) or down~=true or not F.receiptsAvailable then return end
     local G=ns.features.GroupContext
@@ -128,14 +154,7 @@ function F.track(button,spec,down)
                 if spec.buff and not abilityKey then for _,benefit in ipairs(F.buffSpecs())do if benefit.name==spec.name then abilityKey=benefit.key;break end end end
                 local attempt={sequence=F.sequence,revision=F.revision,index=member,unit=unit,identity=guid,name=name,id=button.hhSpellID,at=now,kind=0,buff=spec.buff==true,abilityKey=abilityKey}
                 if spec.support then F.supportAttempt=attempt else F.attempt=attempt end
-                if spec.buff and abilityKey and type(ns.state.buffPeerIntent)=="function"then
-                    local known=G.read((type(C_SpellBook)=="table"and C_SpellBook.IsSpellKnown)or IsSpellKnown,1,button.hhSpellID).value==true
-                    local legal=known and G.read(UnitIsUnit,1,unit,"player").value==true
-                    local effect=ns.buffCatalog and ns.buffCatalog.byAbility[abilityKey]
-                    local level=G.read(UnitLevel,1,unit)
-                    for _,rank in ipairs(effect and effect.ranks or {})do if rank.spellID==button.hhSpellID and rank.managedDeliveryQualified==true and (rank.recipientUnrestricted==true or rank.recipientMinLevel and level.status=="observed"and type(level.value)=="number"and level.value>=rank.recipientMinLevel)then legal=known;break end end
-                    if legal then ns.state.buffPeerIntent(abilityKey,guid)end
-                end
+                if spec.buff and abilityKey and type(ns.state.buffPeerIntent)=="function" and canAnnounceBuff(button,spec,abilityKey,unit)then ns.state.buffPeerIntent(abilityKey,guid)end
                 trace("MANAGED_CLICK",unit,guid,name,button.hhSpellID)
             end
             return
@@ -144,7 +163,7 @@ function F.track(button,spec,down)
 end
 function F.delivery(spec)
     local S=ns.state;local class=S.readableCall(function() local _,key=UnitClass("player");return key end)
-    local e=S.managedSpells and S.managedSpells.entries[class..":"..(spec.managedName or spec.name)]
+    local e=type(class)=="string" and S.managedSpells and S.managedSpells.entries[class..":"..(spec.managedName or spec.name)]
     return S.bindingsValid and S.managedSpells.current(e) and e.unit=="target" and e.friendly and (not (spec.healing or spec.support or spec.buff) or F.receiptsAvailable) and e or nil
 end
 function F.initialize()

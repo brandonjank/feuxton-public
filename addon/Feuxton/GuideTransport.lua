@@ -88,18 +88,21 @@ do
         local level=S.setupNumber(S.readableCall(UnitLevel,"player")) or 0
         if level<0 or level>100 then level=0 end
         local packet=ns.wire.schemas.guide..S.bytes(S.setupSession,4)..S.bytes(S.setupRevision,2)..S.bytes(class=="HUNTER" and 1 or 0,1)..S.bytes(level,1)..S.bytes(S.bindingsValid and 1 or 0,1)..S.bytes(11,1)..S.bytes(S.updateRateMs,2)..S.bytes(S.auraGeneration,1)
-        for tileIndex=11,21 do
+        local firstGuideSlot,lastGuideSlot=11,21
+        local boundIDs={}
+        for tileIndex=firstGuideSlot,lastGuideSlot do
             local tile=S.tiles[tileIndex]
             local chosen=S.bindingsValid and S.preferredMapping(tile.mappings)
-            local valid=S.mappingCurrent(chosen)
-            local slot=valid and chosen.slot or 0
-            local key=valid and S.setupString(chosen.key) or ""
+            local slot=chosen and chosen.slot or 0
+            local key=chosen and S.setupString(chosen.key) or ""
             if not key or #key>20 then key="" end
-            local id=S.setupNumber(S.boundSpellID(tile)) or 0
+            local bound=S.boundSpellIDForMapping(tile,chosen)
+            boundIDs[tileIndex]=bound
+            local id=S.setupNumber(bound) or 0
             local active
             if tile.known==true then active=S.readableCall(S.spellAPI.IsCurrentSpell or IsCurrentSpell,id) end
             local current=active==true and 2 or active==false and 1 or 0
-            packet=packet..S.bytes(id,4)..S.bytes(valid and slot or 0,2)..S.bytes(valid and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(#key,1)..key..S.bytes(S.directSpellFlags(S.hunterSpecs[tileIndex].name,id,tile.known,S.hunterSpecs[tileIndex].unit)+current*64,1)..S.bytes(S.spellUseCode(S.hunterSpecs[tileIndex].key),1)
+            packet=packet..S.bytes(id,4)..S.bytes(slot,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(#key,1)..key..S.bytes(S.directSpellFlags(S.hunterSpecs[tileIndex].name,id,tile.known,S.hunterSpecs[tileIndex].unit)+current*64,1)..S.bytes(S.spellUseCode(S.hunterSpecs[tileIndex].key),1)
         end
         local count=hawkCount()
         local threat=S.setupNumber(S.readableCall(UnitThreatSituation,"player","target"))
@@ -114,7 +117,11 @@ do
         local enemyCast=ns.features.Interrupts.bytes()
         packet=packet..enemyCast
         if class=="PALADIN" or class=="SHAMAN" or class=="HUNTER" then S.publishTransportPacket(ns.wire.ids.enemyCast,ns.features.Interrupts.packet(probeTick,enemyCast),true) end
-        for _,tile in ipairs(S.tiles) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(tile),tile.known),1) end
+        for tileIndex,tile in ipairs(S.tiles) do
+            local id
+            if tileIndex>=firstGuideSlot and tileIndex<=lastGuideSlot then id=boundIDs[tileIndex] else id=S.boundSpellID(tile) end
+            packet=packet..S.bytes(ns.features.CastTracking.manaFraction(id,tile.known),1)
+        end
         for _,spec in ipairs(ns.playerBuffSpecs or {}) do packet=packet..S.bytes(ns.features.CastTracking.manaFraction(S.boundSpellID(spec),spec.known),1) end
         packet=packet..S.bytes(S.adler32(packet),4)
         S.publishTransportPacket(ns.wire.ids.guide,packet)
