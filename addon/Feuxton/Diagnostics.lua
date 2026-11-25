@@ -467,6 +467,20 @@ function S.profileClock()
     if not ok or S.isSecret(value) or type(value)~="number" or value~=value or value==math.huge or value==-math.huge then return nil end
     return value
 end
+-- One bounded recorder for ordinary callbacks and externally timed scopes.
+local function recordProfile(name,elapsed)
+    local stage=S.performance.stages[name]
+    if not stage then stage={samples={},cursor=0,calls=0,totalMs=0,peakMs=0};S.performance.stages[name]=stage end
+    stage.cursor=stage.cursor%120+1;stage.samples[stage.cursor]=elapsed;stage.calls=stage.calls+1
+    stage.totalMs=(stage.totalMs or 0)+elapsed;stage.peakMs=math.max(stage.peakMs or 0,elapsed)
+end
+function S.profileElapsed(name,elapsed)
+    if not S.performance.enabled or S.isSecret(name) or type(name)~="string" or #name<1 or #name>64
+        or name:find("[^A-Za-z0-9 ()_%-]") or not name:match("^[A-Za-z]")
+        or S.isSecret(elapsed) or type(elapsed)~="number" or elapsed~=elapsed or elapsed<0 or elapsed==math.huge then return false end
+    recordProfile(name,elapsed)
+    return true
+end
 local function profileResults(...) return {n=select("#",...),...} end
 function S.profileFunction(original,name)
     return function(...)
@@ -475,10 +489,7 @@ function S.profileFunction(original,name)
         local results=profileResults(pcall(original,...))
         local finish=S.profileClock()
         if start and finish and finish>=start then
-            local stage=S.performance.stages[name]
-            if not stage then stage={samples={},cursor=0,calls=0,totalMs=0,peakMs=0};S.performance.stages[name]=stage end
-            stage.cursor=stage.cursor%120+1;stage.samples[stage.cursor]=finish-start;stage.calls=stage.calls+1
-            stage.totalMs=(stage.totalMs or 0)+finish-start;stage.peakMs=math.max(stage.peakMs or 0,finish-start)
+            recordProfile(name,finish-start)
         end
         if not results[1] then error(results[2],0) end
         return unpack(results,2,results.n)
@@ -550,6 +561,16 @@ local function completeRemoteProfile(at)
                 if left==right then return a<b end
                 return left>right
             end)
+        end
+        -- Keep the inclusive parent and its six diagnostic children together.
+        -- Other rows retain their existing cost order and the 24-row wire cap.
+        if #names>24 and stages["paladin other preview work"] then
+            local selected,seen={},{}
+            for _,name in ipairs({"paladin preview","paladin spell API reads","paladin binding validation","paladin records and checksums","paladin other preview work","paladin native render helpers","paladin aura filters"}) do
+                if stages[name] then selected[#selected+1]=name;seen[name]=true end
+            end
+            for _,name in ipairs(names) do if not seen[name] then selected[#selected+1]=name end end
+            names=selected
         end
         for _,name in ipairs(names)do
             if #rows>=24 then break end

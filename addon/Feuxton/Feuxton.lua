@@ -1,7 +1,7 @@
 -- Shared addon namespace. Keep this file first in the TOC.
 local addonName, ns = ...
 ns.addonName = addonName
-ns.version = "0.81.127"
+ns.version = "0.81.130"
 ns.state = {bridgeLabels={}}
 function ns.state.bridgeLabel(label) ns.state.bridgeLabels[#ns.state.bridgeLabels+1]=label end
 ns.classes = {}
@@ -48,35 +48,49 @@ function K.canonical(key)
     if key=="ESC" then key="ESCAPE" end
     return (mods.WIN and "WIN-" or "")..(mods.ALT and "ALT-" or "")..(mods.CTRL and "CTRL-" or "")..(mods.SHIFT and "SHIFT-" or "")..key
 end
+local shortcutModifiers={{"WIN-",8},{"ALT-",1},{"CTRL-",2},{"SHIFT-",4}}
 function K.parts(key)
     key=K.canonical(key);if not key then return nil end
     local mask=0
-    for _,mod in ipairs({{"WIN-",8},{"ALT-",1},{"CTRL-",2},{"SHIFT-",4}}) do
+    for _,mod in ipairs(shortcutModifiers) do
         if key:sub(1,#mod[1])==mod[1] then mask=mask+mod[2];key=key:sub(#mod[1]+1) end
     end
     return key,mask
 end
+local shortcutBits={1,2,4,8}
 local function contains(mask,required)
-    for _,bit in ipairs({1,2,4,8}) do if math.floor(required/bit)%2==1 and math.floor(mask/bit)%2~=1 then return false end end
+    for _,bit in ipairs(shortcutBits) do if math.floor(required/bit)%2==1 and math.floor(mask/bit)%2~=1 then return false end end
     return true
 end
 local shortcutRules={}
-for shortcut,reason in pairs(K.defaults) do local base,mask=K.parts(shortcut);shortcutRules[#shortcutRules+1]={base,mask,reason} end
-function K.builtinReason(key)
-    local base,mask=K.parts(key)
+for shortcut,reason in pairs(K.defaults) do
+    local base,mask=K.parts(shortcut)
+    local rules=shortcutRules[base]
+    if not rules then rules={};shortcutRules[base]=rules end
+    rules[#rules+1]={mask,reason}
+end
+local function builtinReason(base,mask)
     if not base then return "Invalid shortcut" end
     if mask>=8 then return "Windows shortcut" end
     -- Additional modifiers never make a known OS/global shortcut safe.
-    for _,rule in ipairs(shortcutRules) do if base==rule[1] and contains(mask,rule[2]) then return rule[3] end end
+    local rules=shortcutRules[base]
+    if rules then
+        for _,rule in ipairs(rules) do
+            if contains(mask,rule[1]) then return rule[2] end
+        end
+    end
     if base:match("^[A-Z]$") and (mask==3 or mask==5 or mask==6) then return "Two-modifier letter shortcuts reserved for other apps" end
 end
+function K.builtinReason(key) return builtinReason(K.parts(key)) end
 function K.reason(key)
-    local reason=K.builtinReason(key);if reason then return reason end
     local base,mask=K.parts(key)
+    local reason=builtinReason(base,mask);if reason then return reason end
     if type(FeuxtonDB)=="table" and type(FeuxtonDB.keyBlacklist)=="table" then
         for shortcut,blocked in pairs(FeuxtonDB.keyBlacklist) do
-            local rule,required=K.parts(shortcut)
-            if blocked and rule and base==rule and contains(mask,required) then return "User blacklist" end
+            if blocked then
+                local rule,required=K.parts(shortcut)
+                if rule and base==rule and contains(mask,required) then return "User blacklist" end
+            end
         end
     end
 end

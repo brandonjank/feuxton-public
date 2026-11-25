@@ -522,11 +522,80 @@ function paladin.initializePreview()
         if event=="PLAYER_REGEN_ENABLED" and (paladin.weaponDelayMs or 0)>0 then return end
         if group.text(group.read(UnitClass,2,"player"),16)=="PALADIN" then pcall(paladin.refreshWeapon) end
     end)
+    -- Diagnostic scopes exist only during this synchronous preview render.
+    -- OFF still calls the original helpers and does not read a profiling clock.
+    local previewProfile
+    local function timedPart(part,original,...)
+        local context=previewProfile
+        local start=S.profileClock()
+        local ok,reason=pcall(original,...)
+        local finish=S.profileClock()
+        if start and finish and finish>=start then context[part]=context[part]+finish-start
+        else context.valid=false end
+        if not ok then error(reason,0) end
+    end
+    -- Preserve return arity and native scalars on the Lua stack only. No
+    -- raw API result is inspected, put in a table or retained by diagnostics.
+    local function finishValues(part,start,...)
+        local context=previewProfile;local finish=S.profileClock()
+        if start and finish and finish>=start then context[part]=context[part]+finish-start
+        else context.valid=false end
+        return ...
+    end
+    local function timedValues(part,original,...)
+        local start=S.profileClock()
+        return finishValues(part,start,original(...))
+    end
+    local function valueScope(part,original)
+        if type(original)~="function" then return original end
+        return function(...)return timedValues(part,original,...)end
+    end
+    local function timedNative(...)timedPart("native",renderNative,...)end
+    local function timedMana(...)timedPart("native",ns.features.SpellBridge.renderManaCost,...)end
+    local function timedHeal(...)timedPart("native",paladin.renderHealWindows,...)end
+    local function timedRGB(...)timedPart("native",paintRGB,...)end
+    local function timedAuras(...)timedPart("auras",refreshNativeAuras,...)end
+    local function bindingSelection(spec,id)
+        local chosen=previewBinding(spec,id)
+        local visualChosen=chosen
+        local key=chosen and chosen.key or "";local keyCode=paladin.bindingCode(key)
+        if keyCode==0 then chosen=nil end
+        return chosen,visualChosen,keyCode
+    end
+    local function encodeRecord(bound,chosen,keyCode,flags)
+        return S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
+    end
     local function render()
         if group.text(group.player("class"),16)~="PALADIN" then S.publishTransportPacket(ns.wire.ids.paladinPreview,nil);S.paladinNativePanel:Hide();return end
+        if previewProfile then previewProfile.active=true end
+        local drawNative=previewProfile and timedNative or renderNative
+        local drawMana=previewProfile and timedMana or ns.features.SpellBridge.renderManaCost
+        local drawHeal=previewProfile and timedHeal or paladin.renderHealWindows
+        local drawRGB=previewProfile and timedRGB or paintRGB
+        local updateAuras=previewProfile and timedAuras or refreshNativeAuras
         S.paladinNativePanel:Show()
         if GetTime()>=weaponRetry and (paladin.weaponDelayMs or 0)==0 and S.readableCall(InCombatLockdown)==false then paladin.refreshWeapon();weaponRetry=GetTime()+1 end
         local api=type(C_Spell)=="table" and C_Spell or {};local book=type(C_SpellBook)=="table" and C_SpellBook or {}
+        -- Profiling OFF only selects existing function references. The ON
+        -- closures capture functions, never observations or restricted scalars.
+        local readInfo=api.GetSpellInfo;local readKnown=book.IsSpellKnown or IsSpellKnown
+        local readCooldown=api.GetSpellCooldown
+        local readUsability=ns.features.RangeTracking.readUsability
+        local readRange=ns.features.RangeTracking.observeRange
+        local chooseBinding=bindingSelection;local validateKey=paladin.bindingCode
+        local currentMapping=S.mappingCurrent
+        local currentManaged=S.managedSpells and S.managedSpells.current
+        local threatBinding=ns.features.Threat.readyBinding
+        local encodeAbility=encodeRecord;local encodeChecksum=S.adler32
+        if previewProfile then
+            readInfo=valueScope("reads",readInfo);readKnown=valueScope("reads",readKnown)
+            readCooldown=valueScope("reads",readCooldown)
+            readUsability=valueScope("reads",readUsability);readRange=valueScope("reads",readRange)
+            chooseBinding=valueScope("binding",chooseBinding);validateKey=valueScope("binding",validateKey)
+            currentMapping=valueScope("binding",currentMapping);currentManaged=valueScope("binding",currentManaged)
+            threatBinding=valueScope("binding",threatBinding)
+            encodeAbility=valueScope("encoding",encodeAbility);encodeChecksum=valueScope("encoding",encodeChecksum)
+        end
         tick=(tick+1)%4294967296
         local level=group.player("level");level=level.status=="observed" and type(level.value)=="number" and level.value>=1 and level.value<=100 and math.floor(level.value)==level.value and level.value or 0
         local swiftMode=swiftUnleashesSeal and 4 or 0
@@ -566,28 +635,25 @@ function paladin.initializePreview()
         for index,shortKey in ipairs(records) do
             local divineShield=shortKey=="divineShield"
             local spec=previewSpecs[shortKey]
-            local ok,info=pcall(api.GetSpellInfo or function() end,spec.name)
+            local ok,info=pcall(readInfo or function() end,spec.name)
             local id=ok and group.field(info,"spellID") or {};id=id.status=="observed" and type(id.value)=="number" and id.value>0 and math.floor(id.value)==id.value and id.value or 0
-            local chosen=previewBinding(spec,id)
-            local visualChosen=chosen
-            local key=chosen and chosen.key or "";local keyCode=paladin.bindingCode(key)
-            if keyCode==0 then chosen=nil end
+            local chosen,visualChosen,keyCode=chooseBinding(spec,id)
             local bound=chosen and chosen.id or id;bound=type(bound)=="number" and bound>0 and bound==math.floor(bound) and bound or 0
             if divineShield and bound>=2147483648 then bound=0;chosen=nil;visualChosen=nil;keyCode=0 end
-            local learned=bound>0 and group.read(book.IsSpellKnown or IsSpellKnown,1,bound) or {}
+            local learned=bound>0 and group.read(readKnown,1,bound) or {}
             local utilityIndex=utilitySlots[shortKey]
             local isLearned=learned.status=="observed" and learned.value==true
             if not utilityIndex or isLearned and utilitySpellIDs[shortKey][bound] then
             local usable,mana,usableRead,usableRaw,manaRaw,usableSource
-            if bound>0 then usable,mana,usableRead,usableRaw,manaRaw,usableSource=ns.features.RangeTracking.readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
+            if bound>0 then usable,mana,usableRead,usableRaw,manaRaw,usableSource=readUsability(api.IsSpellUsable or IsUsableSpell,bound) end
             local range,rangeRead,rangeRaw;local rangeSource=api.IsSpellInRange
-            if bound>0 and not divineShield then range,rangeRead,rangeRaw=ns.features.RangeTracking.observeRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
+            if bound>0 and not divineShield then range,rangeRead,rangeRaw=readRange(rangeSource or IsSpellInRange,rangeSource and bound or spec.name,"target") end
             local readyCode=0
             -- The readable API includes the global cooldown. Off-GCD abilities
             -- leave this field unknown and use the native ignore-GCD widget,
             -- otherwise an unrelated GCD would override their own readiness.
             if bound>0 and not spec.offGlobalCooldown and type(api.GetSpellCooldown)=="function" then
-                local cdOK,cd=pcall(api.GetSpellCooldown,bound)
+                local cdOK,cd=pcall(readCooldown,bound)
                 if cdOK then
                     local start,duration,enabled=group.field(cd,"startTime"),group.field(cd,"duration"),group.field(cd,"isEnabled")
                     if start.status=="observed" and duration.status=="observed" and type(start.value)=="number" and type(duration.value)=="number" and enabled.status=="observed" and enabled.value==true then
@@ -597,7 +663,7 @@ function paladin.initializePreview()
             end
             local auraCode=auras[spec.name] and 2 or complete and 1 or 0
             local flags=group.code(learned)+4*group.code(usable)+16*group.code(mana)+64*group.code(range)+256*readyCode+1024*auraCode
-            local record=S.bytes(bound,4)..S.bytes(chosen and chosen.slot or 0,2)..S.bytes(chosen and (chosen.kind=="spell" and 1 or 2) or 0,1)..S.bytes(keyCode,2)..S.bytes(flags,2)
+            local record=encodeAbility(bound,chosen,keyCode,flags)
             local extension=index-baseSlots
             if extension>0 and not protection then extension=2 end -- Reuse the Hammer tile's calibration.
             if divineShield then
@@ -607,12 +673,12 @@ function paladin.initializePreview()
                 if shortKey=="sealWisdom" then wisdomID=bound else bulwarkID=bound end
             elseif extension>0 then protectionRecords[extension]=record else packet=packet..record end
             local tile=divineShield and paladin.divineShieldTile or utilityIndex and paladin.utilityTiles[utilityIndex] or extension>0 and paladin.protectionTiles[extension] or paladin.nativeTiles[index]
-            renderNative(tile,bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
+            drawNative(tile,bound,learned,visualChosen,ok and not S.isSecret(info) and info or nil,S,rangeRead,rangeRaw,usableRead,usableRaw,manaRaw,rangeSource,usableSource)
             if retClocks and isLearned and (shortKey=="judgement" or shortKey=="holyStrike" or shortKey=="hammerWrath") then retClocks[#retClocks+1]=bound end
             if not divineShield and not utilityIndex and extension==2 and not protection and not isLearned then protectionRecords[2]=nil end
             if tile.manaCost then
                 local freeIfNoCostRecord=shortKey=="swiftJudgement" and bound==1310994 and bound==id
-                ns.features.SpellBridge.renderManaCost(tile.manaCost,bound,isLearned,freeIfNoCostRecord)
+                drawMana(tile.manaCost,bound,isLearned,freeIfNoCostRecord)
             end
             paladin.verifiedAuraIDs=paladin.verifiedAuraIDs or {}
             local family=spec.key..":"..bound
@@ -635,7 +701,7 @@ function paladin.initializePreview()
         if protection then nativeReadings[20]=paladin.protectionShield end
         local movement=group.read(GetUnitSpeed,1,"player");movement=movement.status=="observed" and type(movement.value)=="number" and {status="observed",value=movement.value>0} or {}
         packet=packet..S.bytes(group.code(movement),1)..S.bytes(group.code(group.player("combat")),1)..S.bytes(group.code(group.player("mounted")),1)..S.bytes(group.code(group.player("taxi")),1)
-        refreshNativeAuras(nativeReadings,wisdomID,bulwarkID,S)
+        updateAuras(nativeReadings,wisdomID,bulwarkID,S)
         local auraMask=GetTime()>=(paladin.auraSettledAt or math.huge) and (paladin.auraMask or 0) or 0
         -- The source marker proves that this frame owns a settled Shield filter.
         -- A blue/hidden/occluded cell is unknown, never inferred protection.
@@ -658,28 +724,28 @@ function paladin.initializePreview()
             elseif kind.status=="observed" and type(kind.value)=="string" and kind.value~="" then dungeon={status="observed",value=kind.value=="party"} end
         end
         packet=packet..S.bytes(group.code(dungeon),1)
-        local healInfo=group.read(function() return api.GetSpellInfo(nativeReadings[6].bound).castTime end,1)
+        local healInfo=group.read(function() return readInfo(nativeReadings[6].bound).castTime end,1)
         local healMs=healInfo.status=="observed" and type(healInfo.value)=="number" and healInfo.value>0 and healInfo.value<=10000 and math.floor(healInfo.value)==healInfo.value and healInfo.value or 0
-        paladin.renderHealWindows(nativeReadings,healMs,S)
+        drawHeal(nativeReadings,healMs,S)
         local cancel=S.managedSpells and S.managedSpells.entries["PALADIN:Feuxton Remove Fury"]
-        local cancelKey=S.bindingsValid and S.managedSpells.current(cancel) and paladin.bindingCode(cancel.key) or 0
+        local cancelKey=S.bindingsValid and currentManaged(cancel) and validateKey(cancel.key) or 0
         packet=packet..S.bytes(healMs,2)..S.bytes(cancelKey,2)
         local attackKey=0
         if S.bindingsValid then for _,mapping in ipairs(S.setupMappings or {}) do
-            if mapping.id==6603 and mapping.startAttack and S.mappingCurrent(mapping) then attackKey=paladin.bindingCode(mapping.key);break end
+            if mapping.id==6603 and mapping.startAttack and currentMapping(mapping) then attackKey=validateKey(mapping.key);break end
         end end
         local attacking=group.read(api.IsCurrentSpell or IsCurrentSpell,1,6603)
         if attacking.status~="observed" and type(S.meleeActive)=="boolean" then attacking={status="observed",value=S.meleeActive} end
         packet=packet..S.bytes(group.code(attacking),1)..S.bytes(attackKey,2)..S.bytes(S.spellUseCode("paladin.autoAttack"),1)
         local stopEntry=S.managedSpells and S.managedSpells.entries["PALADIN:Feuxton Stop Casting"]
-        local stopKey=S.bindingsValid and S.managedSpells.current(stopEntry) and paladin.bindingCode(stopEntry.key) or 0
+        local stopKey=S.bindingsValid and currentManaged(stopEntry) and validateKey(stopEntry.key) or 0
         packet=packet..S.bytes(stopKey,2)
-        packet=packet..S.bytes(paladin.bindingCode(ns.features.Threat.readyBinding()),2)
+        packet=packet..S.bytes(validateKey(threatBinding()),2)
         packet=packet..S.bytes(wrathStacks or 255,1)
         local creature=S.readableCall(UnitCreatureType,"target")
         packet=packet..S.bytes(creature=="Undead" and 2 or creature=="Demon" and 3 or type(creature)=="string" and 1 or 0,1)
         packet=packet..S.bytes(S.spellUseCode("paladin.blessingProtection"),1)..S.bytes(math.floor(auraMask/65536)%2+2*(math.floor(absenceMask/65536)%2),1)
-        local flashInfo=group.read(function() return api.GetSpellInfo(nativeReadings[18].bound).castTime end,1)
+        local flashInfo=group.read(function() return readInfo(nativeReadings[18].bound).castTime end,1)
         local flashMs=flashInfo.status=="observed" and type(flashInfo.value)=="number" and flashInfo.value>0 and flashInfo.value<=10000 and math.floor(flashInfo.value)==flashInfo.value and flashInfo.value or 0
         packet=packet..S.bytes(S.spellUseCode("paladin.flashLight"),1)..S.bytes(flashMs,2)
         local targetLevel=S.readableCall(UnitLevel,"target")
@@ -714,19 +780,19 @@ function paladin.initializePreview()
             if bulwarkID and paladin.bulwarkRecoveryProof and paladin.bulwarkRecoveryProof(S,group,bulwarkID) then utilityFlags=utilityFlags+64 end
             packet=packet..S.bytes(utilityFlags,1)
         end
-        local checksum=S.adler32(packet)
+        local checksum=encodeChecksum(packet)
         local activeID,activeKind=ns.features.CastTracking.activityIdentity()
         local active=S.bytes(activeID,4)..S.bytes(activeKind,1)
         -- Associate public RGB identity with this exact checksummed class frame.
-        active=active..S.bytes(S.adler32(active..S.bytes(checksum,4)),4)
-        paintRGB(paladin.castIdentityCells,active)
+        active=active..S.bytes(encodeChecksum(active..S.bytes(checksum,4)),4)
+        drawRGB(paladin.castIdentityCells,active)
         -- An optional record in unused pixels preserves existing HHPD framing.
         -- Only the record attached to this packet's checksum can own the tile.
         if divineShieldRecord then
             local shield=string.char(1)..divineShieldRecord..S.bytes(S.spellUseCode("paladin.divineShield"),1)
-            paintRGB(paladin.divineShieldCells,shield..S.bytes(S.adler32(shield..S.bytes(checksum,4)),4)..string.char(0))
+            drawRGB(paladin.divineShieldCells,shield..S.bytes(encodeChecksum(shield..S.bytes(checksum,4)),4)..string.char(0))
         elseif paladin.divineShieldPainted then
-            paintRGB(paladin.divineShieldCells,string.rep(string.char(0),18))
+            drawRGB(paladin.divineShieldCells,string.rep(string.char(0),18))
         end
         paladin.divineShieldPainted=divineShieldRecord~=nil
         for i,dot in ipairs(paladin.nativeStamp) do local value=math.floor(checksum/256^(i-1))%256/255;dot:SetColorTexture(value,value,value,1) end
@@ -734,9 +800,29 @@ function paladin.initializePreview()
         S.publishTransportPacket(ns.wire.ids.paladinPreview,packet)
         if (retClocks or paladin.combatAuraPage) and ns.setPaladinCombatSignalPage then ns.setPaladinCombatSignalPage(paladin.combatAuraPage,retClocks) end
     end
+    local function renderProfiled()
+        local start=S.profileClock()
+        if not start then return render() end
+        local context={native=0,auras=0,reads=0,binding=0,encoding=0,valid=true};previewProfile=context
+        local ok,reason=pcall(render)
+        previewProfile=nil
+        local finish=S.profileClock()
+        if ok and context.active and context.valid and finish and finish>=start then
+            local residual=finish-start-context.native-context.auras-context.reads-context.binding-context.encoding
+            if residual>=0 then
+                S.profileElapsed("paladin spell API reads",context.reads)
+                S.profileElapsed("paladin binding validation",context.binding)
+                S.profileElapsed("paladin records and checksums",context.encoding)
+                S.profileElapsed("paladin other preview work",residual)
+                S.profileElapsed("paladin native render helpers",context.native)
+                S.profileElapsed("paladin aura filters",context.auras)
+            end
+        end
+        if not ok then error(reason,0) end
+    end
     panel:SetScript("OnUpdate",function(self,elapsed)
         total=total+elapsed;if total<S.updateInterval() then return end;total=0
-        local ok,err=pcall(render);paladin.lastPreviewError=not ok and S.describe(err) or nil
+        local ok,err=pcall(S.performance.enabled and renderProfiled or render);paladin.lastPreviewError=not ok and S.describe(err) or nil
         if not ok then S.publishTransportPacket(ns.wire.ids.paladinPreview,nil);S.paladinNativePanel:Hide() end
     end)
     S.profileScript(panel,"OnUpdate","paladin preview")
