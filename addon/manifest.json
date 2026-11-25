@@ -1,9 +1,9 @@
 {
     "schemaVersion":  1,
-    "addonVersion":  "0.81.127",
+    "addonVersion":  "0.81.130",
     "interfaceVersion":  16001,
     "contract":  "feuxton-dense-v74",
-    "sourceRevision":  "fb31f48824050b6a1cf729ee0e9e471a4753a6a3",
+    "sourceRevision":  "2b1e9eecb59011d13ca89ceb102b3fe4e10149e1",
     "files":  [
                   {
                       "path":  "Activity.lua",
@@ -32,8 +32,8 @@
                   },
                   {
                       "path":  "Classes/Paladin.lua",
-                      "sha256":  "A1E40974B79A04DFA8D6400FB8D66F932D6CC0B13144C524546182D39228B643",
-                      "size":  54065
+                      "sha256":  "E7DC94D32383C1068FCCD2E4DE8092FDEFDDFBD269AAAF357CDEA381A945415D",
+                      "size":  58974
                   },
                   {
                       "path":  "Classes/Priest.lua",
@@ -67,8 +67,8 @@
                   },
                   {
                       "path":  "Diagnostics.lua",
-                      "sha256":  "5AEBF976F16F1DD8172D5AEBEADFD31134D5CE521817C09448E4F7D0552DDD82",
-                      "size":  39769
+                      "sha256":  "6453E3B5E293B354A46406AC0A54C781D8632E44F51386FFB7D5639AC3541440",
+                      "size":  41044
                   },
                   {
                       "path":  "Features/Bandages.lua",
@@ -192,12 +192,12 @@
                   },
                   {
                       "path":  "Feuxton.lua",
-                      "sha256":  "911ADEEC5D31638FEA3DBC7DE70AAA7C18D1CCB347B662DA36CDE2F4B2FE6541",
-                      "size":  5394
+                      "sha256":  "35718CF0BBB3AE6D846F3FA21EA5143577EFD9F49585AB9498E2931587ADAFE5",
+                      "size":  5716
                   },
                   {
                       "path":  "Feuxton.toc",
-                      "sha256":  "5B5C74A75D26E81023C9950B3E2DC898D9B18DD646C78FF5D7271316D5764082",
+                      "sha256":  "27DBACF01B3E20AFE087932D2E5325CDA9DA7C3606FE8756A03F3BCB8729EF44",
                       "size":  1298
                   },
                   {
